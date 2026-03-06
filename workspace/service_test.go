@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"forge.lthn.ai/core/go-crypt/crypt/openpgp"
-	core "forge.lthn.ai/core/go/pkg/framework/core"
+	core "forge.lthn.ai/core/go/pkg/core"
 	"github.com/stretchr/testify/assert"
 )
 

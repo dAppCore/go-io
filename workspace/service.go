@@ -8,7 +8,7 @@ import (
 	"sync"
 
 	coreerr "forge.lthn.ai/core/go-log"
-	core "forge.lthn.ai/core/go/pkg/framework/core"
+	core "forge.lthn.ai/core/go/pkg/core"
 	"forge.lthn.ai/core/go-io"
 )
 
