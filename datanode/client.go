@@ -18,7 +18,7 @@ import (
 	"time"
 
 	coreerr "forge.lthn.ai/core/go-log"
-	"github.com/Snider/Borg/pkg/datanode"
+	"forge.lthn.ai/Snider/Borg/pkg/datanode"
 )
 
 // Medium is an in-memory storage backend backed by a Borg DataNode.

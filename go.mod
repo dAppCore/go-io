@@ -3,8 +3,8 @@ module forge.lthn.ai/core/go-io
 go 1.26.0
 
 require (
+	forge.lthn.ai/Snider/Borg v0.3.1
 	forge.lthn.ai/core/go-log v0.0.1
-	github.com/Snider/Borg v0.2.0
 	github.com/aws/aws-sdk-go-v2 v1.41.3
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.96.4
 	github.com/stretchr/testify v1.11.1
@@ -30,7 +30,7 @@ require (
 	github.com/ncruces/go-strftime v1.0.0 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
-	golang.org/x/exp v0.0.0-20251023183803-a4bb9ffd2546 // indirect
+	golang.org/x/exp v0.0.0-20260212183809-81e46e3db34a // indirect
 	golang.org/x/sys v0.41.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	modernc.org/libc v1.67.6 // indirect
