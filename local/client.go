@@ -255,8 +255,8 @@ func (m *Medium) Delete(p string) error {
 	if err != nil {
 		return err
 	}
-	if len(full) < 3 {
-		return nil
+	if full == "/" || full == os.Getenv("HOME") {
+		return fmt.Errorf("refusing to delete protected path: %s", full)
 	}
 	return os.Remove(full)
 }
@@ -267,8 +267,8 @@ func (m *Medium) DeleteAll(p string) error {
 	if err != nil {
 		return err
 	}
-	if len(full) < 3 {
-		return nil
+	if full == "/" || full == os.Getenv("HOME") {
+		return fmt.Errorf("refusing to delete protected path: %s", full)
 	}
 	return os.RemoveAll(full)
 }

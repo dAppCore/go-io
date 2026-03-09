@@ -111,7 +111,7 @@ func init() {
 	var err error
 	Local, err = local.New("/")
 	if err != nil {
-		panic("io: failed to initialize Local medium: " + err.Error())
+		coreerr.Warn("io: failed to initialize Local medium, io.Local will be nil", "error", err)
 	}
 }
 
