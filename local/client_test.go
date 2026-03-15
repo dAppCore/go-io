@@ -29,7 +29,7 @@ func TestPath(t *testing.T) {
 	// Empty returns root
 	assert.Equal(t, "/home/user", m.path(""))
 
-	// Traversal attempts get sanitized
+	// Traversal attempts get sanitised
 	assert.Equal(t, "/home/user/file.txt", m.path("../file.txt"))
 	assert.Equal(t, "/home/user/file.txt", m.path("dir/../file.txt"))
 
@@ -279,7 +279,7 @@ func TestRename_Good(t *testing.T) {
 	assert.Equal(t, "content", content)
 }
 
-func TestRename_Traversal_Sanitized(t *testing.T) {
+func TestRename_Traversal_Sanitised(t *testing.T) {
 	testRoot, err := os.MkdirTemp("", "local_rename_traversal_test")
 	assert.NoError(t, err)
 	defer func() { _ = os.RemoveAll(testRoot) }()
@@ -290,7 +290,7 @@ func TestRename_Traversal_Sanitized(t *testing.T) {
 	err = medium.Write("file.txt", "content")
 	assert.NoError(t, err)
 
-	// Traversal attempts are sanitized (.. becomes .), so this renames to "./escaped.txt"
+	// Traversal attempts are sanitised (.. becomes .), so this renames to "./escaped.txt"
 	// which is just "escaped.txt" in the root
 	err = medium.Rename("file.txt", "../escaped.txt")
 	assert.NoError(t, err)
@@ -456,7 +456,7 @@ func TestValidatePath_Security(t *testing.T) {
 
 	// Test 1: Simple traversal
 	_, err = m.validatePath("../outside.txt")
-	assert.NoError(t, err) // path() sanitizes to root, so this shouldn't escape
+	assert.NoError(t, err) // path() sanitises to root, so this shouldn't escape
 
 	// Test 2: Symlink escape
 	// Create a symlink inside the sandbox pointing outside

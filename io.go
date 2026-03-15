@@ -102,7 +102,7 @@ func (de DirEntry) IsDir() bool                { return de.isDir }
 func (de DirEntry) Type() fs.FileMode          { return de.mode.Type() }
 func (de DirEntry) Info() (fs.FileInfo, error) { return de.info, nil }
 
-// Local is a pre-initialized medium for the local filesystem.
+// Local is a pre-initialised medium for the local filesystem.
 // It uses "/" as root, providing unsandboxed access to the filesystem.
 // For sandboxed access, use NewSandboxed with a specific root path.
 var Local Medium
@@ -111,7 +111,7 @@ func init() {
 	var err error
 	Local, err = local.New("/")
 	if err != nil {
-		coreerr.Warn("io: failed to initialize Local medium, io.Local will be nil", "error", err)
+		coreerr.Warn("io: failed to initialise Local medium, io.Local will be nil", "error", err)
 	}
 }
 

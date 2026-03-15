@@ -251,8 +251,8 @@ func TestCopy_Bad(t *testing.T) {
 // --- Local Global Tests ---
 
 func TestLocalGlobal_Good(t *testing.T) {
-	// io.Local should be initialized by init()
-	assert.NotNil(t, Local, "io.Local should be initialized")
+	// io.Local should be initialised by init()
+	assert.NotNil(t, Local, "io.Local should be initialised")
 
 	// Should be able to use it as a Medium
 	var m = Local

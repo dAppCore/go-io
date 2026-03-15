@@ -1,0 +1,17 @@
+Warning: Skipping extension in /Users/snider/Code/host-uk/core-agent/google/gemini-cli: Configuration file not found at /Users/snider/Code/host-uk/core-agent/google/gemini-cli/gemini-extension.json
+YOLO mode is enabled. All tool calls will be automatically approved.
+Loaded cached credentials.
+Warning: Skipping extension in /Users/snider/Code/host-uk/core-agent/google/gemini-cli: Configuration file not found at /Users/snider/Code/host-uk/core-agent/google/gemini-cli/gemini-extension.json
+YOLO mode is enabled. All tool calls will be automatically approved.
+Session cleanup disabled: Either maxAge or maxCount must be specified
+[ERROR] [IDEClient] Failed to connect to IDE companion extension. Please ensure the extension is running. To install the extension, run /ide install.
+Loading extension: gemini-cli-jules
+Server 'julesServer' supports tool updates. Listening for changes...
+Server 'MCP_DOCKER' supports tool updates. Listening for changes...
+Server 'MCP_DOCKER' supports resource updates. Listening for changes...
+Server 'MCP_DOCKER' supports prompt updates. Listening for changes...
+🔔 Received prompt update notification from 'MCP_DOCKER'
+🔔 Received tool update notification from 'MCP_DOCKER'
+[MCP info] Prompts updated for server: MCP_DOCKER undefined
+Tools changed, updating Gemini context...
+[MCP info] Tools updated for server: MCP_DOCKER undefined

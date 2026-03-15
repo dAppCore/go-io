@@ -23,7 +23,7 @@ import (
 func TestNew_Good(t *testing.T) {
 	n := New()
 	require.NotNil(t, n, "New() must not return nil")
-	assert.NotNil(t, n.files, "New() must initialize the files map")
+	assert.NotNil(t, n.files, "New() must initialise the files map")
 }
 
 // ---------------------------------------------------------------------------

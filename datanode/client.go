@@ -82,7 +82,7 @@ func (m *Medium) DataNode() *datanode.DataNode {
 	return m.dn
 }
 
-// clean normalizes a path: strips leading slash, cleans traversal.
+// clean normalises a path: strips leading slash, cleans traversal.
 func clean(p string) string {
 	p = strings.TrimPrefix(p, "/")
 	p = path.Clean(p)

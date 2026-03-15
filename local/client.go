@@ -34,7 +34,7 @@ func New(root string) (*Medium, error) {
 	return &Medium{root: abs}, nil
 }
 
-// path sanitizes and returns the full path.
+// path sanitises and returns the full path.
 // Absolute paths are sandboxed under root (unless root is "/").
 func (m *Medium) path(p string) string {
 	if p == "" {

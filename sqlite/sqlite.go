@@ -80,7 +80,7 @@ func (m *Medium) Close() error {
 	return nil
 }
 
-// cleanPath normalizes a path for consistent storage.
+// cleanPath normalises a path for consistent storage.
 // Uses a leading "/" before Clean to sandbox traversal attempts.
 func cleanPath(p string) string {
 	clean := path.Clean("/" + p)
