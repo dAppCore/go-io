@@ -1,13 +1,14 @@
 package store
 
 import (
-	"fmt"
 	goio "io"
 	"io/fs"
 	"os"
 	"path"
 	"strings"
 	"time"
+
+	coreerr "forge.lthn.ai/core/go-log"
 )
 
 // Medium wraps a Store to satisfy the io.Medium interface.
@@ -61,7 +62,7 @@ func splitPath(p string) (group, key string) {
 func (m *Medium) Read(p string) (string, error) {
 	group, key := splitPath(p)
 	if key == "" {
-		return "", fmt.Errorf("store.Read: path must include group/key: %w", os.ErrInvalid)
+		return "", coreerr.E("store.Read", "path must include group/key", os.ErrInvalid)
 	}
 	return m.s.Get(group, key)
 }
@@ -70,7 +71,7 @@ func (m *Medium) Read(p string) (string, error) {
 func (m *Medium) Write(p, content string) error {
 	group, key := splitPath(p)
 	if key == "" {
-		return fmt.Errorf("store.Write: path must include group/key: %w", os.ErrInvalid)
+		return coreerr.E("store.Write", "path must include group/key", os.ErrInvalid)
 	}
 	return m.s.Set(group, key, content)
 }
@@ -104,7 +105,7 @@ func (m *Medium) FileSet(p, content string) error {
 func (m *Medium) Delete(p string) error {
 	group, key := splitPath(p)
 	if group == "" {
-		return fmt.Errorf("store.Delete: path is required: %w", os.ErrInvalid)
+		return coreerr.E("store.Delete", "path is required", os.ErrInvalid)
 	}
 	if key == "" {
 		n, err := m.s.Count(group)
@@ -112,7 +113,7 @@ func (m *Medium) Delete(p string) error {
 			return err
 		}
 		if n > 0 {
-			return fmt.Errorf("store.Delete: group not empty: %s: %w", group, os.ErrExist)
+			return coreerr.E("store.Delete", "group not empty: "+group, os.ErrExist)
 		}
 		return nil
 	}
@@ -123,7 +124,7 @@ func (m *Medium) Delete(p string) error {
 func (m *Medium) DeleteAll(p string) error {
 	group, key := splitPath(p)
 	if group == "" {
-		return fmt.Errorf("store.DeleteAll: path is required: %w", os.ErrInvalid)
+		return coreerr.E("store.DeleteAll", "path is required", os.ErrInvalid)
 	}
 	if key == "" {
 		return m.s.DeleteGroup(group)
@@ -136,7 +137,7 @@ func (m *Medium) Rename(oldPath, newPath string) error {
 	og, ok := splitPath(oldPath)
 	ng, nk := splitPath(newPath)
 	if ok == "" || nk == "" {
-		return fmt.Errorf("store.Rename: both paths must include group/key: %w", os.ErrInvalid)
+		return coreerr.E("store.Rename", "both paths must include group/key", os.ErrInvalid)
 	}
 	val, err := m.s.Get(og, ok)
 	if err != nil {
@@ -156,7 +157,7 @@ func (m *Medium) List(p string) ([]fs.DirEntry, error) {
 	if group == "" {
 		rows, err := m.s.db.Query("SELECT DISTINCT grp FROM kv ORDER BY grp")
 		if err != nil {
-			return nil, fmt.Errorf("store.List: %w", err)
+			return nil, coreerr.E("store.List", "query groups", err)
 		}
 		defer rows.Close()
 
@@ -164,7 +165,7 @@ func (m *Medium) List(p string) ([]fs.DirEntry, error) {
 		for rows.Next() {
 			var g string
 			if err := rows.Scan(&g); err != nil {
-				return nil, fmt.Errorf("store.List: scan: %w", err)
+				return nil, coreerr.E("store.List", "scan", err)
 			}
 			entries = append(entries, &kvDirEntry{name: g, isDir: true})
 		}
@@ -190,7 +191,7 @@ func (m *Medium) List(p string) ([]fs.DirEntry, error) {
 func (m *Medium) Stat(p string) (fs.FileInfo, error) {
 	group, key := splitPath(p)
 	if group == "" {
-		return nil, fmt.Errorf("store.Stat: path is required: %w", os.ErrInvalid)
+		return nil, coreerr.E("store.Stat", "path is required", os.ErrInvalid)
 	}
 	if key == "" {
 		n, err := m.s.Count(group)
@@ -198,7 +199,7 @@ func (m *Medium) Stat(p string) (fs.FileInfo, error) {
 			return nil, err
 		}
 		if n == 0 {
-			return nil, fmt.Errorf("store.Stat: group not found: %s: %w", group, os.ErrNotExist)
+			return nil, coreerr.E("store.Stat", "group not found: "+group, os.ErrNotExist)
 		}
 		return &kvFileInfo{name: group, isDir: true}, nil
 	}
@@ -213,7 +214,7 @@ func (m *Medium) Stat(p string) (fs.FileInfo, error) {
 func (m *Medium) Open(p string) (fs.File, error) {
 	group, key := splitPath(p)
 	if key == "" {
-		return nil, fmt.Errorf("store.Open: path must include group/key: %w", os.ErrInvalid)
+		return nil, coreerr.E("store.Open", "path must include group/key", os.ErrInvalid)
 	}
 	val, err := m.s.Get(group, key)
 	if err != nil {
@@ -226,7 +227,7 @@ func (m *Medium) Open(p string) (fs.File, error) {
 func (m *Medium) Create(p string) (goio.WriteCloser, error) {
 	group, key := splitPath(p)
 	if key == "" {
-		return nil, fmt.Errorf("store.Create: path must include group/key: %w", os.ErrInvalid)
+		return nil, coreerr.E("store.Create", "path must include group/key", os.ErrInvalid)
 	}
 	return &kvWriteCloser{s: m.s, group: group, key: key}, nil
 }
@@ -235,7 +236,7 @@ func (m *Medium) Create(p string) (goio.WriteCloser, error) {
 func (m *Medium) Append(p string) (goio.WriteCloser, error) {
 	group, key := splitPath(p)
 	if key == "" {
-		return nil, fmt.Errorf("store.Append: path must include group/key: %w", os.ErrInvalid)
+		return nil, coreerr.E("store.Append", "path must include group/key", os.ErrInvalid)
 	}
 	existing, _ := m.s.Get(group, key)
 	return &kvWriteCloser{s: m.s, group: group, key: key, data: []byte(existing)}, nil
@@ -245,7 +246,7 @@ func (m *Medium) Append(p string) (goio.WriteCloser, error) {
 func (m *Medium) ReadStream(p string) (goio.ReadCloser, error) {
 	group, key := splitPath(p)
 	if key == "" {
-		return nil, fmt.Errorf("store.ReadStream: path must include group/key: %w", os.ErrInvalid)
+		return nil, coreerr.E("store.ReadStream", "path must include group/key", os.ErrInvalid)
 	}
 	val, err := m.s.Get(group, key)
 	if err != nil {

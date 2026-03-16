@@ -4,7 +4,6 @@ package s3
 import (
 	"bytes"
 	"context"
-	"fmt"
 	goio "io"
 	"io/fs"
 	"os"
@@ -619,7 +618,7 @@ func (w *s3WriteCloser) Close() error {
 		Body:   bytes.NewReader(w.data),
 	})
 	if err != nil {
-		return fmt.Errorf("s3: failed to upload on close: %w", err)
+		return coreerr.E("s3.writeCloser.Close", "failed to upload on close", err)
 	}
 	return nil
 }

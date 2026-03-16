@@ -3,10 +3,10 @@ package store
 import (
 	"database/sql"
 	"errors"
-	"fmt"
 	"strings"
 	"text/template"
 
+	coreerr "forge.lthn.ai/core/go-log"
 	_ "modernc.org/sqlite"
 )
 
@@ -22,11 +22,11 @@ type Store struct {
 func New(dbPath string) (*Store, error) {
 	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
-		return nil, fmt.Errorf("store.New: %w", err)
+		return nil, coreerr.E("store.New", "open db", err)
 	}
 	if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
 		db.Close()
-		return nil, fmt.Errorf("store.New: WAL: %w", err)
+		return nil, coreerr.E("store.New", "WAL mode", err)
 	}
 	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS kv (
 		grp   TEXT NOT NULL,
@@ -35,7 +35,7 @@ func New(dbPath string) (*Store, error) {
 		PRIMARY KEY (grp, key)
 	)`); err != nil {
 		db.Close()
-		return nil, fmt.Errorf("store.New: schema: %w", err)
+		return nil, coreerr.E("store.New", "create schema", err)
 	}
 	return &Store{db: db}, nil
 }
@@ -50,10 +50,10 @@ func (s *Store) Get(group, key string) (string, error) {
 	var val string
 	err := s.db.QueryRow("SELECT value FROM kv WHERE grp = ? AND key = ?", group, key).Scan(&val)
 	if err == sql.ErrNoRows {
-		return "", fmt.Errorf("store.Get: %s/%s: %w", group, key, ErrNotFound)
+		return "", coreerr.E("store.Get", "not found: "+group+"/"+key, ErrNotFound)
 	}
 	if err != nil {
-		return "", fmt.Errorf("store.Get: %w", err)
+		return "", coreerr.E("store.Get", "query", err)
 	}
 	return val, nil
 }
@@ -66,7 +66,7 @@ func (s *Store) Set(group, key, value string) error {
 		group, key, value,
 	)
 	if err != nil {
-		return fmt.Errorf("store.Set: %w", err)
+		return coreerr.E("store.Set", "exec", err)
 	}
 	return nil
 }
@@ -75,7 +75,7 @@ func (s *Store) Set(group, key, value string) error {
 func (s *Store) Delete(group, key string) error {
 	_, err := s.db.Exec("DELETE FROM kv WHERE grp = ? AND key = ?", group, key)
 	if err != nil {
-		return fmt.Errorf("store.Delete: %w", err)
+		return coreerr.E("store.Delete", "exec", err)
 	}
 	return nil
 }
@@ -85,7 +85,7 @@ func (s *Store) Count(group string) (int, error) {
 	var n int
 	err := s.db.QueryRow("SELECT COUNT(*) FROM kv WHERE grp = ?", group).Scan(&n)
 	if err != nil {
-		return 0, fmt.Errorf("store.Count: %w", err)
+		return 0, coreerr.E("store.Count", "query", err)
 	}
 	return n, nil
 }
@@ -94,7 +94,7 @@ func (s *Store) Count(group string) (int, error) {
 func (s *Store) DeleteGroup(group string) error {
 	_, err := s.db.Exec("DELETE FROM kv WHERE grp = ?", group)
 	if err != nil {
-		return fmt.Errorf("store.DeleteGroup: %w", err)
+		return coreerr.E("store.DeleteGroup", "exec", err)
 	}
 	return nil
 }
@@ -103,7 +103,7 @@ func (s *Store) DeleteGroup(group string) error {
 func (s *Store) GetAll(group string) (map[string]string, error) {
 	rows, err := s.db.Query("SELECT key, value FROM kv WHERE grp = ?", group)
 	if err != nil {
-		return nil, fmt.Errorf("store.GetAll: %w", err)
+		return nil, coreerr.E("store.GetAll", "query", err)
 	}
 	defer rows.Close()
 
@@ -111,12 +111,12 @@ func (s *Store) GetAll(group string) (map[string]string, error) {
 	for rows.Next() {
 		var k, v string
 		if err := rows.Scan(&k, &v); err != nil {
-			return nil, fmt.Errorf("store.GetAll: scan: %w", err)
+			return nil, coreerr.E("store.GetAll", "scan", err)
 		}
 		result[k] = v
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("store.GetAll: rows: %w", err)
+		return nil, coreerr.E("store.GetAll", "rows", err)
 	}
 	return result, nil
 }
@@ -125,7 +125,7 @@ func (s *Store) GetAll(group string) (map[string]string, error) {
 func (s *Store) Render(tmplStr, group string) (string, error) {
 	rows, err := s.db.Query("SELECT key, value FROM kv WHERE grp = ?", group)
 	if err != nil {
-		return "", fmt.Errorf("store.Render: query: %w", err)
+		return "", coreerr.E("store.Render", "query", err)
 	}
 	defer rows.Close()
 
@@ -133,21 +133,21 @@ func (s *Store) Render(tmplStr, group string) (string, error) {
 	for rows.Next() {
 		var k, v string
 		if err := rows.Scan(&k, &v); err != nil {
-			return "", fmt.Errorf("store.Render: scan: %w", err)
+			return "", coreerr.E("store.Render", "scan", err)
 		}
 		vars[k] = v
 	}
 	if err := rows.Err(); err != nil {
-		return "", fmt.Errorf("store.Render: rows: %w", err)
+		return "", coreerr.E("store.Render", "rows", err)
 	}
 
 	tmpl, err := template.New("render").Parse(tmplStr)
 	if err != nil {
-		return "", fmt.Errorf("store.Render: parse: %w", err)
+		return "", coreerr.E("store.Render", "parse template", err)
 	}
 	var b strings.Builder
 	if err := tmpl.Execute(&b, vars); err != nil {
-		return "", fmt.Errorf("store.Render: exec: %w", err)
+		return "", coreerr.E("store.Render", "execute template", err)
 	}
 	return b.String(), nil
 }

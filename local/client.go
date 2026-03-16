@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	coreerr "forge.lthn.ai/core/go-log"
 )
 
 // Medium is a local filesystem storage backend.
@@ -256,7 +258,7 @@ func (m *Medium) Delete(p string) error {
 		return err
 	}
 	if full == "/" || full == os.Getenv("HOME") {
-		return fmt.Errorf("refusing to delete protected path: %s", full)
+		return coreerr.E("local.Delete", "refusing to delete protected path: "+full, nil)
 	}
 	return os.Remove(full)
 }
@@ -268,7 +270,7 @@ func (m *Medium) DeleteAll(p string) error {
 		return err
 	}
 	if full == "/" || full == os.Getenv("HOME") {
-		return fmt.Errorf("refusing to delete protected path: %s", full)
+		return coreerr.E("local.DeleteAll", "refusing to delete protected path: "+full, nil)
 	}
 	return os.RemoveAll(full)
 }
