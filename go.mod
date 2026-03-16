@@ -6,12 +6,12 @@ require (
 	forge.lthn.ai/Snider/Borg v0.3.1
 	forge.lthn.ai/core/go v0.3.1
 	forge.lthn.ai/core/go-crypt v0.1.6
-	forge.lthn.ai/core/go-log v0.0.2
+	forge.lthn.ai/core/go-log v0.0.4
 	github.com/aws/aws-sdk-go-v2 v1.41.4
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.97.1
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/crypto v0.49.0
-	modernc.org/sqlite v1.46.1
+	modernc.org/sqlite v1.46.2
 )
 
 require (
