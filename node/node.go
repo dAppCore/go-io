@@ -361,6 +361,11 @@ func (n *Node) Write(p, content string) error {
 	return nil
 }
 
+// WriteMode saves content with explicit permissions (no-op for in-memory node).
+func (n *Node) WriteMode(p, content string, mode os.FileMode) error {
+	return n.Write(p, content)
+}
+
 // FileGet is an alias for Read.
 func (n *Node) FileGet(p string) (string, error) {
 	return n.Read(p)

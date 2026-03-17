@@ -20,7 +20,12 @@ type Medium interface {
 	Read(path string) (string, error)
 
 	// Write saves the given content to a file, overwriting it if it exists.
+	// Default permissions: 0644. For sensitive files, use WriteMode.
 	Write(path, content string) error
+
+	// WriteMode saves content with explicit file permissions.
+	// Use 0600 for sensitive files (keys, secrets, encrypted output).
+	WriteMode(path, content string, mode os.FileMode) error
 
 	// EnsureDir makes sure a directory exists, creating it if necessary.
 	EnsureDir(path string) error
@@ -198,6 +203,10 @@ func (m *MockMedium) Write(path, content string) error {
 	m.Files[path] = content
 	m.ModTimes[path] = time.Now()
 	return nil
+}
+
+func (m *MockMedium) WriteMode(path, content string, mode os.FileMode) error {
+	return m.Write(path, content)
 }
 
 // EnsureDir records that a directory exists in the mock filesystem.

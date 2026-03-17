@@ -135,6 +135,10 @@ func (m *Medium) Write(p, content string) error {
 	return nil
 }
 
+func (m *Medium) WriteMode(p, content string, mode os.FileMode) error {
+	return m.Write(p, content)
+}
+
 func (m *Medium) EnsureDir(p string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
