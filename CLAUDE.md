@@ -22,6 +22,12 @@ core go test --run Name   # Single test
 core go fmt               # Format
 core go lint              # Lint
 core go vet               # Vet
+core go qa                # fmt + vet + lint + test
+```
+
+If running `go` directly (outside `core`), set `GOWORK=off` to avoid workspace resolution errors:
+```bash
+GOWORK=off go test -cover ./...
 ```
 
 ## Architecture
@@ -113,10 +119,17 @@ Backend packages use `var _ io.Medium = (*Medium)(nil)` to verify interface comp
 
 - `forge.lthn.ai/Snider/Borg` — DataNode container
 - `forge.lthn.ai/core/go-log` — error handling (`coreerr.E()`)
-- `forge.lthn.ai/core/go/pkg/core` — Core DI (workspace service only)
+- `forge.lthn.ai/core/go` — Core DI (workspace service only)
+- `forge.lthn.ai/core/go-crypt` — PGP key generation (workspace service only)
 - `aws-sdk-go-v2` — S3 backend
+- `golang.org/x/crypto` — XChaCha20-Poly1305, BLAKE2, SHA-3 (sigil package)
 - `modernc.org/sqlite` — SQLite backends (pure Go, no CGO)
+- `github.com/stretchr/testify` — test assertions
+
+### Sentinel Errors
+
+Sentinel errors (`var ErrNotFound`, `var ErrInvalidKey`, etc.) use standard `errors.New()` — this is correct Go convention. Only inline error returns in functions should use `coreerr.E()`.
 
 ## Testing
 
-All backends have full test coverage. Use `io.MockMedium` or `io.NewSandboxed(t.TempDir())` in tests — never hit real S3/SQLite unless integration testing.
+Use `io.MockMedium` or `io.NewSandboxed(t.TempDir())` in tests — never hit real S3/SQLite unless integration testing. S3 tests use an interface-based mock (`s3API`).
