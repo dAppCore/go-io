@@ -607,6 +607,3 @@ var _ fs.File = (*dataFileReader)(nil)
 
 // ensure all internal compile-time checks are grouped above
 // no further type assertions needed
-
-// unused import guard
-var _ = os.ErrNotExist
