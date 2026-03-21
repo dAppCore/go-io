@@ -10,7 +10,7 @@ import (
 	core "dappco.re/go/core"
 	coreerr "forge.lthn.ai/core/go-log"
 
-	"forge.lthn.ai/core/go-io"
+	"dappco.re/go/core/io"
 )
 
 // Workspace provides management for encrypted user workspaces.

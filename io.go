@@ -9,7 +9,7 @@ import (
 	"time"
 
 	coreerr "forge.lthn.ai/core/go-log"
-	"forge.lthn.ai/core/go-io/local"
+	"dappco.re/go/core/io/local"
 )
 
 // Medium defines the standard interface for a storage backend.

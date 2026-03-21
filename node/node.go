@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	coreio "forge.lthn.ai/core/go-io"
+	coreio "dappco.re/go/core/io"
 )
 
 // Node is an in-memory filesystem that implements coreio.Node (and therefore
