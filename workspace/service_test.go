@@ -1,32 +1,25 @@
 package workspace
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 
+	core "dappco.re/go/core"
 	"forge.lthn.ai/core/go-crypt/crypt/openpgp"
-	core "forge.lthn.ai/core/go/pkg/core"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestWorkspace(t *testing.T) {
-	// Setup core with crypt service
-	c, _ := core.New(
-		core.WithName("crypt", openpgp.New),
-	)
-
-	tempHome, _ := os.MkdirTemp("", "core-test-home")
-	defer os.RemoveAll(tempHome)
-
-	// Mock os.UserHomeDir by setting HOME env
-	oldHome := os.Getenv("HOME")
-	os.Setenv("HOME", tempHome)
-	defer os.Setenv("HOME", oldHome)
-
-	s_any, err := New(c)
+	c := core.New()
+	pgpSvc, err := openpgp.New(nil)
 	assert.NoError(t, err)
-	s := s_any.(*Service)
+
+	tempHome := t.TempDir()
+	t.Setenv("HOME", tempHome)
+
+	svc, err := New(c, pgpSvc.(cryptProvider))
+	assert.NoError(t, err)
+	s := svc.(*Service)
 
 	// Test CreateWorkspace
 	id, err := s.CreateWorkspace("test-user", "pass123")
