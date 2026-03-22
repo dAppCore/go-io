@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	coreio "forge.lthn.ai/core/go-io"
+	coreio "dappco.re/go/core/io"
 )
 
 // Node is an in-memory filesystem that implements coreio.Node (and therefore
@@ -361,6 +361,11 @@ func (n *Node) Write(p, content string) error {
 	return nil
 }
 
+// WriteMode saves content with explicit permissions (no-op for in-memory node).
+func (n *Node) WriteMode(p, content string, mode os.FileMode) error {
+	return n.Write(p, content)
+}
+
 // FileGet is an alias for Read.
 func (n *Node) FileGet(p string) (string, error) {
 	return n.Read(p)
@@ -607,6 +612,3 @@ var _ fs.File = (*dataFileReader)(nil)
 
 // ensure all internal compile-time checks are grouped above
 // no further type assertions needed
-
-// unused import guard
-var _ = os.ErrNotExist

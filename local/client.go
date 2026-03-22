@@ -124,7 +124,15 @@ func (m *Medium) Read(p string) (string, error) {
 }
 
 // Write saves content to file, creating parent directories as needed.
+// Files are created with mode 0644. For sensitive files (keys, secrets),
+// use WriteMode with 0600.
 func (m *Medium) Write(p, content string) error {
+	return m.WriteMode(p, content, 0644)
+}
+
+// WriteMode saves content to file with explicit permissions.
+// Use 0600 for sensitive files (encryption output, private keys, auth hashes).
+func (m *Medium) WriteMode(p, content string, mode os.FileMode) error {
 	full, err := m.validatePath(p)
 	if err != nil {
 		return err
@@ -132,7 +140,7 @@ func (m *Medium) Write(p, content string) error {
 	if err := os.MkdirAll(filepath.Dir(full), 0755); err != nil {
 		return err
 	}
-	return os.WriteFile(full, []byte(content), 0644)
+	return os.WriteFile(full, []byte(content), mode)
 }
 
 // EnsureDir creates directory if it doesn't exist.

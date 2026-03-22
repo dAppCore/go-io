@@ -7,14 +7,29 @@ import (
 	"path/filepath"
 	"sync"
 
+	core "dappco.re/go/core"
 	coreerr "forge.lthn.ai/core/go-log"
-	core "forge.lthn.ai/core/go/pkg/core"
-	"forge.lthn.ai/core/go-io"
+
+	"dappco.re/go/core/io"
 )
 
-// Service implements the core.Workspace interface.
+// Workspace provides management for encrypted user workspaces.
+type Workspace interface {
+	CreateWorkspace(identifier, password string) (string, error)
+	SwitchWorkspace(name string) error
+	WorkspaceFileGet(filename string) (string, error)
+	WorkspaceFileSet(filename, content string) error
+}
+
+// cryptProvider is the interface for PGP key generation.
+type cryptProvider interface {
+	CreateKeyPair(name, passphrase string) (string, error)
+}
+
+// Service implements the Workspace interface.
 type Service struct {
 	core            *core.Core
+	crypt           cryptProvider
 	activeWorkspace string
 	rootPath        string
 	medium          io.Medium
@@ -22,7 +37,8 @@ type Service struct {
 }
 
 // New creates a new Workspace service instance.
-func New(c *core.Core) (any, error) {
+// An optional cryptProvider can be passed to supply PGP key generation.
+func New(c *core.Core, crypt ...cryptProvider) (any, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return nil, coreerr.E("workspace.New", "failed to determine home directory", err)
@@ -35,6 +51,10 @@ func New(c *core.Core) (any, error) {
 		medium:   io.Local,
 	}
 
+	if len(crypt) > 0 && crypt[0] != nil {
+		s.crypt = crypt[0]
+	}
+
 	if err := s.medium.EnsureDir(rootPath); err != nil {
 		return nil, coreerr.E("workspace.New", "failed to ensure root directory", err)
 	}
@@ -43,13 +63,16 @@ func New(c *core.Core) (any, error) {
 }
 
 // CreateWorkspace creates a new encrypted workspace.
-// Identifier is hashed (SHA-256 as proxy for LTHN) to create the directory name.
+// Identifier is hashed (SHA-256) to create the directory name.
 // A PGP keypair is generated using the password.
 func (s *Service) CreateWorkspace(identifier, password string) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// 1. Identification (LTHN hash proxy)
+	if s.crypt == nil {
+		return "", coreerr.E("workspace.CreateWorkspace", "crypt service not available", nil)
+	}
+
 	hash := sha256.Sum256([]byte(identifier))
 	wsID := hex.EncodeToString(hash[:])
 	wsPath := filepath.Join(s.rootPath, wsID)
@@ -58,26 +81,18 @@ func (s *Service) CreateWorkspace(identifier, password string) (string, error) {
 		return "", coreerr.E("workspace.CreateWorkspace", "workspace already exists", nil)
 	}
 
-	// 2. Directory structure
-	dirs := []string{"config", "log", "data", "files", "keys"}
-	for _, d := range dirs {
+	for _, d := range []string{"config", "log", "data", "files", "keys"} {
 		if err := s.medium.EnsureDir(filepath.Join(wsPath, d)); err != nil {
 			return "", coreerr.E("workspace.CreateWorkspace", "failed to create directory: "+d, err)
 		}
 	}
 
-	// 3. PGP Keypair generation
-	crypt := s.core.Crypt()
-	if crypt == nil {
-		return "", coreerr.E("workspace.CreateWorkspace", "crypt service not available", nil)
-	}
-	privKey, err := crypt.CreateKeyPair(identifier, password)
+	privKey, err := s.crypt.CreateKeyPair(identifier, password)
 	if err != nil {
 		return "", coreerr.E("workspace.CreateWorkspace", "failed to generate keys", err)
 	}
 
-	// Save private key
-	if err := s.medium.Write(filepath.Join(wsPath, "keys", "private.key"), privKey); err != nil {
+	if err := s.medium.WriteMode(filepath.Join(wsPath, "keys", "private.key"), privKey, 0600); err != nil {
 		return "", coreerr.E("workspace.CreateWorkspace", "failed to save private key", err)
 	}
 
@@ -98,36 +113,41 @@ func (s *Service) SwitchWorkspace(name string) error {
 	return nil
 }
 
+// activeFilePath returns the full path to a file in the active workspace,
+// or an error if no workspace is active.
+func (s *Service) activeFilePath(op, filename string) (string, error) {
+	if s.activeWorkspace == "" {
+		return "", coreerr.E(op, "no active workspace", nil)
+	}
+	return filepath.Join(s.rootPath, s.activeWorkspace, "files", filename), nil
+}
+
 // WorkspaceFileGet retrieves the content of a file from the active workspace.
-// In a full implementation, this would involve decryption using the workspace key.
 func (s *Service) WorkspaceFileGet(filename string) (string, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	if s.activeWorkspace == "" {
-		return "", coreerr.E("workspace.WorkspaceFileGet", "no active workspace", nil)
+	path, err := s.activeFilePath("workspace.WorkspaceFileGet", filename)
+	if err != nil {
+		return "", err
 	}
-
-	path := filepath.Join(s.rootPath, s.activeWorkspace, "files", filename)
 	return s.medium.Read(path)
 }
 
 // WorkspaceFileSet saves content to a file in the active workspace.
-// In a full implementation, this would involve encryption using the workspace key.
 func (s *Service) WorkspaceFileSet(filename, content string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.activeWorkspace == "" {
-		return coreerr.E("workspace.WorkspaceFileSet", "no active workspace", nil)
+	path, err := s.activeFilePath("workspace.WorkspaceFileSet", filename)
+	if err != nil {
+		return err
 	}
-
-	path := filepath.Join(s.rootPath, s.activeWorkspace, "files", filename)
 	return s.medium.Write(path, content)
 }
 
 // HandleIPCEvents handles workspace-related IPC messages.
-func (s *Service) HandleIPCEvents(c *core.Core, msg core.Message) error {
+func (s *Service) HandleIPCEvents(c *core.Core, msg core.Message) core.Result {
 	switch m := msg.(type) {
 	case map[string]any:
 		action, _ := m["action"].(string)
@@ -135,15 +155,21 @@ func (s *Service) HandleIPCEvents(c *core.Core, msg core.Message) error {
 		case "workspace.create":
 			id, _ := m["identifier"].(string)
 			pass, _ := m["password"].(string)
-			_, err := s.CreateWorkspace(id, pass)
-			return err
+			wsID, err := s.CreateWorkspace(id, pass)
+			if err != nil {
+				return core.Result{}
+			}
+			return core.Result{Value: wsID, OK: true}
 		case "workspace.switch":
 			name, _ := m["name"].(string)
-			return s.SwitchWorkspace(name)
+			if err := s.SwitchWorkspace(name); err != nil {
+				return core.Result{}
+			}
+			return core.Result{OK: true}
 		}
 	}
-	return nil
+	return core.Result{OK: true}
 }
 
-// Ensure Service implements core.Workspace.
-var _ core.Workspace = (*Service)(nil)
+// Ensure Service implements Workspace.
+var _ Workspace = (*Service)(nil)

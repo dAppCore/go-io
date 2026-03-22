@@ -11,9 +11,9 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"io"
 
+	coreerr "forge.lthn.ai/core/go-log"
 	"golang.org/x/crypto/blake2b"
 	"golang.org/x/crypto/blake2s"
 	"golang.org/x/crypto/md4"
@@ -204,7 +204,7 @@ func (s *HashSigil) In(data []byte) ([]byte, error) {
 		h, _ = blake2b.New512(nil)
 	default:
 		// MD5SHA1 is not supported as a direct hash
-		return nil, errors.New("sigil: hash algorithm not available")
+		return nil, coreerr.E("sigil.HashSigil.In", "hash algorithm not available", nil)
 	}
 
 	h.Write(data)
@@ -269,6 +269,6 @@ func NewSigil(name string) (Sigil, error) {
 	case "blake2b-512":
 		return NewHashSigil(crypto.BLAKE2b_512), nil
 	default:
-		return nil, errors.New("sigil: unknown sigil name")
+		return nil, coreerr.E("sigil.NewSigil", "unknown sigil name: "+name, nil)
 	}
 }
