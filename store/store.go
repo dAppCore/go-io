@@ -6,7 +6,7 @@ import (
 	"strings"
 	"text/template"
 
-	coreerr "forge.lthn.ai/core/go-log"
+	coreerr "dappco.re/go/core/log"
 	_ "modernc.org/sqlite"
 )
 

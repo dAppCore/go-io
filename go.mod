@@ -3,10 +3,10 @@ module dappco.re/go/core/io
 go 1.26.0
 
 require (
-	dappco.re/go/core v0.4.7
+	dappco.re/go/core v0.5.0
+	dappco.re/go/core/log v0.1.0
 	forge.lthn.ai/Snider/Borg v0.3.1
 	forge.lthn.ai/core/go-crypt v0.1.6
-	forge.lthn.ai/core/go-log v0.0.4
 	github.com/aws/aws-sdk-go-v2 v1.41.4
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.97.1
 	github.com/stretchr/testify v1.11.1
@@ -16,6 +16,7 @@ require (
 
 require (
 	forge.lthn.ai/core/go v0.3.0 // indirect
+	forge.lthn.ai/core/go-log v0.0.1 // indirect
 	github.com/ProtonMail/go-crypto v1.4.0 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.7 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.20 // indirect

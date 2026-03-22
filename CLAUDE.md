@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-`forge.lthn.ai/core/go-io` is the **mandatory I/O abstraction layer** for the CoreGO ecosystem. All data access — files, configs, journals, state — MUST go through the `io.Medium` interface. Never use raw `os`, `filepath`, or `ioutil` calls.
+`dappco.re/go/core/io` is the **mandatory I/O abstraction layer** for the CoreGO ecosystem. All data access — files, configs, journals, state — MUST go through the `io.Medium` interface. Never use raw `os`, `filepath`, or `ioutil` calls.
 
 ### The Premise
 
@@ -103,13 +103,13 @@ Sigils can be created by name via `sigil.NewSigil("hex")`, `sigil.NewSigil("sha2
 Standard `io` is always aliased to avoid collision with this package:
 ```go
 goio "io"
-coreerr "forge.lthn.ai/core/go-log"
-coreio "forge.lthn.ai/core/go-io"  // when imported from subpackages
+coreerr "dappco.re/go/core/log"
+coreio "dappco.re/go/core/io"  // when imported from subpackages
 ```
 
 ### Error Handling
 
-All errors use `coreerr.E("pkg.Method", "description", wrappedErr)` from `forge.lthn.ai/core/go-log`. Follow this pattern in new code.
+All errors use `coreerr.E("pkg.Method", "description", wrappedErr)` from `dappco.re/go/core/log`. Follow this pattern in new code.
 
 ### Compile-Time Interface Checks
 
@@ -117,10 +117,10 @@ Backend packages use `var _ io.Medium = (*Medium)(nil)` to verify interface comp
 
 ## Dependencies
 
-- `forge.lthn.ai/Snider/Borg` — DataNode container
-- `forge.lthn.ai/core/go-log` — error handling (`coreerr.E()`)
-- `forge.lthn.ai/core/go` — Core DI (workspace service only)
-- `forge.lthn.ai/core/go-crypt` — PGP key generation (workspace service only)
+- `forge.lthn.ai/Snider/Borg` — DataNode container (pending dappco.re migration)
+- `dappco.re/go/core/log` — error handling (`coreerr.E()`)
+- `dappco.re/go/core` — Core DI (workspace service only)
+- `forge.lthn.ai/core/go-crypt` — PGP key generation (workspace service only, pending dappco.re migration)
 - `aws-sdk-go-v2` — S3 backend
 - `golang.org/x/crypto` — XChaCha20-Poly1305, BLAKE2, SHA-3 (sigil package)
 - `modernc.org/sqlite` — SQLite backends (pure Go, no CGO)

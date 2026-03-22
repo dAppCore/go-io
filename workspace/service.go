@@ -8,7 +8,7 @@ import (
 	"sync"
 
 	core "dappco.re/go/core"
-	coreerr "forge.lthn.ai/core/go-log"
+	coreerr "dappco.re/go/core/log"
 
 	"dappco.re/go/core/io"
 )
