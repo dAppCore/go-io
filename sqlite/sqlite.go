@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	coreerr "forge.lthn.ai/core/go-log"
+	coreerr "dappco.re/go/core/log"
 
 	_ "modernc.org/sqlite" // Pure Go SQLite driver
 )

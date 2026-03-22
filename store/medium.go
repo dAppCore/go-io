@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	coreerr "forge.lthn.ai/core/go-log"
+	coreerr "dappco.re/go/core/log"
 )
 
 // Medium wraps a Store to satisfy the io.Medium interface.
