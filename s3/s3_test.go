@@ -3,6 +3,7 @@ package s3
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	goio "io"
 	"io/fs"
@@ -21,15 +22,19 @@ import (
 
 // mockS3 is an in-memory mock implementing the s3API interface.
 type mockS3 struct {
-	mu      sync.RWMutex
-	objects map[string][]byte
-	mtimes  map[string]time.Time
+	mu                 sync.RWMutex
+	objects            map[string][]byte
+	mtimes             map[string]time.Time
+	deleteObjectErrors map[string]error
+	deleteObjectsErrs  map[string]types.Error
 }
 
 func newMockS3() *mockS3 {
 	return &mockS3{
-		objects: make(map[string][]byte),
-		mtimes:  make(map[string]time.Time),
+		objects:            make(map[string][]byte),
+		mtimes:             make(map[string]time.Time),
+		deleteObjectErrors: make(map[string]error),
+		deleteObjectsErrs:  make(map[string]types.Error),
 	}
 }
 
@@ -69,6 +74,9 @@ func (m *mockS3) DeleteObject(_ context.Context, params *s3.DeleteObjectInput, _
 	defer m.mu.Unlock()
 
 	key := aws.ToString(params.Key)
+	if err, ok := m.deleteObjectErrors[key]; ok {
+		return nil, err
+	}
 	delete(m.objects, key)
 	delete(m.mtimes, key)
 	return &s3.DeleteObjectOutput{}, nil
@@ -78,12 +86,17 @@ func (m *mockS3) DeleteObjects(_ context.Context, params *s3.DeleteObjectsInput,
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	var outErrs []types.Error
 	for _, obj := range params.Delete.Objects {
 		key := aws.ToString(obj.Key)
+		if errInfo, ok := m.deleteObjectsErrs[key]; ok {
+			outErrs = append(outErrs, errInfo)
+			continue
+		}
 		delete(m.objects, key)
 		delete(m.mtimes, key)
 	}
-	return &s3.DeleteObjectsOutput{}, nil
+	return &s3.DeleteObjectsOutput{Errors: outErrs}, nil
 }
 
 func (m *mockS3) HeadObject(_ context.Context, params *s3.HeadObjectInput, _ ...func(*s3.Options)) (*s3.HeadObjectOutput, error) {
@@ -348,6 +361,34 @@ func TestDeleteAll_Bad_EmptyPath(t *testing.T) {
 	m, _ := newTestMedium(t)
 	err := m.DeleteAll("")
 	assert.Error(t, err)
+}
+
+func TestDeleteAll_Bad_DeleteObjectError(t *testing.T) {
+	m, mock := newTestMedium(t)
+	mock.deleteObjectErrors["dir"] = errors.New("boom")
+
+	err := m.DeleteAll("dir")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to delete object: dir")
+}
+
+func TestDeleteAll_Bad_PartialDelete(t *testing.T) {
+	m, mock := newTestMedium(t)
+
+	require.NoError(t, m.Write("dir/file1.txt", "a"))
+	require.NoError(t, m.Write("dir/file2.txt", "b"))
+	mock.deleteObjectsErrs["dir/file2.txt"] = types.Error{
+		Key:     aws.String("dir/file2.txt"),
+		Code:    aws.String("AccessDenied"),
+		Message: aws.String("blocked"),
+	}
+
+	err := m.DeleteAll("dir")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "partial delete failed")
+	assert.Contains(t, err.Error(), "dir/file2.txt")
+	assert.True(t, m.IsFile("dir/file2.txt"))
+	assert.False(t, m.IsFile("dir/file1.txt"))
 }
 
 func TestRename_Good(t *testing.T) {

@@ -17,14 +17,26 @@ import (
 	"sync"
 	"time"
 
+	borgdatanode "forge.lthn.ai/Snider/Borg/pkg/datanode"
 	coreerr "forge.lthn.ai/core/go-log"
-	"forge.lthn.ai/Snider/Borg/pkg/datanode"
+)
+
+var (
+	dataNodeWalkDir = func(fsys fs.FS, root string, fn fs.WalkDirFunc) error {
+		return fs.WalkDir(fsys, root, fn)
+	}
+	dataNodeOpen = func(dn *borgdatanode.DataNode, name string) (fs.File, error) {
+		return dn.Open(name)
+	}
+	dataNodeReadAll = func(r goio.Reader) ([]byte, error) {
+		return goio.ReadAll(r)
+	}
 )
 
 // Medium is an in-memory storage backend backed by a Borg DataNode.
 // All paths are relative (no leading slash). Thread-safe via RWMutex.
 type Medium struct {
-	dn   *datanode.DataNode
+	dn   *borgdatanode.DataNode
 	dirs map[string]bool // explicit directory tracking
 	mu   sync.RWMutex
 }
@@ -32,14 +44,14 @@ type Medium struct {
 // New creates a new empty DataNode Medium.
 func New() *Medium {
 	return &Medium{
-		dn:   datanode.New(),
+		dn:   borgdatanode.New(),
 		dirs: make(map[string]bool),
 	}
 }
 
 // FromTar creates a Medium from a tarball, restoring all files.
 func FromTar(data []byte) (*Medium, error) {
-	dn, err := datanode.FromTar(data)
+	dn, err := borgdatanode.FromTar(data)
 	if err != nil {
 		return nil, coreerr.E("datanode.FromTar", "failed to restore", err)
 	}
@@ -63,7 +75,7 @@ func (m *Medium) Snapshot() ([]byte, error) {
 
 // Restore replaces the filesystem contents from a tarball.
 func (m *Medium) Restore(data []byte) error {
-	dn, err := datanode.FromTar(data)
+	dn, err := borgdatanode.FromTar(data)
 	if err != nil {
 		return coreerr.E("datanode.Restore", "tar failed", err)
 	}
@@ -76,7 +88,7 @@ func (m *Medium) Restore(data []byte) error {
 
 // DataNode returns the underlying Borg DataNode.
 // Use this to wrap the filesystem in a TIM container.
-func (m *Medium) DataNode() *datanode.DataNode {
+func (m *Medium) DataNode() *borgdatanode.DataNode {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.dn
@@ -195,7 +207,11 @@ func (m *Medium) Delete(p string) error {
 		// Check explicit dirs
 		if m.dirs[p] {
 			// Check if dir is empty
-			if m.hasPrefixLocked(p + "/") {
+			hasChildren, err := m.hasPrefixLocked(p + "/")
+			if err != nil {
+				return coreerr.E("datanode.Delete", "failed to inspect directory: "+p, err)
+			}
+			if hasChildren {
 				return coreerr.E("datanode.Delete", "directory not empty: "+p, os.ErrExist)
 			}
 			delete(m.dirs, p)
@@ -205,7 +221,11 @@ func (m *Medium) Delete(p string) error {
 	}
 
 	if info.IsDir() {
-		if m.hasPrefixLocked(p + "/") {
+		hasChildren, err := m.hasPrefixLocked(p + "/")
+		if err != nil {
+			return coreerr.E("datanode.Delete", "failed to inspect directory: "+p, err)
+		}
+		if hasChildren {
 			return coreerr.E("datanode.Delete", "directory not empty: "+p, os.ErrExist)
 		}
 		delete(m.dirs, p)
@@ -213,7 +233,9 @@ func (m *Medium) Delete(p string) error {
 	}
 
 	// Remove the file by creating a new DataNode without it
-	m.removeFileLocked(p)
+	if err := m.removeFileLocked(p); err != nil {
+		return coreerr.E("datanode.Delete", "failed to delete file: "+p, err)
+	}
 	return nil
 }
 
@@ -232,15 +254,22 @@ func (m *Medium) DeleteAll(p string) error {
 	// Check if p itself is a file
 	info, err := m.dn.Stat(p)
 	if err == nil && !info.IsDir() {
-		m.removeFileLocked(p)
+		if err := m.removeFileLocked(p); err != nil {
+			return coreerr.E("datanode.DeleteAll", "failed to delete file: "+p, err)
+		}
 		found = true
 	}
 
 	// Remove all files under prefix
-	entries, _ := m.collectAllLocked()
+	entries, err := m.collectAllLocked()
+	if err != nil {
+		return coreerr.E("datanode.DeleteAll", "failed to inspect tree: "+p, err)
+	}
 	for _, name := range entries {
 		if name == p || strings.HasPrefix(name, prefix) {
-			m.removeFileLocked(name)
+			if err := m.removeFileLocked(name); err != nil {
+				return coreerr.E("datanode.DeleteAll", "failed to delete file: "+name, err)
+			}
 			found = true
 		}
 	}
@@ -274,18 +303,15 @@ func (m *Medium) Rename(oldPath, newPath string) error {
 
 	if !info.IsDir() {
 		// Read old, write new, delete old
-		f, err := m.dn.Open(oldPath)
+		data, err := m.readFileLocked(oldPath)
 		if err != nil {
-			return coreerr.E("datanode.Rename", "open failed: "+oldPath, err)
-		}
-		data, err := goio.ReadAll(f)
-		f.Close()
-		if err != nil {
-			return coreerr.E("datanode.Rename", "read failed: "+oldPath, err)
+			return coreerr.E("datanode.Rename", "failed to read source file: "+oldPath, err)
 		}
 		m.dn.AddData(newPath, data)
 		m.ensureDirsLocked(path.Dir(newPath))
-		m.removeFileLocked(oldPath)
+		if err := m.removeFileLocked(oldPath); err != nil {
+			return coreerr.E("datanode.Rename", "failed to remove source file: "+oldPath, err)
+		}
 		return nil
 	}
 
@@ -293,18 +319,21 @@ func (m *Medium) Rename(oldPath, newPath string) error {
 	oldPrefix := oldPath + "/"
 	newPrefix := newPath + "/"
 
-	entries, _ := m.collectAllLocked()
+	entries, err := m.collectAllLocked()
+	if err != nil {
+		return coreerr.E("datanode.Rename", "failed to inspect tree: "+oldPath, err)
+	}
 	for _, name := range entries {
 		if strings.HasPrefix(name, oldPrefix) {
 			newName := newPrefix + strings.TrimPrefix(name, oldPrefix)
-			f, err := m.dn.Open(name)
+			data, err := m.readFileLocked(name)
 			if err != nil {
-				continue
+				return coreerr.E("datanode.Rename", "failed to read source file: "+name, err)
 			}
-			data, _ := goio.ReadAll(f)
-			f.Close()
 			m.dn.AddData(newName, data)
-			m.removeFileLocked(name)
+			if err := m.removeFileLocked(name); err != nil {
+				return coreerr.E("datanode.Rename", "failed to remove source file: "+name, err)
+			}
 		}
 	}
 
@@ -416,10 +445,13 @@ func (m *Medium) Append(p string) (goio.WriteCloser, error) {
 	// Read existing content
 	var existing []byte
 	m.mu.RLock()
-	f, err := m.dn.Open(p)
-	if err == nil {
-		existing, _ = goio.ReadAll(f)
-		f.Close()
+	if m.IsFile(p) {
+		data, err := m.readFileLocked(p)
+		if err != nil {
+			m.mu.RUnlock()
+			return nil, coreerr.E("datanode.Append", "failed to read existing content: "+p, err)
+		}
+		existing = data
 	}
 	m.mu.RUnlock()
 
@@ -475,27 +507,30 @@ func (m *Medium) IsDir(p string) bool {
 // --- internal helpers ---
 
 // hasPrefixLocked checks if any file path starts with prefix. Caller holds lock.
-func (m *Medium) hasPrefixLocked(prefix string) bool {
-	entries, _ := m.collectAllLocked()
+func (m *Medium) hasPrefixLocked(prefix string) (bool, error) {
+	entries, err := m.collectAllLocked()
+	if err != nil {
+		return false, err
+	}
 	for _, name := range entries {
 		if strings.HasPrefix(name, prefix) {
-			return true
+			return true, nil
 		}
 	}
 	for d := range m.dirs {
 		if strings.HasPrefix(d, prefix) {
-			return true
+			return true, nil
 		}
 	}
-	return false
+	return false, nil
 }
 
 // collectAllLocked returns all file paths in the DataNode. Caller holds lock.
 func (m *Medium) collectAllLocked() ([]string, error) {
 	var names []string
-	err := fs.WalkDir(m.dn, ".", func(p string, d fs.DirEntry, err error) error {
+	err := dataNodeWalkDir(m.dn, ".", func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
-			return nil
+			return err
 		}
 		if !d.IsDir() {
 			names = append(names, p)
@@ -505,28 +540,43 @@ func (m *Medium) collectAllLocked() ([]string, error) {
 	return names, err
 }
 
+func (m *Medium) readFileLocked(name string) ([]byte, error) {
+	f, err := dataNodeOpen(m.dn, name)
+	if err != nil {
+		return nil, err
+	}
+	data, readErr := dataNodeReadAll(f)
+	closeErr := f.Close()
+	if readErr != nil {
+		return nil, readErr
+	}
+	if closeErr != nil {
+		return nil, closeErr
+	}
+	return data, nil
+}
+
 // removeFileLocked removes a single file by rebuilding the DataNode.
 // This is necessary because Borg's DataNode doesn't expose a Remove method.
 // Caller must hold m.mu write lock.
-func (m *Medium) removeFileLocked(target string) {
-	entries, _ := m.collectAllLocked()
-	newDN := datanode.New()
+func (m *Medium) removeFileLocked(target string) error {
+	entries, err := m.collectAllLocked()
+	if err != nil {
+		return err
+	}
+	newDN := borgdatanode.New()
 	for _, name := range entries {
 		if name == target {
 			continue
 		}
-		f, err := m.dn.Open(name)
+		data, err := m.readFileLocked(name)
 		if err != nil {
-			continue
-		}
-		data, err := goio.ReadAll(f)
-		f.Close()
-		if err != nil {
-			continue
+			return err
 		}
 		newDN.AddData(name, data)
 	}
 	m.dn = newDN
+	return nil
 }
 
 // --- writeCloser buffers writes and flushes to DataNode on Close ---
