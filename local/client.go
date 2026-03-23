@@ -6,11 +6,10 @@ import (
 	goio "io"
 	"io/fs"
 	"os"
-	"os/user"
-	"path/filepath"
 	"strings"
 	"time"
 
+	core "dappco.re/go/core"
 	coreerr "dappco.re/go/core/log"
 )
 
@@ -22,18 +21,161 @@ type Medium struct {
 // New creates a new local Medium rooted at the given directory.
 // Pass "/" for full filesystem access, or a specific path to sandbox.
 func New(root string) (*Medium, error) {
-	abs, err := filepath.Abs(root)
-	if err != nil {
-		return nil, err
-	}
+	abs := absolutePath(root)
 	// Resolve symlinks so sandbox checks compare like-for-like.
 	// On macOS, /var is a symlink to /private/var — without this,
-	// EvalSymlinks on child paths resolves to /private/var/... while
+	// resolving child paths resolves to /private/var/... while
 	// root stays /var/..., causing false sandbox escape detections.
-	if resolved, err := filepath.EvalSymlinks(abs); err == nil {
+	if resolved, err := resolveSymlinksPath(abs); err == nil {
 		abs = resolved
 	}
 	return &Medium{root: abs}, nil
+}
+
+func dirSeparator() string {
+	if sep := core.Env("DS"); sep != "" {
+		return sep
+	}
+	return string(os.PathSeparator)
+}
+
+func normalisePath(p string) string {
+	sep := dirSeparator()
+	if sep == "/" {
+		return strings.ReplaceAll(p, "\\", sep)
+	}
+	return strings.ReplaceAll(p, "/", sep)
+}
+
+func currentWorkingDir() string {
+	if cwd, err := os.Getwd(); err == nil && cwd != "" {
+		return cwd
+	}
+	if cwd := core.Env("DIR_CWD"); cwd != "" {
+		return cwd
+	}
+	return "."
+}
+
+func absolutePath(p string) string {
+	p = normalisePath(p)
+	if core.PathIsAbs(p) {
+		return core.Path(p)
+	}
+	return core.Path(currentWorkingDir(), p)
+}
+
+func cleanSandboxPath(p string) string {
+	return core.Path(dirSeparator() + normalisePath(p))
+}
+
+func splitPathParts(p string) []string {
+	trimmed := strings.TrimPrefix(p, dirSeparator())
+	if trimmed == "" {
+		return nil
+	}
+	var parts []string
+	for _, part := range strings.Split(trimmed, dirSeparator()) {
+		if part == "" {
+			continue
+		}
+		parts = append(parts, part)
+	}
+	return parts
+}
+
+func resolveSymlinksPath(p string) (string, error) {
+	return resolveSymlinksRecursive(absolutePath(p), map[string]struct{}{})
+}
+
+func resolveSymlinksRecursive(p string, seen map[string]struct{}) (string, error) {
+	p = core.Path(p)
+	if p == dirSeparator() {
+		return p, nil
+	}
+
+	current := dirSeparator()
+	for _, part := range splitPathParts(p) {
+		next := core.Path(current, part)
+		info, err := os.Lstat(next)
+		if err != nil {
+			if os.IsNotExist(err) {
+				current = next
+				continue
+			}
+			return "", err
+		}
+		if info.Mode()&os.ModeSymlink == 0 {
+			current = next
+			continue
+		}
+
+		target, err := os.Readlink(next)
+		if err != nil {
+			return "", err
+		}
+		target = normalisePath(target)
+		if !core.PathIsAbs(target) {
+			target = core.Path(current, target)
+		} else {
+			target = core.Path(target)
+		}
+		if _, ok := seen[target]; ok {
+			return "", coreerr.E("local.resolveSymlinksPath", "symlink cycle: "+target, os.ErrInvalid)
+		}
+		seen[target] = struct{}{}
+		resolved, err := resolveSymlinksRecursive(target, seen)
+		delete(seen, target)
+		if err != nil {
+			return "", err
+		}
+		current = resolved
+	}
+
+	return current, nil
+}
+
+func isWithinRoot(root, target string) bool {
+	root = core.Path(root)
+	target = core.Path(target)
+	if root == dirSeparator() {
+		return true
+	}
+	return target == root || strings.HasPrefix(target, root+dirSeparator())
+}
+
+func canonicalPath(p string) string {
+	if p == "" {
+		return ""
+	}
+	if resolved, err := resolveSymlinksPath(p); err == nil {
+		return resolved
+	}
+	return absolutePath(p)
+}
+
+func isProtectedPath(full string) bool {
+	full = canonicalPath(full)
+	protected := map[string]struct{}{
+		canonicalPath(dirSeparator()): {},
+	}
+	for _, home := range []string{core.Env("HOME"), core.Env("DIR_HOME")} {
+		if home == "" {
+			continue
+		}
+		protected[canonicalPath(home)] = struct{}{}
+	}
+	_, ok := protected[full]
+	return ok
+}
+
+func logSandboxEscape(root, path, attempted string) {
+	username := core.Env("USER")
+	if username == "" {
+		username = "unknown"
+	}
+	fmt.Fprintf(os.Stderr, "[%s] SECURITY sandbox escape detected root=%s path=%s attempted=%s user=%s\n",
+		time.Now().Format(time.RFC3339), root, path, attempted, username)
 }
 
 // path sanitises and returns the full path.
@@ -46,41 +188,36 @@ func (m *Medium) path(p string) string {
 	// If the path is relative and the medium is rooted at "/",
 	// treat it as relative to the current working directory.
 	// This makes io.Local behave more like the standard 'os' package.
-	if m.root == "/" && !filepath.IsAbs(p) {
-		cwd, _ := os.Getwd()
-		return filepath.Join(cwd, p)
+	if m.root == dirSeparator() && !core.PathIsAbs(normalisePath(p)) {
+		return core.Path(currentWorkingDir(), normalisePath(p))
 	}
 
-	// Use filepath.Clean with a leading slash to resolve all .. and . internally
+	// Use a cleaned absolute path to resolve all .. and . internally
 	// before joining with the root. This is a standard way to sandbox paths.
-	clean := filepath.Clean("/" + p)
+	clean := cleanSandboxPath(p)
 
 	// If root is "/", allow absolute paths through
-	if m.root == "/" {
+	if m.root == dirSeparator() {
 		return clean
 	}
 
 	// Join cleaned relative path with root
-	return filepath.Join(m.root, clean)
+	return core.Path(m.root, strings.TrimPrefix(clean, dirSeparator()))
 }
 
 // validatePath ensures the path is within the sandbox, following symlinks if they exist.
 func (m *Medium) validatePath(p string) (string, error) {
-	if m.root == "/" {
+	if m.root == dirSeparator() {
 		return m.path(p), nil
 	}
 
 	// Split the cleaned path into components
-	parts := strings.Split(filepath.Clean("/"+p), string(os.PathSeparator))
+	parts := splitPathParts(cleanSandboxPath(p))
 	current := m.root
 
 	for _, part := range parts {
-		if part == "" {
-			continue
-		}
-
-		next := filepath.Join(current, part)
-		realNext, err := filepath.EvalSymlinks(next)
+		next := core.Path(current, part)
+		realNext, err := resolveSymlinksPath(next)
 		if err != nil {
 			if os.IsNotExist(err) {
 				// Part doesn't exist, we can't follow symlinks anymore.
@@ -93,15 +230,9 @@ func (m *Medium) validatePath(p string) (string, error) {
 		}
 
 		// Verify the resolved part is still within the root
-		rel, err := filepath.Rel(m.root, realNext)
-		if err != nil || strings.HasPrefix(rel, "..") {
+		if !isWithinRoot(m.root, realNext) {
 			// Security event: sandbox escape attempt
-			username := "unknown"
-			if u, err := user.Current(); err == nil {
-				username = u.Username
-			}
-			fmt.Fprintf(os.Stderr, "[%s] SECURITY sandbox escape detected root=%s path=%s attempted=%s user=%s\n",
-				time.Now().Format(time.RFC3339), m.root, p, realNext, username)
+			logSandboxEscape(m.root, p, realNext)
 			return "", os.ErrPermission // Path escapes sandbox
 		}
 		current = realNext
@@ -137,7 +268,7 @@ func (m *Medium) WriteMode(p, content string, mode os.FileMode) error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(full), 0755); err != nil {
+	if err := os.MkdirAll(core.PathDir(full), 0755); err != nil {
 		return err
 	}
 	return os.WriteFile(full, []byte(content), mode)
@@ -221,7 +352,7 @@ func (m *Medium) Create(p string) (goio.WriteCloser, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := os.MkdirAll(filepath.Dir(full), 0755); err != nil {
+	if err := os.MkdirAll(core.PathDir(full), 0755); err != nil {
 		return nil, err
 	}
 	return os.Create(full)
@@ -233,7 +364,7 @@ func (m *Medium) Append(p string) (goio.WriteCloser, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := os.MkdirAll(filepath.Dir(full), 0755); err != nil {
+	if err := os.MkdirAll(core.PathDir(full), 0755); err != nil {
 		return nil, err
 	}
 	return os.OpenFile(full, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
@@ -265,7 +396,7 @@ func (m *Medium) Delete(p string) error {
 	if err != nil {
 		return err
 	}
-	if full == "/" || full == os.Getenv("HOME") {
+	if isProtectedPath(full) {
 		return coreerr.E("local.Delete", "refusing to delete protected path: "+full, nil)
 	}
 	return os.Remove(full)
@@ -277,7 +408,7 @@ func (m *Medium) DeleteAll(p string) error {
 	if err != nil {
 		return err
 	}
-	if full == "/" || full == os.Getenv("HOME") {
+	if isProtectedPath(full) {
 		return coreerr.E("local.DeleteAll", "refusing to delete protected path: "+full, nil)
 	}
 	return os.RemoveAll(full)

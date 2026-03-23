@@ -4,7 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"os"
-	"path/filepath"
+	"strings"
 	"sync"
 
 	core "dappco.re/go/core"
@@ -39,11 +39,11 @@ type Service struct {
 // New creates a new Workspace service instance.
 // An optional cryptProvider can be passed to supply PGP key generation.
 func New(c *core.Core, crypt ...cryptProvider) (any, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return nil, coreerr.E("workspace.New", "failed to determine home directory", err)
+	home := workspaceHome()
+	if home == "" {
+		return nil, coreerr.E("workspace.New", "failed to determine home directory", os.ErrNotExist)
 	}
-	rootPath := filepath.Join(home, ".core", "workspaces")
+	rootPath := core.Path(home, ".core", "workspaces")
 
 	s := &Service{
 		core:     c,
@@ -75,14 +75,17 @@ func (s *Service) CreateWorkspace(identifier, password string) (string, error) {
 
 	hash := sha256.Sum256([]byte(identifier))
 	wsID := hex.EncodeToString(hash[:])
-	wsPath := filepath.Join(s.rootPath, wsID)
+	wsPath, err := s.workspacePath("workspace.CreateWorkspace", wsID)
+	if err != nil {
+		return "", err
+	}
 
 	if s.medium.Exists(wsPath) {
 		return "", coreerr.E("workspace.CreateWorkspace", "workspace already exists", nil)
 	}
 
 	for _, d := range []string{"config", "log", "data", "files", "keys"} {
-		if err := s.medium.EnsureDir(filepath.Join(wsPath, d)); err != nil {
+		if err := s.medium.EnsureDir(core.Path(wsPath, d)); err != nil {
 			return "", coreerr.E("workspace.CreateWorkspace", "failed to create directory: "+d, err)
 		}
 	}
@@ -92,7 +95,7 @@ func (s *Service) CreateWorkspace(identifier, password string) (string, error) {
 		return "", coreerr.E("workspace.CreateWorkspace", "failed to generate keys", err)
 	}
 
-	if err := s.medium.WriteMode(filepath.Join(wsPath, "keys", "private.key"), privKey, 0600); err != nil {
+	if err := s.medium.WriteMode(core.Path(wsPath, "keys", "private.key"), privKey, 0600); err != nil {
 		return "", coreerr.E("workspace.CreateWorkspace", "failed to save private key", err)
 	}
 
@@ -104,12 +107,15 @@ func (s *Service) SwitchWorkspace(name string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	wsPath := filepath.Join(s.rootPath, name)
+	wsPath, err := s.workspacePath("workspace.SwitchWorkspace", name)
+	if err != nil {
+		return err
+	}
 	if !s.medium.IsDir(wsPath) {
 		return coreerr.E("workspace.SwitchWorkspace", "workspace not found: "+name, nil)
 	}
 
-	s.activeWorkspace = name
+	s.activeWorkspace = core.PathBase(wsPath)
 	return nil
 }
 
@@ -119,7 +125,15 @@ func (s *Service) activeFilePath(op, filename string) (string, error) {
 	if s.activeWorkspace == "" {
 		return "", coreerr.E(op, "no active workspace", nil)
 	}
-	return filepath.Join(s.rootPath, s.activeWorkspace, "files", filename), nil
+	filesRoot := core.Path(s.rootPath, s.activeWorkspace, "files")
+	path, err := joinWithinRoot(filesRoot, filename)
+	if err != nil {
+		return "", coreerr.E(op, "file path escapes workspace files", os.ErrPermission)
+	}
+	if path == filesRoot {
+		return "", coreerr.E(op, "filename is required", os.ErrInvalid)
+	}
+	return path, nil
 }
 
 // WorkspaceFileGet retrieves the content of a file from the active workspace.
@@ -169,6 +183,39 @@ func (s *Service) HandleIPCEvents(c *core.Core, msg core.Message) core.Result {
 		}
 	}
 	return core.Result{OK: true}
+}
+
+func workspaceHome() string {
+	if home := core.Env("CORE_HOME"); home != "" {
+		return home
+	}
+	if home := core.Env("HOME"); home != "" {
+		return home
+	}
+	return core.Env("DIR_HOME")
+}
+
+func joinWithinRoot(root string, parts ...string) (string, error) {
+	candidate := core.Path(append([]string{root}, parts...)...)
+	sep := core.Env("DS")
+	if candidate == root || strings.HasPrefix(candidate, root+sep) {
+		return candidate, nil
+	}
+	return "", os.ErrPermission
+}
+
+func (s *Service) workspacePath(op, name string) (string, error) {
+	if name == "" {
+		return "", coreerr.E(op, "workspace name is required", os.ErrInvalid)
+	}
+	path, err := joinWithinRoot(s.rootPath, name)
+	if err != nil {
+		return "", coreerr.E(op, "workspace path escapes root", err)
+	}
+	if core.PathDir(path) != s.rootPath {
+		return "", coreerr.E(op, "invalid workspace name: "+name, os.ErrPermission)
+	}
+	return path, nil
 }
 
 // Ensure Service implements Workspace.

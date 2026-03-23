@@ -37,6 +37,29 @@ type Medium struct {
 	prefix string
 }
 
+func deleteObjectsError(prefix string, errs []types.Error) error {
+	if len(errs) == 0 {
+		return nil
+	}
+	details := make([]string, 0, len(errs))
+	for _, item := range errs {
+		key := aws.ToString(item.Key)
+		code := aws.ToString(item.Code)
+		msg := aws.ToString(item.Message)
+		switch {
+		case code != "" && msg != "":
+			details = append(details, key+": "+code+" "+msg)
+		case code != "":
+			details = append(details, key+": "+code)
+		case msg != "":
+			details = append(details, key+": "+msg)
+		default:
+			details = append(details, key)
+		}
+	}
+	return coreerr.E("s3.DeleteAll", "partial delete failed under "+prefix+": "+strings.Join(details, "; "), nil)
+}
+
 // Option configures a Medium.
 type Option func(*Medium)
 
@@ -197,10 +220,13 @@ func (m *Medium) DeleteAll(p string) error {
 	}
 
 	// First, try deleting the exact key
-	_, _ = m.client.DeleteObject(context.Background(), &s3.DeleteObjectInput{
+	_, err := m.client.DeleteObject(context.Background(), &s3.DeleteObjectInput{
 		Bucket: aws.String(m.bucket),
 		Key:    aws.String(key),
 	})
+	if err != nil {
+		return coreerr.E("s3.DeleteAll", "failed to delete object: "+key, err)
+	}
 
 	// Then delete all objects under the prefix
 	prefix := key
@@ -230,12 +256,15 @@ func (m *Medium) DeleteAll(p string) error {
 			objects[i] = types.ObjectIdentifier{Key: obj.Key}
 		}
 
-		_, err = m.client.DeleteObjects(context.Background(), &s3.DeleteObjectsInput{
+		deleteOut, err := m.client.DeleteObjects(context.Background(), &s3.DeleteObjectsInput{
 			Bucket: aws.String(m.bucket),
 			Delete: &types.Delete{Objects: objects, Quiet: aws.Bool(true)},
 		})
 		if err != nil {
 			return coreerr.E("s3.DeleteAll", "failed to delete objects", err)
+		}
+		if err := deleteObjectsError(prefix, deleteOut.Errors); err != nil {
+			return err
 		}
 
 		if listOut.IsTruncated != nil && *listOut.IsTruncated {
