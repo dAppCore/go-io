@@ -1,7 +1,9 @@
 package datanode
 
 import (
+	"errors"
 	"io"
+	"io/fs"
 	"testing"
 
 	coreio "dappco.re/go/core/io"
@@ -102,6 +104,23 @@ func TestDelete_Bad(t *testing.T) {
 	assert.Error(t, m.Delete("dir"))
 }
 
+func TestDelete_Bad_DirectoryInspectionFailure(t *testing.T) {
+	m := New()
+	require.NoError(t, m.Write("dir/file.txt", "content"))
+
+	original := dataNodeWalkDir
+	dataNodeWalkDir = func(_ fs.FS, _ string, _ fs.WalkDirFunc) error {
+		return errors.New("walk failed")
+	}
+	t.Cleanup(func() {
+		dataNodeWalkDir = original
+	})
+
+	err := m.Delete("dir")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to inspect directory")
+}
+
 func TestDeleteAll_Good(t *testing.T) {
 	m := New()
 
@@ -114,6 +133,41 @@ func TestDeleteAll_Good(t *testing.T) {
 	assert.False(t, m.Exists("tree/a.txt"))
 	assert.False(t, m.Exists("tree/sub/b.txt"))
 	assert.True(t, m.Exists("keep.txt"))
+}
+
+func TestDeleteAll_Bad_WalkFailure(t *testing.T) {
+	m := New()
+	require.NoError(t, m.Write("tree/a.txt", "a"))
+
+	original := dataNodeWalkDir
+	dataNodeWalkDir = func(_ fs.FS, _ string, _ fs.WalkDirFunc) error {
+		return errors.New("walk failed")
+	}
+	t.Cleanup(func() {
+		dataNodeWalkDir = original
+	})
+
+	err := m.DeleteAll("tree")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to inspect tree")
+}
+
+func TestDelete_Bad_RemoveFailure(t *testing.T) {
+	m := New()
+	require.NoError(t, m.Write("keep.txt", "keep"))
+	require.NoError(t, m.Write("bad.txt", "bad"))
+
+	original := dataNodeReadAll
+	dataNodeReadAll = func(_ io.Reader) ([]byte, error) {
+		return nil, errors.New("read failed")
+	}
+	t.Cleanup(func() {
+		dataNodeReadAll = original
+	})
+
+	err := m.Delete("bad.txt")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to delete file")
 }
 
 func TestRename_Good(t *testing.T) {
@@ -145,6 +199,23 @@ func TestRenameDir_Good(t *testing.T) {
 	got, err = m.Read("dst/sub/b.go")
 	require.NoError(t, err)
 	assert.Equal(t, "package b", got)
+}
+
+func TestRenameDir_Bad_ReadFailure(t *testing.T) {
+	m := New()
+	require.NoError(t, m.Write("src/a.go", "package a"))
+
+	original := dataNodeReadAll
+	dataNodeReadAll = func(_ io.Reader) ([]byte, error) {
+		return nil, errors.New("read failed")
+	}
+	t.Cleanup(func() {
+		dataNodeReadAll = original
+	})
+
+	err := m.Rename("src", "dst")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to read source file")
 }
 
 func TestList_Good(t *testing.T) {
@@ -228,6 +299,23 @@ func TestCreateAppend_Good(t *testing.T) {
 	got, err = m.Read("new.txt")
 	require.NoError(t, err)
 	assert.Equal(t, "hello world", got)
+}
+
+func TestAppend_Bad_ReadFailure(t *testing.T) {
+	m := New()
+	require.NoError(t, m.Write("new.txt", "hello"))
+
+	original := dataNodeReadAll
+	dataNodeReadAll = func(_ io.Reader) ([]byte, error) {
+		return nil, errors.New("read failed")
+	}
+	t.Cleanup(func() {
+		dataNodeReadAll = original
+	})
+
+	_, err := m.Append("new.txt")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to read existing content")
 }
 
 func TestStreams_Good(t *testing.T) {

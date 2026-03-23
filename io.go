@@ -4,12 +4,12 @@ import (
 	goio "io"
 	"io/fs"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
-	coreerr "forge.lthn.ai/core/go-log"
+	core "dappco.re/go/core"
 	"dappco.re/go/core/io/local"
+	coreerr "forge.lthn.ai/core/go-log"
 )
 
 // Medium defines the standard interface for a storage backend.
@@ -361,7 +361,7 @@ func (m *MockMedium) Open(path string) (fs.File, error) {
 		return nil, coreerr.E("io.MockMedium.Open", "file not found: "+path, os.ErrNotExist)
 	}
 	return &MockFile{
-		name:    filepath.Base(path),
+		name:    core.PathBase(path),
 		content: []byte(content),
 	}, nil
 }
@@ -556,7 +556,7 @@ func (m *MockMedium) Stat(path string) (fs.FileInfo, error) {
 			modTime = time.Now()
 		}
 		return FileInfo{
-			name:    filepath.Base(path),
+			name:    core.PathBase(path),
 			size:    int64(len(content)),
 			mode:    0644,
 			modTime: modTime,
@@ -564,7 +564,7 @@ func (m *MockMedium) Stat(path string) (fs.FileInfo, error) {
 	}
 	if _, ok := m.Dirs[path]; ok {
 		return FileInfo{
-			name:  filepath.Base(path),
+			name:  core.PathBase(path),
 			isDir: true,
 			mode:  fs.ModeDir | 0755,
 		}, nil

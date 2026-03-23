@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNew(t *testing.T) {
@@ -168,6 +169,33 @@ func TestDeleteAll(t *testing.T) {
 	err := m.DeleteAll("dir")
 	assert.NoError(t, err)
 	assert.False(t, m.Exists("dir"))
+}
+
+func TestDelete_ProtectedHomeViaSymlinkEnv(t *testing.T) {
+	realHome := t.TempDir()
+	linkParent := t.TempDir()
+	homeLink := filepath.Join(linkParent, "home-link")
+	require.NoError(t, os.Symlink(realHome, homeLink))
+	t.Setenv("HOME", homeLink)
+
+	m, err := New("/")
+	require.NoError(t, err)
+
+	err = m.Delete(realHome)
+	require.Error(t, err)
+	assert.DirExists(t, realHome)
+}
+
+func TestDeleteAll_ProtectedHomeViaEnv(t *testing.T) {
+	tempHome := t.TempDir()
+	t.Setenv("HOME", tempHome)
+
+	m, err := New("/")
+	require.NoError(t, err)
+
+	err = m.DeleteAll(tempHome)
+	require.Error(t, err)
+	assert.DirExists(t, tempHome)
 }
 
 func TestRename(t *testing.T) {
