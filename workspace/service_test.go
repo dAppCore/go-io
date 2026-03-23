@@ -1,48 +1,90 @@
 package workspace
 
 import (
-	"path/filepath"
+	"os"
 	"testing"
 
 	core "dappco.re/go/core"
-	"forge.lthn.ai/core/go-crypt/crypt/openpgp"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestWorkspace(t *testing.T) {
-	c := core.New()
-	pgpSvc, err := openpgp.New(nil)
-	assert.NoError(t, err)
+type stubCrypt struct {
+	key string
+	err error
+}
+
+func (s stubCrypt) CreateKeyPair(_, _ string) (string, error) {
+	if s.err != nil {
+		return "", s.err
+	}
+	return s.key, nil
+}
+
+func newTestService(t *testing.T) (*Service, string) {
+	t.Helper()
 
 	tempHome := t.TempDir()
 	t.Setenv("HOME", tempHome)
 
-	svc, err := New(c, pgpSvc.(cryptProvider))
-	assert.NoError(t, err)
-	s := svc.(*Service)
+	svc, err := New(core.New(), stubCrypt{key: "private-key"})
+	require.NoError(t, err)
+	return svc.(*Service), tempHome
+}
 
-	// Test CreateWorkspace
+func TestWorkspace(t *testing.T) {
+	s, tempHome := newTestService(t)
+
 	id, err := s.CreateWorkspace("test-user", "pass123")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotEmpty(t, id)
 
-	wsPath := filepath.Join(tempHome, ".core", "workspaces", id)
+	wsPath := core.Path(tempHome, ".core", "workspaces", id)
 	assert.DirExists(t, wsPath)
-	assert.DirExists(t, filepath.Join(wsPath, "keys"))
-	assert.FileExists(t, filepath.Join(wsPath, "keys", "private.key"))
+	assert.DirExists(t, core.Path(wsPath, "keys"))
+	assert.FileExists(t, core.Path(wsPath, "keys", "private.key"))
 
-	// Test SwitchWorkspace
 	err = s.SwitchWorkspace(id)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, id, s.activeWorkspace)
 
-	// Test File operations
-	filename := "secret.txt"
-	content := "top secret info"
-	err = s.WorkspaceFileSet(filename, content)
-	assert.NoError(t, err)
+	err = s.WorkspaceFileSet("secret.txt", "top secret info")
+	require.NoError(t, err)
 
-	got, err := s.WorkspaceFileGet(filename)
-	assert.NoError(t, err)
-	assert.Equal(t, content, got)
+	got, err := s.WorkspaceFileGet("secret.txt")
+	require.NoError(t, err)
+	assert.Equal(t, "top secret info", got)
+}
+
+func TestSwitchWorkspace_TraversalBlocked(t *testing.T) {
+	s, tempHome := newTestService(t)
+
+	outside := core.Path(tempHome, ".core", "escaped")
+	require.NoError(t, os.MkdirAll(outside, 0755))
+
+	err := s.SwitchWorkspace("../escaped")
+	require.Error(t, err)
+	assert.Empty(t, s.activeWorkspace)
+}
+
+func TestWorkspaceFileSet_TraversalBlocked(t *testing.T) {
+	s, tempHome := newTestService(t)
+
+	id, err := s.CreateWorkspace("test-user", "pass123")
+	require.NoError(t, err)
+	require.NoError(t, s.SwitchWorkspace(id))
+
+	keyPath := core.Path(tempHome, ".core", "workspaces", id, "keys", "private.key")
+	before, err := os.ReadFile(keyPath)
+	require.NoError(t, err)
+
+	err = s.WorkspaceFileSet("../keys/private.key", "hijack")
+	require.Error(t, err)
+
+	after, err := os.ReadFile(keyPath)
+	require.NoError(t, err)
+	assert.Equal(t, string(before), string(after))
+
+	_, err = s.WorkspaceFileGet("../keys/private.key")
+	require.Error(t, err)
 }
