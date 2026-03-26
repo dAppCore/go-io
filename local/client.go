@@ -20,6 +20,11 @@ type Medium struct {
 
 // New creates a new local Medium rooted at the given directory.
 // Pass "/" for full filesystem access, or a specific path to sandbox.
+//
+// Example usage:
+//
+//	m, _ := local.New("/srv/app")
+//	_ = m.Write("config/app.yaml", "port: 8080")
 func New(root string) (*Medium, error) {
 	abs := absolutePath(root)
 	// Resolve symlinks so sandbox checks compare like-for-like.
@@ -263,7 +268,7 @@ func (m *Medium) Write(p, content string) error {
 
 // WriteMode saves content to file with explicit permissions.
 // Use 0600 for sensitive files (encryption output, private keys, auth hashes).
-func (m *Medium) WriteMode(p, content string, mode os.FileMode) error {
+func (m *Medium) WriteMode(p, content string, mode fs.FileMode) error {
 	full, err := m.validatePath(p)
 	if err != nil {
 		return err

@@ -9,12 +9,12 @@ import (
 	"cmp"
 	goio "io"
 	"io/fs"
-	"os"
 	"path"
 	"slices"
 	"strings"
 	"time"
 
+	core "dappco.re/go/core"
 	coreio "dappco.re/go/core/io"
 )
 
@@ -30,6 +30,11 @@ var _ coreio.Medium = (*Node)(nil)
 var _ fs.ReadFileFS = (*Node)(nil)
 
 // New creates a new, empty Node.
+//
+// Example usage:
+//
+//	n := node.New()
+//	n.AddData("config/app.yaml", []byte("port: 8080"))
 func New() *Node {
 	return &Node{files: make(map[string]*dataFile)}
 }
@@ -211,10 +216,19 @@ func (n *Node) CopyFile(src, dst string, perm fs.FileMode) error {
 		}
 		return &fs.PathError{Op: "copyfile", Path: src, Err: fs.ErrNotExist}
 	}
-	return os.WriteFile(dst, f.content, perm)
+	parent := core.PathDir(dst)
+	if parent != "." && parent != "" && parent != dst && !coreio.Local.IsDir(parent) {
+		return &fs.PathError{Op: "copyfile", Path: dst, Err: fs.ErrNotExist}
+	}
+	return coreio.Local.WriteMode(dst, string(f.content), perm)
 }
 
 // CopyTo copies a file (or directory tree) from the node to any Medium.
+//
+// Example usage:
+//
+//	dst := io.NewMockMedium()
+//	_ = n.CopyTo(dst, "config", "backup/config")
 func (n *Node) CopyTo(target coreio.Medium, sourcePath, destPath string) error {
 	sourcePath = strings.TrimPrefix(sourcePath, "/")
 	info, err := n.Stat(sourcePath)
@@ -362,7 +376,7 @@ func (n *Node) Write(p, content string) error {
 }
 
 // WriteMode saves content with explicit permissions (no-op for in-memory node).
-func (n *Node) WriteMode(p, content string, mode os.FileMode) error {
+func (n *Node) WriteMode(p, content string, mode fs.FileMode) error {
 	return n.Write(p, content)
 }
 

@@ -244,6 +244,11 @@ type ChaChaPolySigil struct {
 
 // NewChaChaPolySigil creates a new encryption sigil with the given key.
 // The key must be exactly 32 bytes.
+//
+// Example usage:
+//
+//	key := []byte("0123456789abcdef0123456789abcdef")
+//	s, _ := sigil.NewChaChaPolySigil(key)
 func NewChaChaPolySigil(key []byte) (*ChaChaPolySigil, error) {
 	if len(key) != 32 {
 		return nil, ErrInvalidKey
@@ -260,6 +265,11 @@ func NewChaChaPolySigil(key []byte) (*ChaChaPolySigil, error) {
 }
 
 // NewChaChaPolySigilWithObfuscator creates a new encryption sigil with custom obfuscator.
+//
+// Example usage:
+//
+//	key := []byte("0123456789abcdef0123456789abcdef")
+//	s, _ := sigil.NewChaChaPolySigilWithObfuscator(key, &sigil.ShuffleMaskObfuscator{})
 func NewChaChaPolySigilWithObfuscator(key []byte, obfuscator PreObfuscator) (*ChaChaPolySigil, error) {
 	sigil, err := NewChaChaPolySigil(key)
 	if err != nil {

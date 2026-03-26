@@ -6,12 +6,12 @@ import (
 	"errors"
 	"io"
 	"io/fs"
-	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 	"testing"
 
+	core "dappco.re/go/core"
+	coreio "dappco.re/go/core/io"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -314,7 +314,7 @@ func TestWalk_Ugly(t *testing.T) {
 	assert.Equal(t, walkErr, err, "Walk must propagate the callback error")
 }
 
-func TestWalk_Options(t *testing.T) {
+func TestWalk_Good_Options(t *testing.T) {
 	n := New()
 	n.AddData("root.txt", []byte("root"))
 	n.AddData("a/a1.txt", []byte("a1"))
@@ -367,18 +367,18 @@ func TestCopyFile_Good(t *testing.T) {
 	n := New()
 	n.AddData("foo.txt", []byte("foo"))
 
-	tmpfile := filepath.Join(t.TempDir(), "test.txt")
+	tmpfile := core.Path(t.TempDir(), "test.txt")
 	err := n.CopyFile("foo.txt", tmpfile, 0644)
 	require.NoError(t, err)
 
-	content, err := os.ReadFile(tmpfile)
+	content, err := coreio.Local.Read(tmpfile)
 	require.NoError(t, err)
-	assert.Equal(t, "foo", string(content))
+	assert.Equal(t, "foo", content)
 }
 
 func TestCopyFile_Bad(t *testing.T) {
 	n := New()
-	tmpfile := filepath.Join(t.TempDir(), "test.txt")
+	tmpfile := core.Path(t.TempDir(), "test.txt")
 
 	// Source does not exist.
 	err := n.CopyFile("nonexistent.txt", tmpfile, 0644)
@@ -393,7 +393,7 @@ func TestCopyFile_Bad(t *testing.T) {
 func TestCopyFile_Ugly(t *testing.T) {
 	n := New()
 	n.AddData("bar/baz.txt", []byte("baz"))
-	tmpfile := filepath.Join(t.TempDir(), "test.txt")
+	tmpfile := core.Path(t.TempDir(), "test.txt")
 
 	// Attempting to copy a directory should fail.
 	err := n.CopyFile("bar", tmpfile, 0644)

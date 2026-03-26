@@ -19,6 +19,11 @@ type Store struct {
 }
 
 // New creates a Store at the given SQLite path. Use ":memory:" for tests.
+//
+// Example usage:
+//
+//	s, _ := store.New(":memory:")
+//	_ = s.Set("app", "theme", "midnight")
 func New(dbPath string) (*Store, error) {
 	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
@@ -122,6 +127,11 @@ func (s *Store) GetAll(group string) (map[string]string, error) {
 }
 
 // Render loads all key-value pairs from a group and renders a Go template.
+//
+// Example usage:
+//
+//	_ = s.Set("user", "name", "alice")
+//	out, _ := s.Render("hello {{ .name }}", "user")
 func (s *Store) Render(tmplStr, group string) (string, error) {
 	rows, err := s.db.Query("SELECT key, value FROM kv WHERE grp = ?", group)
 	if err != nil {

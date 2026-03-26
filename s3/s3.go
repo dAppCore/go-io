@@ -6,7 +6,6 @@ import (
 	"context"
 	goio "io"
 	"io/fs"
-	"os"
 	"path"
 	"strings"
 	"time"
@@ -89,6 +88,11 @@ func withAPI(api s3API) Option {
 }
 
 // New creates a new S3 Medium for the given bucket.
+//
+// Example usage:
+//
+//	awsClient := awss3.NewFromConfig(cfg)
+//	m, _ := s3.New("backups", s3.WithClient(awsClient), s3.WithPrefix("daily"))
 func New(bucket string, opts ...Option) (*Medium, error) {
 	if bucket == "" {
 		return nil, coreerr.E("s3.New", "bucket name is required", nil)
@@ -126,7 +130,7 @@ func (m *Medium) key(p string) string {
 func (m *Medium) Read(p string) (string, error) {
 	key := m.key(p)
 	if key == "" {
-		return "", coreerr.E("s3.Read", "path is required", os.ErrInvalid)
+		return "", coreerr.E("s3.Read", "path is required", fs.ErrInvalid)
 	}
 
 	out, err := m.client.GetObject(context.Background(), &s3.GetObjectInput{
@@ -149,7 +153,7 @@ func (m *Medium) Read(p string) (string, error) {
 func (m *Medium) Write(p, content string) error {
 	key := m.key(p)
 	if key == "" {
-		return coreerr.E("s3.Write", "path is required", os.ErrInvalid)
+		return coreerr.E("s3.Write", "path is required", fs.ErrInvalid)
 	}
 
 	_, err := m.client.PutObject(context.Background(), &s3.PutObjectInput{
@@ -199,7 +203,7 @@ func (m *Medium) FileSet(p, content string) error {
 func (m *Medium) Delete(p string) error {
 	key := m.key(p)
 	if key == "" {
-		return coreerr.E("s3.Delete", "path is required", os.ErrInvalid)
+		return coreerr.E("s3.Delete", "path is required", fs.ErrInvalid)
 	}
 
 	_, err := m.client.DeleteObject(context.Background(), &s3.DeleteObjectInput{
@@ -216,7 +220,7 @@ func (m *Medium) Delete(p string) error {
 func (m *Medium) DeleteAll(p string) error {
 	key := m.key(p)
 	if key == "" {
-		return coreerr.E("s3.DeleteAll", "path is required", os.ErrInvalid)
+		return coreerr.E("s3.DeleteAll", "path is required", fs.ErrInvalid)
 	}
 
 	// First, try deleting the exact key
@@ -282,7 +286,7 @@ func (m *Medium) Rename(oldPath, newPath string) error {
 	oldKey := m.key(oldPath)
 	newKey := m.key(newPath)
 	if oldKey == "" || newKey == "" {
-		return coreerr.E("s3.Rename", "both old and new paths are required", os.ErrInvalid)
+		return coreerr.E("s3.Rename", "both old and new paths are required", fs.ErrInvalid)
 	}
 
 	copySource := m.bucket + "/" + oldKey
@@ -384,7 +388,7 @@ func (m *Medium) List(p string) ([]fs.DirEntry, error) {
 func (m *Medium) Stat(p string) (fs.FileInfo, error) {
 	key := m.key(p)
 	if key == "" {
-		return nil, coreerr.E("s3.Stat", "path is required", os.ErrInvalid)
+		return nil, coreerr.E("s3.Stat", "path is required", fs.ErrInvalid)
 	}
 
 	out, err := m.client.HeadObject(context.Background(), &s3.HeadObjectInput{
@@ -417,7 +421,7 @@ func (m *Medium) Stat(p string) (fs.FileInfo, error) {
 func (m *Medium) Open(p string) (fs.File, error) {
 	key := m.key(p)
 	if key == "" {
-		return nil, coreerr.E("s3.Open", "path is required", os.ErrInvalid)
+		return nil, coreerr.E("s3.Open", "path is required", fs.ErrInvalid)
 	}
 
 	out, err := m.client.GetObject(context.Background(), &s3.GetObjectInput{
@@ -456,7 +460,7 @@ func (m *Medium) Open(p string) (fs.File, error) {
 func (m *Medium) Create(p string) (goio.WriteCloser, error) {
 	key := m.key(p)
 	if key == "" {
-		return nil, coreerr.E("s3.Create", "path is required", os.ErrInvalid)
+		return nil, coreerr.E("s3.Create", "path is required", fs.ErrInvalid)
 	}
 	return &s3WriteCloser{
 		medium: m,
@@ -469,7 +473,7 @@ func (m *Medium) Create(p string) (goio.WriteCloser, error) {
 func (m *Medium) Append(p string) (goio.WriteCloser, error) {
 	key := m.key(p)
 	if key == "" {
-		return nil, coreerr.E("s3.Append", "path is required", os.ErrInvalid)
+		return nil, coreerr.E("s3.Append", "path is required", fs.ErrInvalid)
 	}
 
 	var existing []byte
@@ -493,7 +497,7 @@ func (m *Medium) Append(p string) (goio.WriteCloser, error) {
 func (m *Medium) ReadStream(p string) (goio.ReadCloser, error) {
 	key := m.key(p)
 	if key == "" {
-		return nil, coreerr.E("s3.ReadStream", "path is required", os.ErrInvalid)
+		return nil, coreerr.E("s3.ReadStream", "path is required", fs.ErrInvalid)
 	}
 
 	out, err := m.client.GetObject(context.Background(), &s3.GetObjectInput{

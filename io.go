@@ -3,7 +3,6 @@ package io
 import (
 	goio "io"
 	"io/fs"
-	"os"
 	"strings"
 	"time"
 
@@ -25,7 +24,7 @@ type Medium interface {
 
 	// WriteMode saves content with explicit file permissions.
 	// Use 0600 for sensitive files (keys, secrets, encrypted output).
-	WriteMode(path, content string, mode os.FileMode) error
+	WriteMode(path, content string, mode fs.FileMode) error
 
 	// EnsureDir makes sure a directory exists, creating it if necessary.
 	EnsureDir(path string) error
@@ -123,6 +122,11 @@ func init() {
 // NewSandboxed creates a new Medium sandboxed to the given root directory.
 // All file operations are restricted to paths within the root.
 // The root directory will be created if it doesn't exist.
+//
+// Example usage:
+//
+//	m, _ := io.NewSandboxed("/srv/app")
+//	_ = m.Write("config/app.yaml", "port: 8080")
 func NewSandboxed(root string) (Medium, error) {
 	return local.New(root)
 }
@@ -193,7 +197,7 @@ func NewMockMedium() *MockMedium {
 func (m *MockMedium) Read(path string) (string, error) {
 	content, ok := m.Files[path]
 	if !ok {
-		return "", coreerr.E("io.MockMedium.Read", "file not found: "+path, os.ErrNotExist)
+		return "", coreerr.E("io.MockMedium.Read", "file not found: "+path, fs.ErrNotExist)
 	}
 	return content, nil
 }
@@ -205,7 +209,7 @@ func (m *MockMedium) Write(path, content string) error {
 	return nil
 }
 
-func (m *MockMedium) WriteMode(path, content string, mode os.FileMode) error {
+func (m *MockMedium) WriteMode(path, content string, mode fs.FileMode) error {
 	return m.Write(path, content)
 }
 
@@ -245,18 +249,18 @@ func (m *MockMedium) Delete(path string) error {
 		}
 		for f := range m.Files {
 			if strings.HasPrefix(f, prefix) {
-				return coreerr.E("io.MockMedium.Delete", "directory not empty: "+path, os.ErrExist)
+				return coreerr.E("io.MockMedium.Delete", "directory not empty: "+path, fs.ErrExist)
 			}
 		}
 		for d := range m.Dirs {
 			if d != path && strings.HasPrefix(d, prefix) {
-				return coreerr.E("io.MockMedium.Delete", "directory not empty: "+path, os.ErrExist)
+				return coreerr.E("io.MockMedium.Delete", "directory not empty: "+path, fs.ErrExist)
 			}
 		}
 		delete(m.Dirs, path)
 		return nil
 	}
-	return coreerr.E("io.MockMedium.Delete", "path not found: "+path, os.ErrNotExist)
+	return coreerr.E("io.MockMedium.Delete", "path not found: "+path, fs.ErrNotExist)
 }
 
 // DeleteAll removes a file or directory and all contents from the mock filesystem.
@@ -290,7 +294,7 @@ func (m *MockMedium) DeleteAll(path string) error {
 	}
 
 	if !found {
-		return coreerr.E("io.MockMedium.DeleteAll", "path not found: "+path, os.ErrNotExist)
+		return coreerr.E("io.MockMedium.DeleteAll", "path not found: "+path, fs.ErrNotExist)
 	}
 	return nil
 }
@@ -351,14 +355,14 @@ func (m *MockMedium) Rename(oldPath, newPath string) error {
 		}
 		return nil
 	}
-	return coreerr.E("io.MockMedium.Rename", "path not found: "+oldPath, os.ErrNotExist)
+	return coreerr.E("io.MockMedium.Rename", "path not found: "+oldPath, fs.ErrNotExist)
 }
 
 // Open opens a file from the mock filesystem.
 func (m *MockMedium) Open(path string) (fs.File, error) {
 	content, ok := m.Files[path]
 	if !ok {
-		return nil, coreerr.E("io.MockMedium.Open", "file not found: "+path, os.ErrNotExist)
+		return nil, coreerr.E("io.MockMedium.Open", "file not found: "+path, fs.ErrNotExist)
 	}
 	return &MockFile{
 		name:    core.PathBase(path),
@@ -463,7 +467,7 @@ func (m *MockMedium) List(path string) ([]fs.DirEntry, error) {
 			}
 		}
 		if !hasChildren && path != "" {
-			return nil, coreerr.E("io.MockMedium.List", "directory not found: "+path, os.ErrNotExist)
+			return nil, coreerr.E("io.MockMedium.List", "directory not found: "+path, fs.ErrNotExist)
 		}
 	}
 
@@ -569,7 +573,7 @@ func (m *MockMedium) Stat(path string) (fs.FileInfo, error) {
 			mode:  fs.ModeDir | 0755,
 		}, nil
 	}
-	return nil, coreerr.E("io.MockMedium.Stat", "path not found: "+path, os.ErrNotExist)
+	return nil, coreerr.E("io.MockMedium.Stat", "path not found: "+path, fs.ErrNotExist)
 }
 
 // Exists checks if a path exists in the mock filesystem.

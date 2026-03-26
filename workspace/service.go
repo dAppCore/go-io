@@ -3,7 +3,7 @@ package workspace
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"os"
+	"io/fs"
 	"strings"
 	"sync"
 
@@ -38,10 +38,15 @@ type Service struct {
 
 // New creates a new Workspace service instance.
 // An optional cryptProvider can be passed to supply PGP key generation.
+//
+// Example usage:
+//
+//	svcAny, _ := workspace.New(core.New(), myCryptProvider)
+//	svc := svcAny.(*workspace.Service)
 func New(c *core.Core, crypt ...cryptProvider) (any, error) {
 	home := workspaceHome()
 	if home == "" {
-		return nil, coreerr.E("workspace.New", "failed to determine home directory", os.ErrNotExist)
+		return nil, coreerr.E("workspace.New", "failed to determine home directory", fs.ErrNotExist)
 	}
 	rootPath := core.Path(home, ".core", "workspaces")
 
@@ -128,10 +133,10 @@ func (s *Service) activeFilePath(op, filename string) (string, error) {
 	filesRoot := core.Path(s.rootPath, s.activeWorkspace, "files")
 	path, err := joinWithinRoot(filesRoot, filename)
 	if err != nil {
-		return "", coreerr.E(op, "file path escapes workspace files", os.ErrPermission)
+		return "", coreerr.E(op, "file path escapes workspace files", fs.ErrPermission)
 	}
 	if path == filesRoot {
-		return "", coreerr.E(op, "filename is required", os.ErrInvalid)
+		return "", coreerr.E(op, "filename is required", fs.ErrInvalid)
 	}
 	return path, nil
 }
@@ -201,19 +206,19 @@ func joinWithinRoot(root string, parts ...string) (string, error) {
 	if candidate == root || strings.HasPrefix(candidate, root+sep) {
 		return candidate, nil
 	}
-	return "", os.ErrPermission
+	return "", fs.ErrPermission
 }
 
 func (s *Service) workspacePath(op, name string) (string, error) {
 	if name == "" {
-		return "", coreerr.E(op, "workspace name is required", os.ErrInvalid)
+		return "", coreerr.E(op, "workspace name is required", fs.ErrInvalid)
 	}
 	path, err := joinWithinRoot(s.rootPath, name)
 	if err != nil {
 		return "", coreerr.E(op, "workspace path escapes root", err)
 	}
 	if core.PathDir(path) != s.rootPath {
-		return "", coreerr.E(op, "invalid workspace name: "+name, os.ErrPermission)
+		return "", coreerr.E(op, "invalid workspace name: "+name, fs.ErrPermission)
 	}
 	return path, nil
 }

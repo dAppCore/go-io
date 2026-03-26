@@ -1,6 +1,6 @@
 // Package datanode provides an in-memory io.Medium backed by Borg's DataNode.
 //
-// DataNode is an in-memory fs.FS that serializes to tar. Wrapping it as a
+// DataNode is an in-memory fs.FS that serialises to tar. Wrapping it as a
 // Medium lets any code that works with io.Medium transparently operate on
 // an in-memory filesystem that can be snapshotted, shipped as a crash report,
 // or wrapped in a TIM container for runc execution.
@@ -10,7 +10,6 @@ import (
 	"cmp"
 	goio "io"
 	"io/fs"
-	"os"
 	"path"
 	"slices"
 	"strings"
@@ -42,6 +41,11 @@ type Medium struct {
 }
 
 // New creates a new empty DataNode Medium.
+//
+// Example usage:
+//
+//	m := datanode.New()
+//	_ = m.Write("jobs/run.log", "started")
 func New() *Medium {
 	return &Medium{
 		dn:   borgdatanode.New(),
@@ -50,6 +54,11 @@ func New() *Medium {
 }
 
 // FromTar creates a Medium from a tarball, restoring all files.
+//
+// Example usage:
+//
+//	snapshot, _ := m.Snapshot()
+//	restored, _ := datanode.FromTar(snapshot)
 func FromTar(data []byte) (*Medium, error) {
 	dn, err := borgdatanode.FromTar(data)
 	if err != nil {
@@ -61,7 +70,7 @@ func FromTar(data []byte) (*Medium, error) {
 	}, nil
 }
 
-// Snapshot serializes the entire filesystem to a tarball.
+// Snapshot serialises the entire filesystem to a tarball.
 // Use this for crash reports, workspace packaging, or TIM creation.
 func (m *Medium) Snapshot() ([]byte, error) {
 	m.mu.RLock()
@@ -113,7 +122,7 @@ func (m *Medium) Read(p string) (string, error) {
 	p = clean(p)
 	f, err := m.dn.Open(p)
 	if err != nil {
-		return "", coreerr.E("datanode.Read", "not found: "+p, os.ErrNotExist)
+		return "", coreerr.E("datanode.Read", "not found: "+p, fs.ErrNotExist)
 	}
 	defer f.Close()
 
@@ -122,7 +131,7 @@ func (m *Medium) Read(p string) (string, error) {
 		return "", coreerr.E("datanode.Read", "stat failed: "+p, err)
 	}
 	if info.IsDir() {
-		return "", coreerr.E("datanode.Read", "is a directory: "+p, os.ErrInvalid)
+		return "", coreerr.E("datanode.Read", "is a directory: "+p, fs.ErrInvalid)
 	}
 
 	data, err := goio.ReadAll(f)
@@ -138,7 +147,7 @@ func (m *Medium) Write(p, content string) error {
 
 	p = clean(p)
 	if p == "" {
-		return coreerr.E("datanode.Write", "empty path", os.ErrInvalid)
+		return coreerr.E("datanode.Write", "empty path", fs.ErrInvalid)
 	}
 	m.dn.AddData(p, []byte(content))
 
@@ -147,7 +156,7 @@ func (m *Medium) Write(p, content string) error {
 	return nil
 }
 
-func (m *Medium) WriteMode(p, content string, mode os.FileMode) error {
+func (m *Medium) WriteMode(p, content string, mode fs.FileMode) error {
 	return m.Write(p, content)
 }
 
@@ -198,7 +207,7 @@ func (m *Medium) Delete(p string) error {
 
 	p = clean(p)
 	if p == "" {
-		return coreerr.E("datanode.Delete", "cannot delete root", os.ErrPermission)
+		return coreerr.E("datanode.Delete", "cannot delete root", fs.ErrPermission)
 	}
 
 	// Check if it's a file in the DataNode
@@ -212,12 +221,12 @@ func (m *Medium) Delete(p string) error {
 				return coreerr.E("datanode.Delete", "failed to inspect directory: "+p, err)
 			}
 			if hasChildren {
-				return coreerr.E("datanode.Delete", "directory not empty: "+p, os.ErrExist)
+				return coreerr.E("datanode.Delete", "directory not empty: "+p, fs.ErrExist)
 			}
 			delete(m.dirs, p)
 			return nil
 		}
-		return coreerr.E("datanode.Delete", "not found: "+p, os.ErrNotExist)
+		return coreerr.E("datanode.Delete", "not found: "+p, fs.ErrNotExist)
 	}
 
 	if info.IsDir() {
@@ -226,7 +235,7 @@ func (m *Medium) Delete(p string) error {
 			return coreerr.E("datanode.Delete", "failed to inspect directory: "+p, err)
 		}
 		if hasChildren {
-			return coreerr.E("datanode.Delete", "directory not empty: "+p, os.ErrExist)
+			return coreerr.E("datanode.Delete", "directory not empty: "+p, fs.ErrExist)
 		}
 		delete(m.dirs, p)
 		return nil
@@ -245,7 +254,7 @@ func (m *Medium) DeleteAll(p string) error {
 
 	p = clean(p)
 	if p == "" {
-		return coreerr.E("datanode.DeleteAll", "cannot delete root", os.ErrPermission)
+		return coreerr.E("datanode.DeleteAll", "cannot delete root", fs.ErrPermission)
 	}
 
 	prefix := p + "/"
@@ -283,7 +292,7 @@ func (m *Medium) DeleteAll(p string) error {
 	}
 
 	if !found {
-		return coreerr.E("datanode.DeleteAll", "not found: "+p, os.ErrNotExist)
+		return coreerr.E("datanode.DeleteAll", "not found: "+p, fs.ErrNotExist)
 	}
 	return nil
 }
@@ -298,7 +307,7 @@ func (m *Medium) Rename(oldPath, newPath string) error {
 	// Check if source is a file
 	info, err := m.dn.Stat(oldPath)
 	if err != nil {
-		return coreerr.E("datanode.Rename", "not found: "+oldPath, os.ErrNotExist)
+		return coreerr.E("datanode.Rename", "not found: "+oldPath, fs.ErrNotExist)
 	}
 
 	if !info.IsDir() {
@@ -365,7 +374,7 @@ func (m *Medium) List(p string) ([]fs.DirEntry, error) {
 		if p == "" || m.dirs[p] {
 			return []fs.DirEntry{}, nil
 		}
-		return nil, coreerr.E("datanode.List", "not found: "+p, os.ErrNotExist)
+		return nil, coreerr.E("datanode.List", "not found: "+p, fs.ErrNotExist)
 	}
 
 	// Also include explicit subdirectories not discovered via files
@@ -417,7 +426,7 @@ func (m *Medium) Stat(p string) (fs.FileInfo, error) {
 	if m.dirs[p] {
 		return &fileInfo{name: path.Base(p), isDir: true, mode: fs.ModeDir | 0755}, nil
 	}
-	return nil, coreerr.E("datanode.Stat", "not found: "+p, os.ErrNotExist)
+	return nil, coreerr.E("datanode.Stat", "not found: "+p, fs.ErrNotExist)
 }
 
 func (m *Medium) Open(p string) (fs.File, error) {
@@ -431,7 +440,7 @@ func (m *Medium) Open(p string) (fs.File, error) {
 func (m *Medium) Create(p string) (goio.WriteCloser, error) {
 	p = clean(p)
 	if p == "" {
-		return nil, coreerr.E("datanode.Create", "empty path", os.ErrInvalid)
+		return nil, coreerr.E("datanode.Create", "empty path", fs.ErrInvalid)
 	}
 	return &writeCloser{m: m, path: p}, nil
 }
@@ -439,7 +448,7 @@ func (m *Medium) Create(p string) (goio.WriteCloser, error) {
 func (m *Medium) Append(p string) (goio.WriteCloser, error) {
 	p = clean(p)
 	if p == "" {
-		return nil, coreerr.E("datanode.Append", "empty path", os.ErrInvalid)
+		return nil, coreerr.E("datanode.Append", "empty path", fs.ErrInvalid)
 	}
 
 	// Read existing content
@@ -465,7 +474,7 @@ func (m *Medium) ReadStream(p string) (goio.ReadCloser, error) {
 	p = clean(p)
 	f, err := m.dn.Open(p)
 	if err != nil {
-		return nil, coreerr.E("datanode.ReadStream", "not found: "+p, os.ErrNotExist)
+		return nil, coreerr.E("datanode.ReadStream", "not found: "+p, fs.ErrNotExist)
 	}
 	return f.(goio.ReadCloser), nil
 }

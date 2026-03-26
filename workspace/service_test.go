@@ -1,7 +1,6 @@
 package workspace
 
 import (
-	"os"
 	"testing"
 
 	core "dappco.re/go/core"
@@ -32,7 +31,7 @@ func newTestService(t *testing.T) (*Service, string) {
 	return svc.(*Service), tempHome
 }
 
-func TestWorkspace(t *testing.T) {
+func TestWorkspace_Good_RoundTrip(t *testing.T) {
 	s, tempHome := newTestService(t)
 
 	id, err := s.CreateWorkspace("test-user", "pass123")
@@ -56,18 +55,18 @@ func TestWorkspace(t *testing.T) {
 	assert.Equal(t, "top secret info", got)
 }
 
-func TestSwitchWorkspace_TraversalBlocked(t *testing.T) {
+func TestSwitchWorkspace_Bad_TraversalBlocked(t *testing.T) {
 	s, tempHome := newTestService(t)
 
 	outside := core.Path(tempHome, ".core", "escaped")
-	require.NoError(t, os.MkdirAll(outside, 0755))
+	require.NoError(t, s.medium.EnsureDir(outside))
 
 	err := s.SwitchWorkspace("../escaped")
 	require.Error(t, err)
 	assert.Empty(t, s.activeWorkspace)
 }
 
-func TestWorkspaceFileSet_TraversalBlocked(t *testing.T) {
+func TestWorkspaceFileSet_Bad_TraversalBlocked(t *testing.T) {
 	s, tempHome := newTestService(t)
 
 	id, err := s.CreateWorkspace("test-user", "pass123")
@@ -75,15 +74,15 @@ func TestWorkspaceFileSet_TraversalBlocked(t *testing.T) {
 	require.NoError(t, s.SwitchWorkspace(id))
 
 	keyPath := core.Path(tempHome, ".core", "workspaces", id, "keys", "private.key")
-	before, err := os.ReadFile(keyPath)
+	before, err := s.medium.Read(keyPath)
 	require.NoError(t, err)
 
 	err = s.WorkspaceFileSet("../keys/private.key", "hijack")
 	require.Error(t, err)
 
-	after, err := os.ReadFile(keyPath)
+	after, err := s.medium.Read(keyPath)
 	require.NoError(t, err)
-	assert.Equal(t, string(before), string(after))
+	assert.Equal(t, before, after)
 
 	_, err = s.WorkspaceFileGet("../keys/private.key")
 	require.Error(t, err)
