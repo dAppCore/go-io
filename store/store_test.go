@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestSetGet_Good(t *testing.T) {
+func TestStore_SetGet_Good(t *testing.T) {
 	s, err := New(":memory:")
 	require.NoError(t, err)
 	defer s.Close()
@@ -20,7 +20,7 @@ func TestSetGet_Good(t *testing.T) {
 	assert.Equal(t, "dark", val)
 }
 
-func TestGet_Bad_NotFound(t *testing.T) {
+func TestStore_Get_NotFound_Bad(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -28,7 +28,7 @@ func TestGet_Bad_NotFound(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestDelete_Good(t *testing.T) {
+func TestStore_Delete_Good(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -40,7 +40,7 @@ func TestDelete_Good(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestCount_Good(t *testing.T) {
+func TestStore_Count_Good(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -53,7 +53,7 @@ func TestCount_Good(t *testing.T) {
 	assert.Equal(t, 2, n)
 }
 
-func TestDeleteGroup_Good(t *testing.T) {
+func TestStore_DeleteGroup_Good(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -66,7 +66,7 @@ func TestDeleteGroup_Good(t *testing.T) {
 	assert.Equal(t, 0, n)
 }
 
-func TestGetAll_Good(t *testing.T) {
+func TestStore_GetAll_Good(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -79,7 +79,7 @@ func TestGetAll_Good(t *testing.T) {
 	assert.Equal(t, map[string]string{"a": "1", "b": "2"}, all)
 }
 
-func TestGetAll_Good_Empty(t *testing.T) {
+func TestStore_GetAll_Empty_Good(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -88,7 +88,7 @@ func TestGetAll_Good_Empty(t *testing.T) {
 	assert.Empty(t, all)
 }
 
-func TestRender_Good(t *testing.T) {
+func TestStore_Render_Good(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 

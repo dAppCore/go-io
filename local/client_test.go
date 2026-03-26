@@ -3,8 +3,7 @@ package local
 import (
 	"io"
 	"io/fs"
-	"os"
-	"strings"
+	"syscall"
 	"testing"
 
 	core "dappco.re/go/core"
@@ -12,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestNew_Good_ResolvesRoot(t *testing.T) {
+func TestClient_New_ResolvesRoot_Good(t *testing.T) {
 	root := t.TempDir()
 	m, err := New(root)
 	assert.NoError(t, err)
@@ -22,7 +21,7 @@ func TestNew_Good_ResolvesRoot(t *testing.T) {
 	assert.Equal(t, resolved, m.root)
 }
 
-func TestPath_Good_Sandboxed(t *testing.T) {
+func TestClient_Path_Sandboxed_Good(t *testing.T) {
 	m := &Medium{root: "/home/user"}
 
 	// Normal paths
@@ -40,7 +39,7 @@ func TestPath_Good_Sandboxed(t *testing.T) {
 	assert.Equal(t, "/home/user/etc/passwd", m.path("/etc/passwd"))
 }
 
-func TestPath_Good_RootFilesystem(t *testing.T) {
+func TestClient_Path_RootFilesystem_Good(t *testing.T) {
 	m := &Medium{root: "/"}
 
 	// When root is "/", absolute paths pass through
@@ -52,7 +51,7 @@ func TestPath_Good_RootFilesystem(t *testing.T) {
 	assert.Equal(t, core.Path(cwd, "file.txt"), m.path("file.txt"))
 }
 
-func TestReadWrite_Good_Basic(t *testing.T) {
+func TestClient_ReadWrite_Basic_Good(t *testing.T) {
 	root := t.TempDir()
 	m, _ := New(root)
 
@@ -77,7 +76,7 @@ func TestReadWrite_Good_Basic(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestEnsureDir_Good_Basic(t *testing.T) {
+func TestClient_EnsureDir_Basic_Good(t *testing.T) {
 	root := t.TempDir()
 	m, _ := New(root)
 
@@ -89,7 +88,7 @@ func TestEnsureDir_Good_Basic(t *testing.T) {
 	assert.True(t, info.IsDir())
 }
 
-func TestIsDir_Good_Basic(t *testing.T) {
+func TestClient_IsDir_Basic_Good(t *testing.T) {
 	root := t.TempDir()
 	m, _ := New(root)
 
@@ -102,7 +101,7 @@ func TestIsDir_Good_Basic(t *testing.T) {
 	assert.False(t, m.IsDir(""))
 }
 
-func TestIsFile_Good_Basic(t *testing.T) {
+func TestClient_IsFile_Basic_Good(t *testing.T) {
 	root := t.TempDir()
 	m, _ := New(root)
 
@@ -115,7 +114,7 @@ func TestIsFile_Good_Basic(t *testing.T) {
 	assert.False(t, m.IsFile(""))
 }
 
-func TestExists_Good_Basic(t *testing.T) {
+func TestClient_Exists_Basic_Good(t *testing.T) {
 	root := t.TempDir()
 	m, _ := New(root)
 
@@ -125,7 +124,7 @@ func TestExists_Good_Basic(t *testing.T) {
 	assert.False(t, m.Exists("nope"))
 }
 
-func TestList_Good_Basic(t *testing.T) {
+func TestClient_List_Basic_Good(t *testing.T) {
 	root := t.TempDir()
 	m, _ := New(root)
 
@@ -138,7 +137,7 @@ func TestList_Good_Basic(t *testing.T) {
 	assert.Len(t, entries, 3)
 }
 
-func TestStat_Good_Basic(t *testing.T) {
+func TestClient_Stat_Basic_Good(t *testing.T) {
 	root := t.TempDir()
 	m, _ := New(root)
 
@@ -149,7 +148,7 @@ func TestStat_Good_Basic(t *testing.T) {
 	assert.Equal(t, int64(7), info.Size())
 }
 
-func TestDelete_Good_Basic(t *testing.T) {
+func TestClient_Delete_Basic_Good(t *testing.T) {
 	root := t.TempDir()
 	m, _ := New(root)
 
@@ -161,7 +160,7 @@ func TestDelete_Good_Basic(t *testing.T) {
 	assert.False(t, m.Exists("todelete"))
 }
 
-func TestDeleteAll_Good_Basic(t *testing.T) {
+func TestClient_DeleteAll_Basic_Good(t *testing.T) {
 	root := t.TempDir()
 	m, _ := New(root)
 
@@ -172,11 +171,11 @@ func TestDeleteAll_Good_Basic(t *testing.T) {
 	assert.False(t, m.Exists("dir"))
 }
 
-func TestDelete_Bad_ProtectedHomeViaSymlinkEnv(t *testing.T) {
+func TestClient_Delete_ProtectedHomeViaSymlinkEnv_Bad(t *testing.T) {
 	realHome := t.TempDir()
 	linkParent := t.TempDir()
 	homeLink := core.Path(linkParent, "home-link")
-	require.NoError(t, os.Symlink(realHome, homeLink))
+	require.NoError(t, syscall.Symlink(realHome, homeLink))
 	t.Setenv("HOME", homeLink)
 
 	m, err := New("/")
@@ -187,7 +186,7 @@ func TestDelete_Bad_ProtectedHomeViaSymlinkEnv(t *testing.T) {
 	assert.DirExists(t, realHome)
 }
 
-func TestDeleteAll_Bad_ProtectedHomeViaEnv(t *testing.T) {
+func TestClient_DeleteAll_ProtectedHomeViaEnv_Bad(t *testing.T) {
 	tempHome := t.TempDir()
 	t.Setenv("HOME", tempHome)
 
@@ -199,7 +198,7 @@ func TestDeleteAll_Bad_ProtectedHomeViaEnv(t *testing.T) {
 	assert.DirExists(t, tempHome)
 }
 
-func TestRename_Good_Basic(t *testing.T) {
+func TestClient_Rename_Basic_Good(t *testing.T) {
 	root := t.TempDir()
 	m, _ := New(root)
 
@@ -211,7 +210,7 @@ func TestRename_Good_Basic(t *testing.T) {
 	assert.True(t, m.Exists("new"))
 }
 
-func TestFileGetFileSet_Good_Basic(t *testing.T) {
+func TestClient_FileGetFileSet_Basic_Good(t *testing.T) {
 	root := t.TempDir()
 	m, _ := New(root)
 
@@ -223,7 +222,7 @@ func TestFileGetFileSet_Good_Basic(t *testing.T) {
 	assert.Equal(t, "value", val)
 }
 
-func TestDelete_Good(t *testing.T) {
+func TestClient_Delete_Good(t *testing.T) {
 	testRoot := t.TempDir()
 
 	medium, err := New(testRoot)
@@ -246,7 +245,7 @@ func TestDelete_Good(t *testing.T) {
 	assert.False(t, medium.IsDir("emptydir"))
 }
 
-func TestDelete_Bad_NotEmpty(t *testing.T) {
+func TestClient_Delete_NotEmpty_Bad(t *testing.T) {
 	testRoot := t.TempDir()
 
 	medium, err := New(testRoot)
@@ -261,7 +260,7 @@ func TestDelete_Bad_NotEmpty(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestDeleteAll_Good(t *testing.T) {
+func TestClient_DeleteAll_Good(t *testing.T) {
 	testRoot := t.TempDir()
 
 	medium, err := New(testRoot)
@@ -281,7 +280,7 @@ func TestDeleteAll_Good(t *testing.T) {
 	assert.False(t, medium.Exists("mydir/subdir/file2.txt"))
 }
 
-func TestRename_Good(t *testing.T) {
+func TestClient_Rename_Good(t *testing.T) {
 	testRoot := t.TempDir()
 
 	medium, err := New(testRoot)
@@ -300,7 +299,7 @@ func TestRename_Good(t *testing.T) {
 	assert.Equal(t, "content", content)
 }
 
-func TestRename_Good_TraversalSanitised(t *testing.T) {
+func TestClient_Rename_TraversalSanitised_Good(t *testing.T) {
 	testRoot := t.TempDir()
 
 	medium, err := New(testRoot)
@@ -317,7 +316,7 @@ func TestRename_Good_TraversalSanitised(t *testing.T) {
 	assert.True(t, medium.Exists("escaped.txt"))
 }
 
-func TestList_Good(t *testing.T) {
+func TestClient_List_Good(t *testing.T) {
 	testRoot := t.TempDir()
 
 	medium, err := New(testRoot)
@@ -345,7 +344,7 @@ func TestList_Good(t *testing.T) {
 	assert.True(t, names["subdir"])
 }
 
-func TestStat_Good(t *testing.T) {
+func TestClient_Stat_Good(t *testing.T) {
 	testRoot := t.TempDir()
 
 	medium, err := New(testRoot)
@@ -369,7 +368,7 @@ func TestStat_Good(t *testing.T) {
 	assert.True(t, info.IsDir())
 }
 
-func TestExists_Good(t *testing.T) {
+func TestClient_Exists_Good(t *testing.T) {
 	testRoot := t.TempDir()
 
 	medium, err := New(testRoot)
@@ -386,7 +385,7 @@ func TestExists_Good(t *testing.T) {
 	assert.True(t, medium.Exists("mydir"))
 }
 
-func TestIsDir_Good(t *testing.T) {
+func TestClient_IsDir_Good(t *testing.T) {
 	testRoot := t.TempDir()
 
 	medium, err := New(testRoot)
@@ -403,7 +402,7 @@ func TestIsDir_Good(t *testing.T) {
 	assert.False(t, medium.IsDir("nonexistent"))
 }
 
-func TestReadStream_Good_Basic(t *testing.T) {
+func TestClient_ReadStream_Basic_Good(t *testing.T) {
 	root := t.TempDir()
 	m, _ := New(root)
 
@@ -422,14 +421,14 @@ func TestReadStream_Good_Basic(t *testing.T) {
 	assert.Equal(t, "streaming", string(data))
 }
 
-func TestWriteStream_Good_Basic(t *testing.T) {
+func TestClient_WriteStream_Basic_Good(t *testing.T) {
 	root := t.TempDir()
 	m, _ := New(root)
 
 	writer, err := m.WriteStream("output.txt")
 	assert.NoError(t, err)
 
-	_, err = io.Copy(writer, strings.NewReader("piped data"))
+	_, err = io.Copy(writer, core.NewReader("piped data"))
 	assert.NoError(t, err)
 	err = writer.Close()
 	assert.NoError(t, err)
@@ -439,7 +438,7 @@ func TestWriteStream_Good_Basic(t *testing.T) {
 	assert.Equal(t, "piped data", content)
 }
 
-func TestPath_Ugly_TraversalAdvanced(t *testing.T) {
+func TestClient_Path_TraversalAdvanced_Ugly(t *testing.T) {
 	m := &Medium{root: "/sandbox"}
 
 	// Multiple levels of traversal
@@ -454,7 +453,7 @@ func TestPath_Ugly_TraversalAdvanced(t *testing.T) {
 	assert.Equal(t, "/sandbox/file\x00.txt", m.path("file\x00.txt"))
 }
 
-func TestValidatePath_Bad_SymlinkEscape(t *testing.T) {
+func TestClient_ValidatePath_SymlinkEscape_Bad(t *testing.T) {
 	root := t.TempDir()
 	m, err := New(root)
 	assert.NoError(t, err)
@@ -474,7 +473,7 @@ func TestValidatePath_Bad_SymlinkEscape(t *testing.T) {
 	// Test 2: Symlink escape
 	// Create a symlink inside the sandbox pointing outside
 	linkPath := core.Path(root, "evil_link")
-	err = os.Symlink(outside, linkPath)
+	err = syscall.Symlink(outside, linkPath)
 	assert.NoError(t, err)
 
 	// Try to access a file through the symlink
@@ -487,7 +486,7 @@ func TestValidatePath_Bad_SymlinkEscape(t *testing.T) {
 	assert.NoError(t, err)
 	innerDir := core.Path(root, "inner")
 	nestedLink := core.Path(innerDir, "nested_evil")
-	err = os.Symlink(outside, nestedLink)
+	err = syscall.Symlink(outside, nestedLink)
 	assert.NoError(t, err)
 
 	_, err = m.validatePath("inner/nested_evil/secret.txt")
@@ -495,7 +494,7 @@ func TestValidatePath_Bad_SymlinkEscape(t *testing.T) {
 	assert.ErrorIs(t, err, fs.ErrPermission)
 }
 
-func TestEmptyPaths_Ugly(t *testing.T) {
+func TestClient_EmptyPaths_Ugly(t *testing.T) {
 	root := t.TempDir()
 	m, err := New(root)
 	assert.NoError(t, err)

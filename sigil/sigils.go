@@ -10,10 +10,9 @@ import (
 	"crypto/sha512"
 	"encoding/base64"
 	"encoding/hex"
-	"encoding/json"
 	"io"
 
-	coreerr "forge.lthn.ai/core/go-log"
+	core "dappco.re/go/core"
 	"golang.org/x/crypto/blake2b"
 	"golang.org/x/crypto/blake2s"
 	"golang.org/x/crypto/md4"
@@ -26,6 +25,8 @@ import (
 type ReverseSigil struct{}
 
 // In reverses the bytes of the data.
+//
+//	result := s.In(...)
 func (s *ReverseSigil) In(data []byte) ([]byte, error) {
 	if data == nil {
 		return nil, nil
@@ -38,6 +39,8 @@ func (s *ReverseSigil) In(data []byte) ([]byte, error) {
 }
 
 // Out reverses the bytes of the data.
+//
+//	result := s.Out(...)
 func (s *ReverseSigil) Out(data []byte) ([]byte, error) {
 	return s.In(data)
 }
@@ -47,6 +50,8 @@ func (s *ReverseSigil) Out(data []byte) ([]byte, error) {
 type HexSigil struct{}
 
 // In encodes the data to hexadecimal.
+//
+//	result := s.In(...)
 func (s *HexSigil) In(data []byte) ([]byte, error) {
 	if data == nil {
 		return nil, nil
@@ -57,6 +62,8 @@ func (s *HexSigil) In(data []byte) ([]byte, error) {
 }
 
 // Out decodes the data from hexadecimal.
+//
+//	result := s.Out(...)
 func (s *HexSigil) Out(data []byte) ([]byte, error) {
 	if data == nil {
 		return nil, nil
@@ -71,6 +78,8 @@ func (s *HexSigil) Out(data []byte) ([]byte, error) {
 type Base64Sigil struct{}
 
 // In encodes the data to base64.
+//
+//	result := s.In(...)
 func (s *Base64Sigil) In(data []byte) ([]byte, error) {
 	if data == nil {
 		return nil, nil
@@ -81,6 +90,8 @@ func (s *Base64Sigil) In(data []byte) ([]byte, error) {
 }
 
 // Out decodes the data from base64.
+//
+//	result := s.Out(...)
 func (s *Base64Sigil) Out(data []byte) ([]byte, error) {
 	if data == nil {
 		return nil, nil
@@ -97,6 +108,8 @@ type GzipSigil struct {
 }
 
 // In compresses the data using gzip.
+//
+//	result := s.In(...)
 func (s *GzipSigil) In(data []byte) ([]byte, error) {
 	if data == nil {
 		return nil, nil
@@ -108,25 +121,31 @@ func (s *GzipSigil) In(data []byte) ([]byte, error) {
 	}
 	gz := gzip.NewWriter(w)
 	if _, err := gz.Write(data); err != nil {
-		return nil, err
+		return nil, core.E("sigil.GzipSigil.In", "write gzip payload", err)
 	}
 	if err := gz.Close(); err != nil {
-		return nil, err
+		return nil, core.E("sigil.GzipSigil.In", "close gzip writer", err)
 	}
 	return b.Bytes(), nil
 }
 
 // Out decompresses the data using gzip.
+//
+//	result := s.Out(...)
 func (s *GzipSigil) Out(data []byte) ([]byte, error) {
 	if data == nil {
 		return nil, nil
 	}
 	r, err := gzip.NewReader(bytes.NewReader(data))
 	if err != nil {
-		return nil, err
+		return nil, core.E("sigil.GzipSigil.Out", "open gzip reader", err)
 	}
 	defer r.Close()
-	return io.ReadAll(r)
+	out, err := io.ReadAll(r)
+	if err != nil {
+		return nil, core.E("sigil.GzipSigil.Out", "read gzip payload", err)
+	}
+	return out, nil
 }
 
 // JSONSigil is a Sigil that compacts or indents JSON data.
@@ -134,18 +153,32 @@ func (s *GzipSigil) Out(data []byte) ([]byte, error) {
 type JSONSigil struct{ Indent bool }
 
 // In compacts or indents the JSON data.
+//
+//	result := s.In(...)
 func (s *JSONSigil) In(data []byte) ([]byte, error) {
-	if s.Indent {
-		var out bytes.Buffer
-		err := json.Indent(&out, data, "", "  ")
-		return out.Bytes(), err
+	if data == nil {
+		return nil, nil
 	}
-	var out bytes.Buffer
-	err := json.Compact(&out, data)
-	return out.Bytes(), err
+
+	var decoded any
+	result := core.JSONUnmarshal(data, &decoded)
+	if !result.OK {
+		if err, ok := result.Value.(error); ok {
+			return nil, core.E("sigil.JSONSigil.In", "decode json", err)
+		}
+		return nil, core.E("sigil.JSONSigil.In", "decode json", nil)
+	}
+
+	compact := core.JSONMarshalString(decoded)
+	if s.Indent {
+		return []byte(indentJSON(compact)), nil
+	}
+	return []byte(compact), nil
 }
 
 // Out is a no-op for JSONSigil.
+//
+//	result := s.Out(...)
 func (s *JSONSigil) Out(data []byte) ([]byte, error) {
 	// For simplicity, Out is a no-op. The primary use is formatting.
 	return data, nil
@@ -158,11 +191,15 @@ type HashSigil struct {
 }
 
 // NewHashSigil creates a new HashSigil.
+//
+//	result := sigil.NewHashSigil(...)
 func NewHashSigil(h crypto.Hash) *HashSigil {
 	return &HashSigil{Hash: h}
 }
 
 // In hashes the data.
+//
+//	result := s.In(...)
 func (s *HashSigil) In(data []byte) ([]byte, error) {
 	var h io.Writer
 	switch s.Hash {
@@ -204,7 +241,7 @@ func (s *HashSigil) In(data []byte) ([]byte, error) {
 		h, _ = blake2b.New512(nil)
 	default:
 		// MD5SHA1 is not supported as a direct hash
-		return nil, coreerr.E("sigil.HashSigil.In", "hash algorithm not available", nil)
+		return nil, core.E("sigil.HashSigil.In", "hash algorithm not available", nil)
 	}
 
 	h.Write(data)
@@ -212,12 +249,16 @@ func (s *HashSigil) In(data []byte) ([]byte, error) {
 }
 
 // Out is a no-op for HashSigil.
+//
+//	result := s.Out(...)
 func (s *HashSigil) Out(data []byte) ([]byte, error) {
 	return data, nil
 }
 
 // NewSigil is a factory function that returns a Sigil based on a string name.
 // It is the primary way to create Sigil instances.
+//
+//	result := sigil.NewSigil(...)
 func NewSigil(name string) (Sigil, error) {
 	switch name {
 	case "reverse":
@@ -269,6 +310,72 @@ func NewSigil(name string) (Sigil, error) {
 	case "blake2b-512":
 		return NewHashSigil(crypto.BLAKE2b_512), nil
 	default:
-		return nil, coreerr.E("sigil.NewSigil", "unknown sigil name: "+name, nil)
+		return nil, core.E("sigil.NewSigil", core.Concat("unknown sigil name: ", name), nil)
 	}
+}
+
+func indentJSON(compact string) string {
+	if compact == "" {
+		return ""
+	}
+
+	builder := core.NewBuilder()
+	indent := 0
+	inString := false
+	escaped := false
+
+	writeIndent := func(level int) {
+		for i := 0; i < level; i++ {
+			builder.WriteString("  ")
+		}
+	}
+
+	for i := 0; i < len(compact); i++ {
+		ch := compact[i]
+		if inString {
+			builder.WriteByte(ch)
+			if escaped {
+				escaped = false
+				continue
+			}
+			if ch == '\\' {
+				escaped = true
+				continue
+			}
+			if ch == '"' {
+				inString = false
+			}
+			continue
+		}
+
+		switch ch {
+		case '"':
+			inString = true
+			builder.WriteByte(ch)
+		case '{', '[':
+			builder.WriteByte(ch)
+			if i+1 < len(compact) && compact[i+1] != '}' && compact[i+1] != ']' {
+				indent++
+				builder.WriteByte('\n')
+				writeIndent(indent)
+			}
+		case '}', ']':
+			if i > 0 && compact[i-1] != '{' && compact[i-1] != '[' {
+				indent--
+				builder.WriteByte('\n')
+				writeIndent(indent)
+			}
+			builder.WriteByte(ch)
+		case ',':
+			builder.WriteByte(ch)
+			builder.WriteByte('\n')
+			writeIndent(indent)
+		case ':':
+			builder.WriteString(": ")
+		default:
+			builder.WriteByte(ch)
+		}
+	}
+
+	return builder.String()
 }

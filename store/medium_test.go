@@ -16,7 +16,7 @@ func newTestMedium(t *testing.T) *Medium {
 	return m
 }
 
-func TestMedium_ReadWrite_Good(t *testing.T) {
+func TestMedium_Medium_ReadWrite_Good(t *testing.T) {
 	m := newTestMedium(t)
 
 	err := m.Write("config/theme", "dark")
@@ -27,19 +27,19 @@ func TestMedium_ReadWrite_Good(t *testing.T) {
 	assert.Equal(t, "dark", val)
 }
 
-func TestMedium_Read_Bad_NoKey(t *testing.T) {
+func TestMedium_Medium_Read_NoKey_Bad(t *testing.T) {
 	m := newTestMedium(t)
 	_, err := m.Read("config")
 	assert.Error(t, err)
 }
 
-func TestMedium_Read_Bad_NotFound(t *testing.T) {
+func TestMedium_Medium_Read_NotFound_Bad(t *testing.T) {
 	m := newTestMedium(t)
 	_, err := m.Read("config/missing")
 	assert.Error(t, err)
 }
 
-func TestMedium_IsFile_Good(t *testing.T) {
+func TestMedium_Medium_IsFile_Good(t *testing.T) {
 	m := newTestMedium(t)
 	_ = m.Write("grp/key", "val")
 
@@ -48,7 +48,7 @@ func TestMedium_IsFile_Good(t *testing.T) {
 	assert.False(t, m.IsFile("grp"))
 }
 
-func TestMedium_Delete_Good(t *testing.T) {
+func TestMedium_Medium_Delete_Good(t *testing.T) {
 	m := newTestMedium(t)
 	_ = m.Write("grp/key", "val")
 
@@ -57,7 +57,7 @@ func TestMedium_Delete_Good(t *testing.T) {
 	assert.False(t, m.IsFile("grp/key"))
 }
 
-func TestMedium_Delete_Bad_NonEmptyGroup(t *testing.T) {
+func TestMedium_Medium_Delete_NonEmptyGroup_Bad(t *testing.T) {
 	m := newTestMedium(t)
 	_ = m.Write("grp/key", "val")
 
@@ -65,7 +65,7 @@ func TestMedium_Delete_Bad_NonEmptyGroup(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestMedium_DeleteAll_Good(t *testing.T) {
+func TestMedium_Medium_DeleteAll_Good(t *testing.T) {
 	m := newTestMedium(t)
 	_ = m.Write("grp/a", "1")
 	_ = m.Write("grp/b", "2")
@@ -75,7 +75,7 @@ func TestMedium_DeleteAll_Good(t *testing.T) {
 	assert.False(t, m.Exists("grp"))
 }
 
-func TestMedium_Rename_Good(t *testing.T) {
+func TestMedium_Medium_Rename_Good(t *testing.T) {
 	m := newTestMedium(t)
 	_ = m.Write("old/key", "val")
 
@@ -88,7 +88,7 @@ func TestMedium_Rename_Good(t *testing.T) {
 	assert.False(t, m.IsFile("old/key"))
 }
 
-func TestMedium_List_Good_Groups(t *testing.T) {
+func TestMedium_Medium_List_Groups_Good(t *testing.T) {
 	m := newTestMedium(t)
 	_ = m.Write("alpha/a", "1")
 	_ = m.Write("beta/b", "2")
@@ -106,7 +106,7 @@ func TestMedium_List_Good_Groups(t *testing.T) {
 	assert.True(t, names["beta"])
 }
 
-func TestMedium_List_Good_Keys(t *testing.T) {
+func TestMedium_Medium_List_Keys_Good(t *testing.T) {
 	m := newTestMedium(t)
 	_ = m.Write("grp/a", "1")
 	_ = m.Write("grp/b", "22")
@@ -116,7 +116,7 @@ func TestMedium_List_Good_Keys(t *testing.T) {
 	assert.Len(t, entries, 2)
 }
 
-func TestMedium_Stat_Good(t *testing.T) {
+func TestMedium_Medium_Stat_Good(t *testing.T) {
 	m := newTestMedium(t)
 	_ = m.Write("grp/key", "hello")
 
@@ -132,7 +132,7 @@ func TestMedium_Stat_Good(t *testing.T) {
 	assert.False(t, info.IsDir())
 }
 
-func TestMedium_Exists_IsDir_Good(t *testing.T) {
+func TestMedium_Medium_Exists_IsDir_Good(t *testing.T) {
 	m := newTestMedium(t)
 	_ = m.Write("grp/key", "val")
 
@@ -143,7 +143,7 @@ func TestMedium_Exists_IsDir_Good(t *testing.T) {
 	assert.False(t, m.Exists("nope"))
 }
 
-func TestMedium_Open_Read_Good(t *testing.T) {
+func TestMedium_Medium_Open_Read_Good(t *testing.T) {
 	m := newTestMedium(t)
 	_ = m.Write("grp/key", "hello world")
 
@@ -156,7 +156,7 @@ func TestMedium_Open_Read_Good(t *testing.T) {
 	assert.Equal(t, "hello world", string(data))
 }
 
-func TestMedium_CreateClose_Good(t *testing.T) {
+func TestMedium_Medium_CreateClose_Good(t *testing.T) {
 	m := newTestMedium(t)
 
 	w, err := m.Create("grp/key")
@@ -169,7 +169,7 @@ func TestMedium_CreateClose_Good(t *testing.T) {
 	assert.Equal(t, "streamed", val)
 }
 
-func TestMedium_Append_Good(t *testing.T) {
+func TestMedium_Medium_Append_Good(t *testing.T) {
 	m := newTestMedium(t)
 	_ = m.Write("grp/key", "hello")
 
@@ -183,7 +183,7 @@ func TestMedium_Append_Good(t *testing.T) {
 	assert.Equal(t, "hello world", val)
 }
 
-func TestMedium_AsMedium_Good(t *testing.T) {
+func TestMedium_Medium_AsMedium_Good(t *testing.T) {
 	s, err := New(":memory:")
 	require.NoError(t, err)
 	defer s.Close()

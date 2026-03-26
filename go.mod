@@ -3,9 +3,8 @@ module dappco.re/go/core/io
 go 1.26.0
 
 require (
-	dappco.re/go/core v0.6.0
+	dappco.re/go/core v0.8.0-alpha.1
 	forge.lthn.ai/Snider/Borg v0.3.1
-	forge.lthn.ai/core/go-log v0.0.4
 	github.com/aws/aws-sdk-go-v2 v1.41.4
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.97.1
 	github.com/stretchr/testify v1.11.1

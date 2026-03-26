@@ -16,21 +16,21 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/binary"
-	"errors"
 	"io"
 
+	core "dappco.re/go/core"
 	"golang.org/x/crypto/chacha20poly1305"
 )
 
 var (
 	// ErrInvalidKey is returned when the encryption key is invalid.
-	ErrInvalidKey = errors.New("sigil: invalid key size, must be 32 bytes")
+	ErrInvalidKey = core.E("sigil.ErrInvalidKey", "invalid key size, must be 32 bytes", nil)
 	// ErrCiphertextTooShort is returned when the ciphertext is too short to decrypt.
-	ErrCiphertextTooShort = errors.New("sigil: ciphertext too short")
+	ErrCiphertextTooShort = core.E("sigil.ErrCiphertextTooShort", "ciphertext too short", nil)
 	// ErrDecryptionFailed is returned when decryption or authentication fails.
-	ErrDecryptionFailed = errors.New("sigil: decryption failed")
+	ErrDecryptionFailed = core.E("sigil.ErrDecryptionFailed", "decryption failed", nil)
 	// ErrNoKeyConfigured is returned when no encryption key has been set.
-	ErrNoKeyConfigured = errors.New("sigil: no encryption key configured")
+	ErrNoKeyConfigured = core.E("sigil.ErrNoKeyConfigured", "no encryption key configured", nil)
 )
 
 // PreObfuscator applies a reversible transformation to data before encryption.
@@ -62,6 +62,8 @@ type PreObfuscator interface {
 type XORObfuscator struct{}
 
 // Obfuscate XORs the data with a key stream derived from the entropy.
+//
+//	result := x.Obfuscate(...)
 func (x *XORObfuscator) Obfuscate(data []byte, entropy []byte) []byte {
 	if len(data) == 0 {
 		return data
@@ -70,6 +72,8 @@ func (x *XORObfuscator) Obfuscate(data []byte, entropy []byte) []byte {
 }
 
 // Deobfuscate reverses the XOR transformation (XOR is symmetric).
+//
+//	result := x.Deobfuscate(...)
 func (x *XORObfuscator) Deobfuscate(data []byte, entropy []byte) []byte {
 	if len(data) == 0 {
 		return data
@@ -124,6 +128,8 @@ func (x *XORObfuscator) deriveKeyStream(entropy []byte, length int) []byte {
 type ShuffleMaskObfuscator struct{}
 
 // Obfuscate shuffles bytes and applies a mask derived from entropy.
+//
+//	result := s.Obfuscate(...)
 func (s *ShuffleMaskObfuscator) Obfuscate(data []byte, entropy []byte) []byte {
 	if len(data) == 0 {
 		return data
@@ -151,6 +157,8 @@ func (s *ShuffleMaskObfuscator) Obfuscate(data []byte, entropy []byte) []byte {
 }
 
 // Deobfuscate reverses the shuffle and mask operations.
+//
+//	result := s.Deobfuscate(...)
 func (s *ShuffleMaskObfuscator) Deobfuscate(data []byte, entropy []byte) []byte {
 	if len(data) == 0 {
 		return data
@@ -283,6 +291,8 @@ func NewChaChaPolySigilWithObfuscator(key []byte, obfuscator PreObfuscator) (*Ch
 
 // In encrypts the data with pre-obfuscation.
 // The flow is: plaintext -> obfuscate -> encrypt
+//
+//	result := s.In(...)
 func (s *ChaChaPolySigil) In(data []byte) ([]byte, error) {
 	if s.Key == nil {
 		return nil, ErrNoKeyConfigured
@@ -293,7 +303,7 @@ func (s *ChaChaPolySigil) In(data []byte) ([]byte, error) {
 
 	aead, err := chacha20poly1305.NewX(s.Key)
 	if err != nil {
-		return nil, err
+		return nil, core.E("sigil.ChaChaPolySigil.In", "create cipher", err)
 	}
 
 	// Generate nonce
@@ -303,7 +313,7 @@ func (s *ChaChaPolySigil) In(data []byte) ([]byte, error) {
 		reader = rand.Reader
 	}
 	if _, err := io.ReadFull(reader, nonce); err != nil {
-		return nil, err
+		return nil, core.E("sigil.ChaChaPolySigil.In", "read nonce", err)
 	}
 
 	// Pre-obfuscate the plaintext using nonce as entropy
@@ -322,6 +332,8 @@ func (s *ChaChaPolySigil) In(data []byte) ([]byte, error) {
 
 // Out decrypts the data and reverses obfuscation.
 // The flow is: decrypt -> deobfuscate -> plaintext
+//
+//	result := s.Out(...)
 func (s *ChaChaPolySigil) Out(data []byte) ([]byte, error) {
 	if s.Key == nil {
 		return nil, ErrNoKeyConfigured
@@ -332,7 +344,7 @@ func (s *ChaChaPolySigil) Out(data []byte) ([]byte, error) {
 
 	aead, err := chacha20poly1305.NewX(s.Key)
 	if err != nil {
-		return nil, err
+		return nil, core.E("sigil.ChaChaPolySigil.Out", "create cipher", err)
 	}
 
 	minLen := aead.NonceSize() + aead.Overhead()
@@ -347,7 +359,7 @@ func (s *ChaChaPolySigil) Out(data []byte) ([]byte, error) {
 	// Decrypt
 	obfuscated, err := aead.Open(nil, nonce, ciphertext, nil)
 	if err != nil {
-		return nil, ErrDecryptionFailed
+		return nil, core.E("sigil.ChaChaPolySigil.Out", "decrypt ciphertext", ErrDecryptionFailed)
 	}
 
 	// Deobfuscate using the same nonce as entropy
@@ -366,6 +378,8 @@ func (s *ChaChaPolySigil) Out(data []byte) ([]byte, error) {
 // GetNonceFromCiphertext extracts the nonce from encrypted output.
 // This is provided for debugging/logging purposes only.
 // The nonce should NOT be stored separately in headers.
+//
+//	result := sigil.GetNonceFromCiphertext(...)
 func GetNonceFromCiphertext(ciphertext []byte) ([]byte, error) {
 	nonceSize := chacha20poly1305.NonceSizeX
 	if len(ciphertext) < nonceSize {

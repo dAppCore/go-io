@@ -7,10 +7,9 @@ import (
 	goio "io"
 	"io/fs"
 	"path"
-	"strings"
 	"time"
 
-	coreerr "forge.lthn.ai/core/go-log"
+	core "dappco.re/go/core"
 
 	_ "modernc.org/sqlite" // Pure Go SQLite driver
 )
@@ -25,6 +24,8 @@ type Medium struct {
 type Option func(*Medium)
 
 // WithTable sets the table name (default: "files").
+//
+//	result := sqlite.WithTable(...)
 func WithTable(table string) Option {
 	return func(m *Medium) {
 		m.table = table
@@ -40,7 +41,7 @@ func WithTable(table string) Option {
 //	_ = m.Write("config/app.yaml", "port: 8080")
 func New(dbPath string, opts ...Option) (*Medium, error) {
 	if dbPath == "" {
-		return nil, coreerr.E("sqlite.New", "database path is required", nil)
+		return nil, core.E("sqlite.New", "database path is required", nil)
 	}
 
 	m := &Medium{table: "files"}
@@ -50,13 +51,13 @@ func New(dbPath string, opts ...Option) (*Medium, error) {
 
 	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
-		return nil, coreerr.E("sqlite.New", "failed to open database", err)
+		return nil, core.E("sqlite.New", "failed to open database", err)
 	}
 
 	// Enable WAL mode for better concurrency
 	if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
 		db.Close()
-		return nil, coreerr.E("sqlite.New", "failed to set WAL mode", err)
+		return nil, core.E("sqlite.New", "failed to set WAL mode", err)
 	}
 
 	// Create the schema
@@ -69,7 +70,7 @@ func New(dbPath string, opts ...Option) (*Medium, error) {
 	)`
 	if _, err := db.Exec(createSQL); err != nil {
 		db.Close()
-		return nil, coreerr.E("sqlite.New", "failed to create table", err)
+		return nil, core.E("sqlite.New", "failed to create table", err)
 	}
 
 	m.db = db
@@ -77,6 +78,8 @@ func New(dbPath string, opts ...Option) (*Medium, error) {
 }
 
 // Close closes the underlying database connection.
+//
+//	result := m.Close(...)
 func (m *Medium) Close() error {
 	if m.db != nil {
 		return m.db.Close()
@@ -91,14 +94,16 @@ func cleanPath(p string) string {
 	if clean == "/" {
 		return ""
 	}
-	return strings.TrimPrefix(clean, "/")
+	return core.TrimPrefix(clean, "/")
 }
 
 // Read retrieves the content of a file as a string.
+//
+//	result := m.Read(...)
 func (m *Medium) Read(p string) (string, error) {
 	key := cleanPath(p)
 	if key == "" {
-		return "", coreerr.E("sqlite.Read", "path is required", fs.ErrInvalid)
+		return "", core.E("sqlite.Read", "path is required", fs.ErrInvalid)
 	}
 
 	var content []byte
@@ -107,22 +112,24 @@ func (m *Medium) Read(p string) (string, error) {
 		`SELECT content, is_dir FROM `+m.table+` WHERE path = ?`, key,
 	).Scan(&content, &isDir)
 	if err == sql.ErrNoRows {
-		return "", coreerr.E("sqlite.Read", "file not found: "+key, fs.ErrNotExist)
+		return "", core.E("sqlite.Read", core.Concat("file not found: ", key), fs.ErrNotExist)
 	}
 	if err != nil {
-		return "", coreerr.E("sqlite.Read", "query failed: "+key, err)
+		return "", core.E("sqlite.Read", core.Concat("query failed: ", key), err)
 	}
 	if isDir {
-		return "", coreerr.E("sqlite.Read", "path is a directory: "+key, fs.ErrInvalid)
+		return "", core.E("sqlite.Read", core.Concat("path is a directory: ", key), fs.ErrInvalid)
 	}
 	return string(content), nil
 }
 
 // Write saves the given content to a file, overwriting it if it exists.
+//
+//	result := m.Write(...)
 func (m *Medium) Write(p, content string) error {
 	key := cleanPath(p)
 	if key == "" {
-		return coreerr.E("sqlite.Write", "path is required", fs.ErrInvalid)
+		return core.E("sqlite.Write", "path is required", fs.ErrInvalid)
 	}
 
 	_, err := m.db.Exec(
@@ -131,12 +138,14 @@ func (m *Medium) Write(p, content string) error {
 		key, []byte(content), time.Now().UTC(),
 	)
 	if err != nil {
-		return coreerr.E("sqlite.Write", "insert failed: "+key, err)
+		return core.E("sqlite.Write", core.Concat("insert failed: ", key), err)
 	}
 	return nil
 }
 
 // EnsureDir makes sure a directory exists, creating it if necessary.
+//
+//	result := m.EnsureDir(...)
 func (m *Medium) EnsureDir(p string) error {
 	key := cleanPath(p)
 	if key == "" {
@@ -150,12 +159,14 @@ func (m *Medium) EnsureDir(p string) error {
 		key, time.Now().UTC(),
 	)
 	if err != nil {
-		return coreerr.E("sqlite.EnsureDir", "insert failed: "+key, err)
+		return core.E("sqlite.EnsureDir", core.Concat("insert failed: ", key), err)
 	}
 	return nil
 }
 
 // IsFile checks if a path exists and is a regular file.
+//
+//	result := m.IsFile(...)
 func (m *Medium) IsFile(p string) bool {
 	key := cleanPath(p)
 	if key == "" {
@@ -173,20 +184,26 @@ func (m *Medium) IsFile(p string) bool {
 }
 
 // FileGet is a convenience function that reads a file from the medium.
+//
+//	result := m.FileGet(...)
 func (m *Medium) FileGet(p string) (string, error) {
 	return m.Read(p)
 }
 
 // FileSet is a convenience function that writes a file to the medium.
+//
+//	result := m.FileSet(...)
 func (m *Medium) FileSet(p, content string) error {
 	return m.Write(p, content)
 }
 
 // Delete removes a file or empty directory.
+//
+//	result := m.Delete(...)
 func (m *Medium) Delete(p string) error {
 	key := cleanPath(p)
 	if key == "" {
-		return coreerr.E("sqlite.Delete", "path is required", fs.ErrInvalid)
+		return core.E("sqlite.Delete", "path is required", fs.ErrInvalid)
 	}
 
 	// Check if it's a directory with children
@@ -195,10 +212,10 @@ func (m *Medium) Delete(p string) error {
 		`SELECT is_dir FROM `+m.table+` WHERE path = ?`, key,
 	).Scan(&isDir)
 	if err == sql.ErrNoRows {
-		return coreerr.E("sqlite.Delete", "path not found: "+key, fs.ErrNotExist)
+		return core.E("sqlite.Delete", core.Concat("path not found: ", key), fs.ErrNotExist)
 	}
 	if err != nil {
-		return coreerr.E("sqlite.Delete", "query failed: "+key, err)
+		return core.E("sqlite.Delete", core.Concat("query failed: ", key), err)
 	}
 
 	if isDir {
@@ -209,29 +226,31 @@ func (m *Medium) Delete(p string) error {
 			`SELECT COUNT(*) FROM `+m.table+` WHERE path LIKE ? AND path != ?`, prefix+"%", key,
 		).Scan(&count)
 		if err != nil {
-			return coreerr.E("sqlite.Delete", "count failed: "+key, err)
+			return core.E("sqlite.Delete", core.Concat("count failed: ", key), err)
 		}
 		if count > 0 {
-			return coreerr.E("sqlite.Delete", "directory not empty: "+key, fs.ErrExist)
+			return core.E("sqlite.Delete", core.Concat("directory not empty: ", key), fs.ErrExist)
 		}
 	}
 
 	res, err := m.db.Exec(`DELETE FROM `+m.table+` WHERE path = ?`, key)
 	if err != nil {
-		return coreerr.E("sqlite.Delete", "delete failed: "+key, err)
+		return core.E("sqlite.Delete", core.Concat("delete failed: ", key), err)
 	}
 	n, _ := res.RowsAffected()
 	if n == 0 {
-		return coreerr.E("sqlite.Delete", "path not found: "+key, fs.ErrNotExist)
+		return core.E("sqlite.Delete", core.Concat("path not found: ", key), fs.ErrNotExist)
 	}
 	return nil
 }
 
 // DeleteAll removes a file or directory and all its contents recursively.
+//
+//	result := m.DeleteAll(...)
 func (m *Medium) DeleteAll(p string) error {
 	key := cleanPath(p)
 	if key == "" {
-		return coreerr.E("sqlite.DeleteAll", "path is required", fs.ErrInvalid)
+		return core.E("sqlite.DeleteAll", "path is required", fs.ErrInvalid)
 	}
 
 	prefix := key + "/"
@@ -242,26 +261,28 @@ func (m *Medium) DeleteAll(p string) error {
 		key, prefix+"%",
 	)
 	if err != nil {
-		return coreerr.E("sqlite.DeleteAll", "delete failed: "+key, err)
+		return core.E("sqlite.DeleteAll", core.Concat("delete failed: ", key), err)
 	}
 	n, _ := res.RowsAffected()
 	if n == 0 {
-		return coreerr.E("sqlite.DeleteAll", "path not found: "+key, fs.ErrNotExist)
+		return core.E("sqlite.DeleteAll", core.Concat("path not found: ", key), fs.ErrNotExist)
 	}
 	return nil
 }
 
 // Rename moves a file or directory from oldPath to newPath.
+//
+//	result := m.Rename(...)
 func (m *Medium) Rename(oldPath, newPath string) error {
 	oldKey := cleanPath(oldPath)
 	newKey := cleanPath(newPath)
 	if oldKey == "" || newKey == "" {
-		return coreerr.E("sqlite.Rename", "both old and new paths are required", fs.ErrInvalid)
+		return core.E("sqlite.Rename", "both old and new paths are required", fs.ErrInvalid)
 	}
 
 	tx, err := m.db.Begin()
 	if err != nil {
-		return coreerr.E("sqlite.Rename", "begin tx failed", err)
+		return core.E("sqlite.Rename", "begin tx failed", err)
 	}
 	defer tx.Rollback()
 
@@ -274,10 +295,10 @@ func (m *Medium) Rename(oldPath, newPath string) error {
 		`SELECT content, mode, is_dir, mtime FROM `+m.table+` WHERE path = ?`, oldKey,
 	).Scan(&content, &mode, &isDir, &mtime)
 	if err == sql.ErrNoRows {
-		return coreerr.E("sqlite.Rename", "source not found: "+oldKey, fs.ErrNotExist)
+		return core.E("sqlite.Rename", core.Concat("source not found: ", oldKey), fs.ErrNotExist)
 	}
 	if err != nil {
-		return coreerr.E("sqlite.Rename", "query failed: "+oldKey, err)
+		return core.E("sqlite.Rename", core.Concat("query failed: ", oldKey), err)
 	}
 
 	// Insert or replace at new path
@@ -287,13 +308,13 @@ func (m *Medium) Rename(oldPath, newPath string) error {
 		newKey, content, mode, isDir, mtime,
 	)
 	if err != nil {
-		return coreerr.E("sqlite.Rename", "insert at new path failed: "+newKey, err)
+		return core.E("sqlite.Rename", core.Concat("insert at new path failed: ", newKey), err)
 	}
 
 	// Delete old path
 	_, err = tx.Exec(`DELETE FROM `+m.table+` WHERE path = ?`, oldKey)
 	if err != nil {
-		return coreerr.E("sqlite.Rename", "delete old path failed: "+oldKey, err)
+		return core.E("sqlite.Rename", core.Concat("delete old path failed: ", oldKey), err)
 	}
 
 	// If it's a directory, move all children
@@ -306,7 +327,7 @@ func (m *Medium) Rename(oldPath, newPath string) error {
 			oldPrefix+"%",
 		)
 		if err != nil {
-			return coreerr.E("sqlite.Rename", "query children failed", err)
+			return core.E("sqlite.Rename", "query children failed", err)
 		}
 
 		type child struct {
@@ -321,28 +342,28 @@ func (m *Medium) Rename(oldPath, newPath string) error {
 			var c child
 			if err := rows.Scan(&c.path, &c.content, &c.mode, &c.isDir, &c.mtime); err != nil {
 				rows.Close()
-				return coreerr.E("sqlite.Rename", "scan child failed", err)
+				return core.E("sqlite.Rename", "scan child failed", err)
 			}
 			children = append(children, c)
 		}
 		rows.Close()
 
 		for _, c := range children {
-			newChildPath := newPrefix + strings.TrimPrefix(c.path, oldPrefix)
+			newChildPath := core.Concat(newPrefix, core.TrimPrefix(c.path, oldPrefix))
 			_, err = tx.Exec(
 				`INSERT INTO `+m.table+` (path, content, mode, is_dir, mtime) VALUES (?, ?, ?, ?, ?)
 				 ON CONFLICT(path) DO UPDATE SET content = excluded.content, mode = excluded.mode, is_dir = excluded.is_dir, mtime = excluded.mtime`,
 				newChildPath, c.content, c.mode, c.isDir, c.mtime,
 			)
 			if err != nil {
-				return coreerr.E("sqlite.Rename", "insert child failed", err)
+				return core.E("sqlite.Rename", "insert child failed", err)
 			}
 		}
 
 		// Delete old children
 		_, err = tx.Exec(`DELETE FROM `+m.table+` WHERE path LIKE ?`, oldPrefix+"%")
 		if err != nil {
-			return coreerr.E("sqlite.Rename", "delete old children failed", err)
+			return core.E("sqlite.Rename", "delete old children failed", err)
 		}
 	}
 
@@ -350,6 +371,8 @@ func (m *Medium) Rename(oldPath, newPath string) error {
 }
 
 // List returns the directory entries for the given path.
+//
+//	result := m.List(...)
 func (m *Medium) List(p string) ([]fs.DirEntry, error) {
 	prefix := cleanPath(p)
 	if prefix != "" {
@@ -362,7 +385,7 @@ func (m *Medium) List(p string) ([]fs.DirEntry, error) {
 		prefix+"%", prefix+"%",
 	)
 	if err != nil {
-		return nil, coreerr.E("sqlite.List", "query failed", err)
+		return nil, core.E("sqlite.List", "query failed", err)
 	}
 	defer rows.Close()
 
@@ -376,18 +399,19 @@ func (m *Medium) List(p string) ([]fs.DirEntry, error) {
 		var isDir bool
 		var mtime time.Time
 		if err := rows.Scan(&rowPath, &content, &mode, &isDir, &mtime); err != nil {
-			return nil, coreerr.E("sqlite.List", "scan failed", err)
+			return nil, core.E("sqlite.List", "scan failed", err)
 		}
 
-		rest := strings.TrimPrefix(rowPath, prefix)
+		rest := core.TrimPrefix(rowPath, prefix)
 		if rest == "" {
 			continue
 		}
 
 		// Check if this is a direct child or nested
-		if idx := strings.Index(rest, "/"); idx >= 0 {
+		parts := core.SplitN(rest, "/", 2)
+		if len(parts) == 2 {
 			// Nested - register as a directory
-			dirName := rest[:idx]
+			dirName := parts[0]
 			if !seen[dirName] {
 				seen[dirName] = true
 				entries = append(entries, &dirEntry{
@@ -425,10 +449,12 @@ func (m *Medium) List(p string) ([]fs.DirEntry, error) {
 }
 
 // Stat returns file information for the given path.
+//
+//	result := m.Stat(...)
 func (m *Medium) Stat(p string) (fs.FileInfo, error) {
 	key := cleanPath(p)
 	if key == "" {
-		return nil, coreerr.E("sqlite.Stat", "path is required", fs.ErrInvalid)
+		return nil, core.E("sqlite.Stat", "path is required", fs.ErrInvalid)
 	}
 
 	var content []byte
@@ -439,10 +465,10 @@ func (m *Medium) Stat(p string) (fs.FileInfo, error) {
 		`SELECT content, mode, is_dir, mtime FROM `+m.table+` WHERE path = ?`, key,
 	).Scan(&content, &mode, &isDir, &mtime)
 	if err == sql.ErrNoRows {
-		return nil, coreerr.E("sqlite.Stat", "path not found: "+key, fs.ErrNotExist)
+		return nil, core.E("sqlite.Stat", core.Concat("path not found: ", key), fs.ErrNotExist)
 	}
 	if err != nil {
-		return nil, coreerr.E("sqlite.Stat", "query failed: "+key, err)
+		return nil, core.E("sqlite.Stat", core.Concat("query failed: ", key), err)
 	}
 
 	name := path.Base(key)
@@ -456,10 +482,12 @@ func (m *Medium) Stat(p string) (fs.FileInfo, error) {
 }
 
 // Open opens the named file for reading.
+//
+//	result := m.Open(...)
 func (m *Medium) Open(p string) (fs.File, error) {
 	key := cleanPath(p)
 	if key == "" {
-		return nil, coreerr.E("sqlite.Open", "path is required", fs.ErrInvalid)
+		return nil, core.E("sqlite.Open", "path is required", fs.ErrInvalid)
 	}
 
 	var content []byte
@@ -470,13 +498,13 @@ func (m *Medium) Open(p string) (fs.File, error) {
 		`SELECT content, mode, is_dir, mtime FROM `+m.table+` WHERE path = ?`, key,
 	).Scan(&content, &mode, &isDir, &mtime)
 	if err == sql.ErrNoRows {
-		return nil, coreerr.E("sqlite.Open", "file not found: "+key, fs.ErrNotExist)
+		return nil, core.E("sqlite.Open", core.Concat("file not found: ", key), fs.ErrNotExist)
 	}
 	if err != nil {
-		return nil, coreerr.E("sqlite.Open", "query failed: "+key, err)
+		return nil, core.E("sqlite.Open", core.Concat("query failed: ", key), err)
 	}
 	if isDir {
-		return nil, coreerr.E("sqlite.Open", "path is a directory: "+key, fs.ErrInvalid)
+		return nil, core.E("sqlite.Open", core.Concat("path is a directory: ", key), fs.ErrInvalid)
 	}
 
 	return &sqliteFile{
@@ -488,10 +516,12 @@ func (m *Medium) Open(p string) (fs.File, error) {
 }
 
 // Create creates or truncates the named file.
+//
+//	result := m.Create(...)
 func (m *Medium) Create(p string) (goio.WriteCloser, error) {
 	key := cleanPath(p)
 	if key == "" {
-		return nil, coreerr.E("sqlite.Create", "path is required", fs.ErrInvalid)
+		return nil, core.E("sqlite.Create", "path is required", fs.ErrInvalid)
 	}
 	return &sqliteWriteCloser{
 		medium: m,
@@ -500,10 +530,12 @@ func (m *Medium) Create(p string) (goio.WriteCloser, error) {
 }
 
 // Append opens the named file for appending, creating it if it doesn't exist.
+//
+//	result := m.Append(...)
 func (m *Medium) Append(p string) (goio.WriteCloser, error) {
 	key := cleanPath(p)
 	if key == "" {
-		return nil, coreerr.E("sqlite.Append", "path is required", fs.ErrInvalid)
+		return nil, core.E("sqlite.Append", "path is required", fs.ErrInvalid)
 	}
 
 	var existing []byte
@@ -511,7 +543,7 @@ func (m *Medium) Append(p string) (goio.WriteCloser, error) {
 		`SELECT content FROM `+m.table+` WHERE path = ? AND is_dir = FALSE`, key,
 	).Scan(&existing)
 	if err != nil && err != sql.ErrNoRows {
-		return nil, coreerr.E("sqlite.Append", "query failed: "+key, err)
+		return nil, core.E("sqlite.Append", core.Concat("query failed: ", key), err)
 	}
 
 	return &sqliteWriteCloser{
@@ -522,10 +554,12 @@ func (m *Medium) Append(p string) (goio.WriteCloser, error) {
 }
 
 // ReadStream returns a reader for the file content.
+//
+//	result := m.ReadStream(...)
 func (m *Medium) ReadStream(p string) (goio.ReadCloser, error) {
 	key := cleanPath(p)
 	if key == "" {
-		return nil, coreerr.E("sqlite.ReadStream", "path is required", fs.ErrInvalid)
+		return nil, core.E("sqlite.ReadStream", "path is required", fs.ErrInvalid)
 	}
 
 	var content []byte
@@ -534,24 +568,28 @@ func (m *Medium) ReadStream(p string) (goio.ReadCloser, error) {
 		`SELECT content, is_dir FROM `+m.table+` WHERE path = ?`, key,
 	).Scan(&content, &isDir)
 	if err == sql.ErrNoRows {
-		return nil, coreerr.E("sqlite.ReadStream", "file not found: "+key, fs.ErrNotExist)
+		return nil, core.E("sqlite.ReadStream", core.Concat("file not found: ", key), fs.ErrNotExist)
 	}
 	if err != nil {
-		return nil, coreerr.E("sqlite.ReadStream", "query failed: "+key, err)
+		return nil, core.E("sqlite.ReadStream", core.Concat("query failed: ", key), err)
 	}
 	if isDir {
-		return nil, coreerr.E("sqlite.ReadStream", "path is a directory: "+key, fs.ErrInvalid)
+		return nil, core.E("sqlite.ReadStream", core.Concat("path is a directory: ", key), fs.ErrInvalid)
 	}
 
 	return goio.NopCloser(bytes.NewReader(content)), nil
 }
 
 // WriteStream returns a writer for the file content. Content is stored on Close.
+//
+//	result := m.WriteStream(...)
 func (m *Medium) WriteStream(p string) (goio.WriteCloser, error) {
 	return m.Create(p)
 }
 
 // Exists checks if a path exists (file or directory).
+//
+//	result := m.Exists(...)
 func (m *Medium) Exists(p string) bool {
 	key := cleanPath(p)
 	if key == "" {
@@ -570,6 +608,8 @@ func (m *Medium) Exists(p string) bool {
 }
 
 // IsDir checks if a path exists and is a directory.
+//
+//	result := m.IsDir(...)
 func (m *Medium) IsDir(p string) bool {
 	key := cleanPath(p)
 	if key == "" {
@@ -597,12 +637,35 @@ type fileInfo struct {
 	isDir   bool
 }
 
-func (fi *fileInfo) Name() string       { return fi.name }
-func (fi *fileInfo) Size() int64        { return fi.size }
-func (fi *fileInfo) Mode() fs.FileMode  { return fi.mode }
+// Name documents the Name operation.
+//
+//	result := fi.Name(...)
+func (fi *fileInfo) Name() string { return fi.name }
+
+// Size documents the Size operation.
+//
+//	result := fi.Size(...)
+func (fi *fileInfo) Size() int64 { return fi.size }
+
+// Mode documents the Mode operation.
+//
+//	result := fi.Mode(...)
+func (fi *fileInfo) Mode() fs.FileMode { return fi.mode }
+
+// ModTime documents the ModTime operation.
+//
+//	result := fi.ModTime(...)
 func (fi *fileInfo) ModTime() time.Time { return fi.modTime }
-func (fi *fileInfo) IsDir() bool        { return fi.isDir }
-func (fi *fileInfo) Sys() any           { return nil }
+
+// IsDir documents the IsDir operation.
+//
+//	result := fi.IsDir(...)
+func (fi *fileInfo) IsDir() bool { return fi.isDir }
+
+// Sys documents the Sys operation.
+//
+//	result := fi.Sys(...)
+func (fi *fileInfo) Sys() any { return nil }
 
 // dirEntry implements fs.DirEntry for SQLite listings.
 type dirEntry struct {
@@ -612,9 +675,24 @@ type dirEntry struct {
 	info  fs.FileInfo
 }
 
-func (de *dirEntry) Name() string               { return de.name }
-func (de *dirEntry) IsDir() bool                { return de.isDir }
-func (de *dirEntry) Type() fs.FileMode          { return de.mode.Type() }
+// Name documents the Name operation.
+//
+//	result := de.Name(...)
+func (de *dirEntry) Name() string { return de.name }
+
+// IsDir documents the IsDir operation.
+//
+//	result := de.IsDir(...)
+func (de *dirEntry) IsDir() bool { return de.isDir }
+
+// Type documents the Type operation.
+//
+//	result := de.Type(...)
+func (de *dirEntry) Type() fs.FileMode { return de.mode.Type() }
+
+// Info documents the Info operation.
+//
+//	result := de.Info(...)
 func (de *dirEntry) Info() (fs.FileInfo, error) { return de.info, nil }
 
 // sqliteFile implements fs.File for SQLite entries.
@@ -626,6 +704,9 @@ type sqliteFile struct {
 	modTime time.Time
 }
 
+// Stat documents the Stat operation.
+//
+//	result := f.Stat(...)
 func (f *sqliteFile) Stat() (fs.FileInfo, error) {
 	return &fileInfo{
 		name:    f.name,
@@ -635,6 +716,9 @@ func (f *sqliteFile) Stat() (fs.FileInfo, error) {
 	}, nil
 }
 
+// Read documents the Read operation.
+//
+//	result := f.Read(...)
 func (f *sqliteFile) Read(b []byte) (int, error) {
 	if f.offset >= int64(len(f.content)) {
 		return 0, goio.EOF
@@ -644,6 +728,9 @@ func (f *sqliteFile) Read(b []byte) (int, error) {
 	return n, nil
 }
 
+// Close documents the Close operation.
+//
+//	result := f.Close(...)
 func (f *sqliteFile) Close() error {
 	return nil
 }
@@ -655,11 +742,17 @@ type sqliteWriteCloser struct {
 	data   []byte
 }
 
+// Write documents the Write operation.
+//
+//	result := w.Write(...)
 func (w *sqliteWriteCloser) Write(p []byte) (int, error) {
 	w.data = append(w.data, p...)
 	return len(p), nil
 }
 
+// Close documents the Close operation.
+//
+//	result := w.Close(...)
 func (w *sqliteWriteCloser) Close() error {
 	_, err := w.medium.db.Exec(
 		`INSERT INTO `+w.medium.table+` (path, content, mode, is_dir, mtime) VALUES (?, ?, 420, FALSE, ?)
@@ -667,7 +760,7 @@ func (w *sqliteWriteCloser) Close() error {
 		w.path, w.data, time.Now().UTC(),
 	)
 	if err != nil {
-		return coreerr.E("sqlite.WriteCloser.Close", "store failed: "+w.path, err)
+		return core.E("sqlite.WriteCloser.Close", core.Concat("store failed: ", w.path), err)
 	}
 	return nil
 }

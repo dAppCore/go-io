@@ -31,7 +31,7 @@ func newTestService(t *testing.T) (*Service, string) {
 	return svc.(*Service), tempHome
 }
 
-func TestWorkspace_Good_RoundTrip(t *testing.T) {
+func TestService_Workspace_RoundTrip_Good(t *testing.T) {
 	s, tempHome := newTestService(t)
 
 	id, err := s.CreateWorkspace("test-user", "pass123")
@@ -55,7 +55,7 @@ func TestWorkspace_Good_RoundTrip(t *testing.T) {
 	assert.Equal(t, "top secret info", got)
 }
 
-func TestSwitchWorkspace_Bad_TraversalBlocked(t *testing.T) {
+func TestService_SwitchWorkspace_TraversalBlocked_Bad(t *testing.T) {
 	s, tempHome := newTestService(t)
 
 	outside := core.Path(tempHome, ".core", "escaped")
@@ -66,7 +66,7 @@ func TestSwitchWorkspace_Bad_TraversalBlocked(t *testing.T) {
 	assert.Empty(t, s.activeWorkspace)
 }
 
-func TestWorkspaceFileSet_Bad_TraversalBlocked(t *testing.T) {
+func TestService_WorkspaceFileSet_TraversalBlocked_Bad(t *testing.T) {
 	s, tempHome := newTestService(t)
 
 	id, err := s.CreateWorkspace("test-user", "pass123")

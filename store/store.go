@@ -2,16 +2,14 @@ package store
 
 import (
 	"database/sql"
-	"errors"
-	"strings"
 	"text/template"
 
-	coreerr "forge.lthn.ai/core/go-log"
+	core "dappco.re/go/core"
 	_ "modernc.org/sqlite"
 )
 
 // ErrNotFound is returned when a key does not exist in the store.
-var ErrNotFound = errors.New("store: not found")
+var ErrNotFound = core.E("store.ErrNotFound", "key not found", nil)
 
 // Store is a group-namespaced key-value store backed by SQLite.
 type Store struct {
@@ -27,11 +25,11 @@ type Store struct {
 func New(dbPath string) (*Store, error) {
 	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
-		return nil, coreerr.E("store.New", "open db", err)
+		return nil, core.E("store.New", "open db", err)
 	}
 	if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
 		db.Close()
-		return nil, coreerr.E("store.New", "WAL mode", err)
+		return nil, core.E("store.New", "WAL mode", err)
 	}
 	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS kv (
 		grp   TEXT NOT NULL,
@@ -40,30 +38,36 @@ func New(dbPath string) (*Store, error) {
 		PRIMARY KEY (grp, key)
 	)`); err != nil {
 		db.Close()
-		return nil, coreerr.E("store.New", "create schema", err)
+		return nil, core.E("store.New", "create schema", err)
 	}
 	return &Store{db: db}, nil
 }
 
 // Close closes the underlying database.
+//
+//	result := s.Close(...)
 func (s *Store) Close() error {
 	return s.db.Close()
 }
 
 // Get retrieves a value by group and key.
+//
+//	result := s.Get(...)
 func (s *Store) Get(group, key string) (string, error) {
 	var val string
 	err := s.db.QueryRow("SELECT value FROM kv WHERE grp = ? AND key = ?", group, key).Scan(&val)
 	if err == sql.ErrNoRows {
-		return "", coreerr.E("store.Get", "not found: "+group+"/"+key, ErrNotFound)
+		return "", core.E("store.Get", core.Concat("not found: ", group, "/", key), ErrNotFound)
 	}
 	if err != nil {
-		return "", coreerr.E("store.Get", "query", err)
+		return "", core.E("store.Get", "query", err)
 	}
 	return val, nil
 }
 
 // Set stores a value by group and key, overwriting if exists.
+//
+//	result := s.Set(...)
 func (s *Store) Set(group, key, value string) error {
 	_, err := s.db.Exec(
 		`INSERT INTO kv (grp, key, value) VALUES (?, ?, ?)
@@ -71,44 +75,52 @@ func (s *Store) Set(group, key, value string) error {
 		group, key, value,
 	)
 	if err != nil {
-		return coreerr.E("store.Set", "exec", err)
+		return core.E("store.Set", "exec", err)
 	}
 	return nil
 }
 
 // Delete removes a single key from a group.
+//
+//	result := s.Delete(...)
 func (s *Store) Delete(group, key string) error {
 	_, err := s.db.Exec("DELETE FROM kv WHERE grp = ? AND key = ?", group, key)
 	if err != nil {
-		return coreerr.E("store.Delete", "exec", err)
+		return core.E("store.Delete", "exec", err)
 	}
 	return nil
 }
 
 // Count returns the number of keys in a group.
+//
+//	result := s.Count(...)
 func (s *Store) Count(group string) (int, error) {
 	var n int
 	err := s.db.QueryRow("SELECT COUNT(*) FROM kv WHERE grp = ?", group).Scan(&n)
 	if err != nil {
-		return 0, coreerr.E("store.Count", "query", err)
+		return 0, core.E("store.Count", "query", err)
 	}
 	return n, nil
 }
 
 // DeleteGroup removes all keys in a group.
+//
+//	result := s.DeleteGroup(...)
 func (s *Store) DeleteGroup(group string) error {
 	_, err := s.db.Exec("DELETE FROM kv WHERE grp = ?", group)
 	if err != nil {
-		return coreerr.E("store.DeleteGroup", "exec", err)
+		return core.E("store.DeleteGroup", "exec", err)
 	}
 	return nil
 }
 
 // GetAll returns all key-value pairs in a group.
+//
+//	result := s.GetAll(...)
 func (s *Store) GetAll(group string) (map[string]string, error) {
 	rows, err := s.db.Query("SELECT key, value FROM kv WHERE grp = ?", group)
 	if err != nil {
-		return nil, coreerr.E("store.GetAll", "query", err)
+		return nil, core.E("store.GetAll", "query", err)
 	}
 	defer rows.Close()
 
@@ -116,12 +128,12 @@ func (s *Store) GetAll(group string) (map[string]string, error) {
 	for rows.Next() {
 		var k, v string
 		if err := rows.Scan(&k, &v); err != nil {
-			return nil, coreerr.E("store.GetAll", "scan", err)
+			return nil, core.E("store.GetAll", "scan", err)
 		}
 		result[k] = v
 	}
 	if err := rows.Err(); err != nil {
-		return nil, coreerr.E("store.GetAll", "rows", err)
+		return nil, core.E("store.GetAll", "rows", err)
 	}
 	return result, nil
 }
@@ -135,7 +147,7 @@ func (s *Store) GetAll(group string) (map[string]string, error) {
 func (s *Store) Render(tmplStr, group string) (string, error) {
 	rows, err := s.db.Query("SELECT key, value FROM kv WHERE grp = ?", group)
 	if err != nil {
-		return "", coreerr.E("store.Render", "query", err)
+		return "", core.E("store.Render", "query", err)
 	}
 	defer rows.Close()
 
@@ -143,21 +155,21 @@ func (s *Store) Render(tmplStr, group string) (string, error) {
 	for rows.Next() {
 		var k, v string
 		if err := rows.Scan(&k, &v); err != nil {
-			return "", coreerr.E("store.Render", "scan", err)
+			return "", core.E("store.Render", "scan", err)
 		}
 		vars[k] = v
 	}
 	if err := rows.Err(); err != nil {
-		return "", coreerr.E("store.Render", "rows", err)
+		return "", core.E("store.Render", "rows", err)
 	}
 
 	tmpl, err := template.New("render").Parse(tmplStr)
 	if err != nil {
-		return "", coreerr.E("store.Render", "parse template", err)
+		return "", core.E("store.Render", "parse template", err)
 	}
-	var b strings.Builder
-	if err := tmpl.Execute(&b, vars); err != nil {
-		return "", coreerr.E("store.Render", "execute template", err)
+	b := core.NewBuilder()
+	if err := tmpl.Execute(b, vars); err != nil {
+		return "", core.E("store.Render", "execute template", err)
 	}
 	return b.String(), nil
 }

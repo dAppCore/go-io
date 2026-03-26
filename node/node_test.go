@@ -3,11 +3,9 @@ package node
 import (
 	"archive/tar"
 	"bytes"
-	"errors"
 	"io"
 	"io/fs"
 	"sort"
-	"strings"
 	"testing"
 
 	core "dappco.re/go/core"
@@ -20,7 +18,7 @@ import (
 // New
 // ---------------------------------------------------------------------------
 
-func TestNew_Good(t *testing.T) {
+func TestNode_New_Good(t *testing.T) {
 	n := New()
 	require.NotNil(t, n, "New() must not return nil")
 	assert.NotNil(t, n.files, "New() must initialise the files map")
@@ -30,7 +28,7 @@ func TestNew_Good(t *testing.T) {
 // AddData
 // ---------------------------------------------------------------------------
 
-func TestAddData_Good(t *testing.T) {
+func TestNode_AddData_Good(t *testing.T) {
 	n := New()
 	n.AddData("foo.txt", []byte("foo"))
 
@@ -43,7 +41,7 @@ func TestAddData_Good(t *testing.T) {
 	assert.Equal(t, "foo.txt", info.Name())
 }
 
-func TestAddData_Bad(t *testing.T) {
+func TestNode_AddData_Bad(t *testing.T) {
 	n := New()
 
 	// Empty name is silently ignored.
@@ -55,7 +53,7 @@ func TestAddData_Bad(t *testing.T) {
 	assert.Empty(t, n.files, "directory entry must not be stored")
 }
 
-func TestAddData_Ugly(t *testing.T) {
+func TestNode_AddData_Ugly(t *testing.T) {
 	t.Run("Overwrite", func(t *testing.T) {
 		n := New()
 		n.AddData("foo.txt", []byte("foo"))
@@ -77,7 +75,7 @@ func TestAddData_Ugly(t *testing.T) {
 // Open
 // ---------------------------------------------------------------------------
 
-func TestOpen_Good(t *testing.T) {
+func TestNode_Open_Good(t *testing.T) {
 	n := New()
 	n.AddData("foo.txt", []byte("foo"))
 
@@ -91,14 +89,14 @@ func TestOpen_Good(t *testing.T) {
 	assert.Equal(t, "foo", string(buf[:nr]))
 }
 
-func TestOpen_Bad(t *testing.T) {
+func TestNode_Open_Bad(t *testing.T) {
 	n := New()
 	_, err := n.Open("nonexistent.txt")
 	require.Error(t, err)
 	assert.ErrorIs(t, err, fs.ErrNotExist)
 }
 
-func TestOpen_Ugly(t *testing.T) {
+func TestNode_Open_Ugly(t *testing.T) {
 	n := New()
 	n.AddData("bar/baz.txt", []byte("baz"))
 
@@ -112,7 +110,7 @@ func TestOpen_Ugly(t *testing.T) {
 	require.Error(t, err)
 
 	var pathErr *fs.PathError
-	require.True(t, errors.As(err, &pathErr))
+	require.True(t, core.As(err, &pathErr))
 	assert.Equal(t, fs.ErrInvalid, pathErr.Err)
 }
 
@@ -120,7 +118,7 @@ func TestOpen_Ugly(t *testing.T) {
 // Stat
 // ---------------------------------------------------------------------------
 
-func TestStat_Good(t *testing.T) {
+func TestNode_Stat_Good(t *testing.T) {
 	n := New()
 	n.AddData("foo.txt", []byte("foo"))
 	n.AddData("bar/baz.txt", []byte("baz"))
@@ -139,14 +137,14 @@ func TestStat_Good(t *testing.T) {
 	assert.Equal(t, "bar", dirInfo.Name())
 }
 
-func TestStat_Bad(t *testing.T) {
+func TestNode_Stat_Bad(t *testing.T) {
 	n := New()
 	_, err := n.Stat("nonexistent")
 	require.Error(t, err)
 	assert.ErrorIs(t, err, fs.ErrNotExist)
 }
 
-func TestStat_Ugly(t *testing.T) {
+func TestNode_Stat_Ugly(t *testing.T) {
 	n := New()
 	n.AddData("foo.txt", []byte("foo"))
 
@@ -161,7 +159,7 @@ func TestStat_Ugly(t *testing.T) {
 // ReadFile
 // ---------------------------------------------------------------------------
 
-func TestReadFile_Good(t *testing.T) {
+func TestNode_ReadFile_Good(t *testing.T) {
 	n := New()
 	n.AddData("hello.txt", []byte("hello world"))
 
@@ -170,14 +168,14 @@ func TestReadFile_Good(t *testing.T) {
 	assert.Equal(t, []byte("hello world"), data)
 }
 
-func TestReadFile_Bad(t *testing.T) {
+func TestNode_ReadFile_Bad(t *testing.T) {
 	n := New()
 	_, err := n.ReadFile("missing.txt")
 	require.Error(t, err)
 	assert.ErrorIs(t, err, fs.ErrNotExist)
 }
 
-func TestReadFile_Ugly(t *testing.T) {
+func TestNode_ReadFile_Ugly(t *testing.T) {
 	n := New()
 	n.AddData("data.bin", []byte("original"))
 
@@ -195,7 +193,7 @@ func TestReadFile_Ugly(t *testing.T) {
 // ReadDir
 // ---------------------------------------------------------------------------
 
-func TestReadDir_Good(t *testing.T) {
+func TestNode_ReadDir_Good(t *testing.T) {
 	n := New()
 	n.AddData("foo.txt", []byte("foo"))
 	n.AddData("bar/baz.txt", []byte("baz"))
@@ -212,7 +210,7 @@ func TestReadDir_Good(t *testing.T) {
 	assert.Equal(t, []string{"baz.txt", "qux.txt"}, sortedNames(barEntries))
 }
 
-func TestReadDir_Bad(t *testing.T) {
+func TestNode_ReadDir_Bad(t *testing.T) {
 	n := New()
 	n.AddData("foo.txt", []byte("foo"))
 
@@ -220,11 +218,11 @@ func TestReadDir_Bad(t *testing.T) {
 	_, err := n.ReadDir("foo.txt")
 	require.Error(t, err)
 	var pathErr *fs.PathError
-	require.True(t, errors.As(err, &pathErr))
+	require.True(t, core.As(err, &pathErr))
 	assert.Equal(t, fs.ErrInvalid, pathErr.Err)
 }
 
-func TestReadDir_Ugly(t *testing.T) {
+func TestNode_ReadDir_Ugly(t *testing.T) {
 	n := New()
 	n.AddData("bar/baz.txt", []byte("baz"))
 	n.AddData("empty_dir/", nil) // Ignored by AddData.
@@ -238,7 +236,7 @@ func TestReadDir_Ugly(t *testing.T) {
 // Exists
 // ---------------------------------------------------------------------------
 
-func TestExists_Good(t *testing.T) {
+func TestNode_Exists_Good(t *testing.T) {
 	n := New()
 	n.AddData("foo.txt", []byte("foo"))
 	n.AddData("bar/baz.txt", []byte("baz"))
@@ -247,12 +245,12 @@ func TestExists_Good(t *testing.T) {
 	assert.True(t, n.Exists("bar"))
 }
 
-func TestExists_Bad(t *testing.T) {
+func TestNode_Exists_Bad(t *testing.T) {
 	n := New()
 	assert.False(t, n.Exists("nonexistent"))
 }
 
-func TestExists_Ugly(t *testing.T) {
+func TestNode_Exists_Ugly(t *testing.T) {
 	n := New()
 	n.AddData("dummy.txt", []byte("dummy"))
 
@@ -264,7 +262,7 @@ func TestExists_Ugly(t *testing.T) {
 // Walk
 // ---------------------------------------------------------------------------
 
-func TestWalk_Good(t *testing.T) {
+func TestNode_Walk_Good(t *testing.T) {
 	n := New()
 	n.AddData("foo.txt", []byte("foo"))
 	n.AddData("bar/baz.txt", []byte("baz"))
@@ -281,7 +279,7 @@ func TestWalk_Good(t *testing.T) {
 	assert.Equal(t, []string{".", "bar", "bar/baz.txt", "bar/qux.txt", "foo.txt"}, paths)
 }
 
-func TestWalk_Bad(t *testing.T) {
+func TestNode_Walk_Bad(t *testing.T) {
 	n := New()
 
 	var called bool
@@ -295,13 +293,13 @@ func TestWalk_Bad(t *testing.T) {
 	assert.ErrorIs(t, err, fs.ErrNotExist)
 }
 
-func TestWalk_Ugly(t *testing.T) {
+func TestNode_Walk_Ugly(t *testing.T) {
 	n := New()
 	n.AddData("a/b.txt", []byte("b"))
 	n.AddData("a/c.txt", []byte("c"))
 
 	// Stop walk early with a custom error.
-	walkErr := errors.New("stop walking")
+	walkErr := core.NewError("stop walking")
 	var paths []string
 	err := n.Walk(".", func(p string, d fs.DirEntry, err error) error {
 		if p == "a/b.txt" {
@@ -314,7 +312,7 @@ func TestWalk_Ugly(t *testing.T) {
 	assert.Equal(t, walkErr, err, "Walk must propagate the callback error")
 }
 
-func TestWalk_Good_Options(t *testing.T) {
+func TestNode_Walk_Options_Good(t *testing.T) {
 	n := New()
 	n.AddData("root.txt", []byte("root"))
 	n.AddData("a/a1.txt", []byte("a1"))
@@ -339,7 +337,7 @@ func TestWalk_Good_Options(t *testing.T) {
 			paths = append(paths, p)
 			return nil
 		}, WalkOptions{Filter: func(p string, d fs.DirEntry) bool {
-			return !strings.HasPrefix(p, "a")
+			return !core.HasPrefix(p, "a")
 		}})
 		require.NoError(t, err)
 
@@ -363,7 +361,7 @@ func TestWalk_Good_Options(t *testing.T) {
 // CopyFile
 // ---------------------------------------------------------------------------
 
-func TestCopyFile_Good(t *testing.T) {
+func TestNode_CopyFile_Good(t *testing.T) {
 	n := New()
 	n.AddData("foo.txt", []byte("foo"))
 
@@ -376,7 +374,7 @@ func TestCopyFile_Good(t *testing.T) {
 	assert.Equal(t, "foo", content)
 }
 
-func TestCopyFile_Bad(t *testing.T) {
+func TestNode_CopyFile_Bad(t *testing.T) {
 	n := New()
 	tmpfile := core.Path(t.TempDir(), "test.txt")
 
@@ -390,7 +388,7 @@ func TestCopyFile_Bad(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestCopyFile_Ugly(t *testing.T) {
+func TestNode_CopyFile_Ugly(t *testing.T) {
 	n := New()
 	n.AddData("bar/baz.txt", []byte("baz"))
 	tmpfile := core.Path(t.TempDir(), "test.txt")
@@ -404,7 +402,7 @@ func TestCopyFile_Ugly(t *testing.T) {
 // ToTar / FromTar
 // ---------------------------------------------------------------------------
 
-func TestToTar_Good(t *testing.T) {
+func TestNode_ToTar_Good(t *testing.T) {
 	n := New()
 	n.AddData("foo.txt", []byte("foo"))
 	n.AddData("bar/baz.txt", []byte("baz"))
@@ -431,7 +429,7 @@ func TestToTar_Good(t *testing.T) {
 	assert.Equal(t, "baz", files["bar/baz.txt"])
 }
 
-func TestFromTar_Good(t *testing.T) {
+func TestNode_FromTar_Good(t *testing.T) {
 	buf := new(bytes.Buffer)
 	tw := tar.NewWriter(buf)
 
@@ -458,14 +456,14 @@ func TestFromTar_Good(t *testing.T) {
 	assert.True(t, n.Exists("bar/baz.txt"), "bar/baz.txt should exist")
 }
 
-func TestFromTar_Bad(t *testing.T) {
+func TestNode_FromTar_Bad(t *testing.T) {
 	// Truncated data that cannot be a valid tar.
 	truncated := make([]byte, 100)
 	_, err := FromTar(truncated)
 	assert.Error(t, err, "truncated data should produce an error")
 }
 
-func TestTarRoundTrip_Good(t *testing.T) {
+func TestNode_TarRoundTrip_Good(t *testing.T) {
 	n1 := New()
 	n1.AddData("a.txt", []byte("alpha"))
 	n1.AddData("b/c.txt", []byte("charlie"))
@@ -490,7 +488,7 @@ func TestTarRoundTrip_Good(t *testing.T) {
 // fs.FS interface compliance
 // ---------------------------------------------------------------------------
 
-func TestFSInterface_Good(t *testing.T) {
+func TestNode_FSInterface_Good(t *testing.T) {
 	n := New()
 	n.AddData("hello.txt", []byte("world"))
 

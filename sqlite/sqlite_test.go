@@ -3,9 +3,9 @@ package sqlite
 import (
 	goio "io"
 	"io/fs"
-	"strings"
 	"testing"
 
+	core "dappco.re/go/core"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -20,21 +20,21 @@ func newTestMedium(t *testing.T) *Medium {
 
 // --- Constructor Tests ---
 
-func TestNew_Good(t *testing.T) {
+func TestSqlite_New_Good(t *testing.T) {
 	m, err := New(":memory:")
 	require.NoError(t, err)
 	defer m.Close()
 	assert.Equal(t, "files", m.table)
 }
 
-func TestNew_Good_WithTable(t *testing.T) {
+func TestSqlite_New_WithTable_Good(t *testing.T) {
 	m, err := New(":memory:", WithTable("custom"))
 	require.NoError(t, err)
 	defer m.Close()
 	assert.Equal(t, "custom", m.table)
 }
 
-func TestNew_Bad_EmptyPath(t *testing.T) {
+func TestSqlite_New_EmptyPath_Bad(t *testing.T) {
 	_, err := New("")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "database path is required")
@@ -42,7 +42,7 @@ func TestNew_Bad_EmptyPath(t *testing.T) {
 
 // --- Read/Write Tests ---
 
-func TestReadWrite_Good(t *testing.T) {
+func TestSqlite_ReadWrite_Good(t *testing.T) {
 	m := newTestMedium(t)
 
 	err := m.Write("hello.txt", "world")
@@ -53,7 +53,7 @@ func TestReadWrite_Good(t *testing.T) {
 	assert.Equal(t, "world", content)
 }
 
-func TestReadWrite_Good_Overwrite(t *testing.T) {
+func TestSqlite_ReadWrite_Overwrite_Good(t *testing.T) {
 	m := newTestMedium(t)
 
 	require.NoError(t, m.Write("file.txt", "first"))
@@ -64,7 +64,7 @@ func TestReadWrite_Good_Overwrite(t *testing.T) {
 	assert.Equal(t, "second", content)
 }
 
-func TestReadWrite_Good_NestedPath(t *testing.T) {
+func TestSqlite_ReadWrite_NestedPath_Good(t *testing.T) {
 	m := newTestMedium(t)
 
 	err := m.Write("a/b/c.txt", "nested")
@@ -75,28 +75,28 @@ func TestReadWrite_Good_NestedPath(t *testing.T) {
 	assert.Equal(t, "nested", content)
 }
 
-func TestRead_Bad_NotFound(t *testing.T) {
+func TestSqlite_Read_NotFound_Bad(t *testing.T) {
 	m := newTestMedium(t)
 
 	_, err := m.Read("nonexistent.txt")
 	assert.Error(t, err)
 }
 
-func TestRead_Bad_EmptyPath(t *testing.T) {
+func TestSqlite_Read_EmptyPath_Bad(t *testing.T) {
 	m := newTestMedium(t)
 
 	_, err := m.Read("")
 	assert.Error(t, err)
 }
 
-func TestWrite_Bad_EmptyPath(t *testing.T) {
+func TestSqlite_Write_EmptyPath_Bad(t *testing.T) {
 	m := newTestMedium(t)
 
 	err := m.Write("", "content")
 	assert.Error(t, err)
 }
 
-func TestRead_Bad_IsDirectory(t *testing.T) {
+func TestSqlite_Read_IsDirectory_Bad(t *testing.T) {
 	m := newTestMedium(t)
 
 	require.NoError(t, m.EnsureDir("mydir"))
@@ -106,7 +106,7 @@ func TestRead_Bad_IsDirectory(t *testing.T) {
 
 // --- EnsureDir Tests ---
 
-func TestEnsureDir_Good(t *testing.T) {
+func TestSqlite_EnsureDir_Good(t *testing.T) {
 	m := newTestMedium(t)
 
 	err := m.EnsureDir("mydir")
@@ -114,14 +114,14 @@ func TestEnsureDir_Good(t *testing.T) {
 	assert.True(t, m.IsDir("mydir"))
 }
 
-func TestEnsureDir_Good_EmptyPath(t *testing.T) {
+func TestSqlite_EnsureDir_EmptyPath_Good(t *testing.T) {
 	m := newTestMedium(t)
 	// Root always exists, no-op
 	err := m.EnsureDir("")
 	assert.NoError(t, err)
 }
 
-func TestEnsureDir_Good_Idempotent(t *testing.T) {
+func TestSqlite_EnsureDir_Idempotent_Good(t *testing.T) {
 	m := newTestMedium(t)
 
 	require.NoError(t, m.EnsureDir("mydir"))
@@ -131,7 +131,7 @@ func TestEnsureDir_Good_Idempotent(t *testing.T) {
 
 // --- IsFile Tests ---
 
-func TestIsFile_Good(t *testing.T) {
+func TestSqlite_IsFile_Good(t *testing.T) {
 	m := newTestMedium(t)
 
 	require.NoError(t, m.Write("file.txt", "content"))
@@ -145,7 +145,7 @@ func TestIsFile_Good(t *testing.T) {
 
 // --- FileGet/FileSet Tests ---
 
-func TestFileGetFileSet_Good(t *testing.T) {
+func TestSqlite_FileGetFileSet_Good(t *testing.T) {
 	m := newTestMedium(t)
 
 	err := m.FileSet("key.txt", "value")
@@ -158,7 +158,7 @@ func TestFileGetFileSet_Good(t *testing.T) {
 
 // --- Delete Tests ---
 
-func TestDelete_Good(t *testing.T) {
+func TestSqlite_Delete_Good(t *testing.T) {
 	m := newTestMedium(t)
 
 	require.NoError(t, m.Write("to-delete.txt", "content"))
@@ -169,7 +169,7 @@ func TestDelete_Good(t *testing.T) {
 	assert.False(t, m.Exists("to-delete.txt"))
 }
 
-func TestDelete_Good_EmptyDir(t *testing.T) {
+func TestSqlite_Delete_EmptyDir_Good(t *testing.T) {
 	m := newTestMedium(t)
 
 	require.NoError(t, m.EnsureDir("emptydir"))
@@ -180,21 +180,21 @@ func TestDelete_Good_EmptyDir(t *testing.T) {
 	assert.False(t, m.IsDir("emptydir"))
 }
 
-func TestDelete_Bad_NotFound(t *testing.T) {
+func TestSqlite_Delete_NotFound_Bad(t *testing.T) {
 	m := newTestMedium(t)
 
 	err := m.Delete("nonexistent")
 	assert.Error(t, err)
 }
 
-func TestDelete_Bad_EmptyPath(t *testing.T) {
+func TestSqlite_Delete_EmptyPath_Bad(t *testing.T) {
 	m := newTestMedium(t)
 
 	err := m.Delete("")
 	assert.Error(t, err)
 }
 
-func TestDelete_Bad_NotEmpty(t *testing.T) {
+func TestSqlite_Delete_NotEmpty_Bad(t *testing.T) {
 	m := newTestMedium(t)
 
 	require.NoError(t, m.EnsureDir("mydir"))
@@ -206,7 +206,7 @@ func TestDelete_Bad_NotEmpty(t *testing.T) {
 
 // --- DeleteAll Tests ---
 
-func TestDeleteAll_Good(t *testing.T) {
+func TestSqlite_DeleteAll_Good(t *testing.T) {
 	m := newTestMedium(t)
 
 	require.NoError(t, m.Write("dir/file1.txt", "a"))
@@ -221,7 +221,7 @@ func TestDeleteAll_Good(t *testing.T) {
 	assert.True(t, m.Exists("other.txt"))
 }
 
-func TestDeleteAll_Good_SingleFile(t *testing.T) {
+func TestSqlite_DeleteAll_SingleFile_Good(t *testing.T) {
 	m := newTestMedium(t)
 
 	require.NoError(t, m.Write("file.txt", "content"))
@@ -231,14 +231,14 @@ func TestDeleteAll_Good_SingleFile(t *testing.T) {
 	assert.False(t, m.Exists("file.txt"))
 }
 
-func TestDeleteAll_Bad_NotFound(t *testing.T) {
+func TestSqlite_DeleteAll_NotFound_Bad(t *testing.T) {
 	m := newTestMedium(t)
 
 	err := m.DeleteAll("nonexistent")
 	assert.Error(t, err)
 }
 
-func TestDeleteAll_Bad_EmptyPath(t *testing.T) {
+func TestSqlite_DeleteAll_EmptyPath_Bad(t *testing.T) {
 	m := newTestMedium(t)
 
 	err := m.DeleteAll("")
@@ -247,7 +247,7 @@ func TestDeleteAll_Bad_EmptyPath(t *testing.T) {
 
 // --- Rename Tests ---
 
-func TestRename_Good(t *testing.T) {
+func TestSqlite_Rename_Good(t *testing.T) {
 	m := newTestMedium(t)
 
 	require.NoError(t, m.Write("old.txt", "content"))
@@ -263,7 +263,7 @@ func TestRename_Good(t *testing.T) {
 	assert.Equal(t, "content", content)
 }
 
-func TestRename_Good_Directory(t *testing.T) {
+func TestSqlite_Rename_Directory_Good(t *testing.T) {
 	m := newTestMedium(t)
 
 	require.NoError(t, m.EnsureDir("olddir"))
@@ -282,14 +282,14 @@ func TestRename_Good_Directory(t *testing.T) {
 	assert.Equal(t, "content", content)
 }
 
-func TestRename_Bad_SourceNotFound(t *testing.T) {
+func TestSqlite_Rename_SourceNotFound_Bad(t *testing.T) {
 	m := newTestMedium(t)
 
 	err := m.Rename("nonexistent", "new")
 	assert.Error(t, err)
 }
 
-func TestRename_Bad_EmptyPath(t *testing.T) {
+func TestSqlite_Rename_EmptyPath_Bad(t *testing.T) {
 	m := newTestMedium(t)
 
 	err := m.Rename("", "new")
@@ -301,7 +301,7 @@ func TestRename_Bad_EmptyPath(t *testing.T) {
 
 // --- List Tests ---
 
-func TestList_Good(t *testing.T) {
+func TestSqlite_List_Good(t *testing.T) {
 	m := newTestMedium(t)
 
 	require.NoError(t, m.Write("dir/file1.txt", "a"))
@@ -322,7 +322,7 @@ func TestList_Good(t *testing.T) {
 	assert.Len(t, entries, 3)
 }
 
-func TestList_Good_Root(t *testing.T) {
+func TestSqlite_List_Root_Good(t *testing.T) {
 	m := newTestMedium(t)
 
 	require.NoError(t, m.Write("root.txt", "content"))
@@ -340,7 +340,7 @@ func TestList_Good_Root(t *testing.T) {
 	assert.True(t, names["dir"])
 }
 
-func TestList_Good_DirectoryEntry(t *testing.T) {
+func TestSqlite_List_DirectoryEntry_Good(t *testing.T) {
 	m := newTestMedium(t)
 
 	require.NoError(t, m.Write("dir/sub/file.txt", "content"))
@@ -359,7 +359,7 @@ func TestList_Good_DirectoryEntry(t *testing.T) {
 
 // --- Stat Tests ---
 
-func TestStat_Good(t *testing.T) {
+func TestSqlite_Stat_Good(t *testing.T) {
 	m := newTestMedium(t)
 
 	require.NoError(t, m.Write("file.txt", "hello world"))
@@ -371,7 +371,7 @@ func TestStat_Good(t *testing.T) {
 	assert.False(t, info.IsDir())
 }
 
-func TestStat_Good_Directory(t *testing.T) {
+func TestSqlite_Stat_Directory_Good(t *testing.T) {
 	m := newTestMedium(t)
 
 	require.NoError(t, m.EnsureDir("mydir"))
@@ -382,14 +382,14 @@ func TestStat_Good_Directory(t *testing.T) {
 	assert.True(t, info.IsDir())
 }
 
-func TestStat_Bad_NotFound(t *testing.T) {
+func TestSqlite_Stat_NotFound_Bad(t *testing.T) {
 	m := newTestMedium(t)
 
 	_, err := m.Stat("nonexistent")
 	assert.Error(t, err)
 }
 
-func TestStat_Bad_EmptyPath(t *testing.T) {
+func TestSqlite_Stat_EmptyPath_Bad(t *testing.T) {
 	m := newTestMedium(t)
 
 	_, err := m.Stat("")
@@ -398,7 +398,7 @@ func TestStat_Bad_EmptyPath(t *testing.T) {
 
 // --- Open Tests ---
 
-func TestOpen_Good(t *testing.T) {
+func TestSqlite_Open_Good(t *testing.T) {
 	m := newTestMedium(t)
 
 	require.NoError(t, m.Write("file.txt", "open me"))
@@ -416,14 +416,14 @@ func TestOpen_Good(t *testing.T) {
 	assert.Equal(t, "file.txt", stat.Name())
 }
 
-func TestOpen_Bad_NotFound(t *testing.T) {
+func TestSqlite_Open_NotFound_Bad(t *testing.T) {
 	m := newTestMedium(t)
 
 	_, err := m.Open("nonexistent.txt")
 	assert.Error(t, err)
 }
 
-func TestOpen_Bad_IsDirectory(t *testing.T) {
+func TestSqlite_Open_IsDirectory_Bad(t *testing.T) {
 	m := newTestMedium(t)
 
 	require.NoError(t, m.EnsureDir("mydir"))
@@ -433,7 +433,7 @@ func TestOpen_Bad_IsDirectory(t *testing.T) {
 
 // --- Create Tests ---
 
-func TestCreate_Good(t *testing.T) {
+func TestSqlite_Create_Good(t *testing.T) {
 	m := newTestMedium(t)
 
 	w, err := m.Create("new.txt")
@@ -451,7 +451,7 @@ func TestCreate_Good(t *testing.T) {
 	assert.Equal(t, "created", content)
 }
 
-func TestCreate_Good_Overwrite(t *testing.T) {
+func TestSqlite_Create_Overwrite_Good(t *testing.T) {
 	m := newTestMedium(t)
 
 	require.NoError(t, m.Write("file.txt", "old content"))
@@ -467,7 +467,7 @@ func TestCreate_Good_Overwrite(t *testing.T) {
 	assert.Equal(t, "new", content)
 }
 
-func TestCreate_Bad_EmptyPath(t *testing.T) {
+func TestSqlite_Create_EmptyPath_Bad(t *testing.T) {
 	m := newTestMedium(t)
 
 	_, err := m.Create("")
@@ -476,7 +476,7 @@ func TestCreate_Bad_EmptyPath(t *testing.T) {
 
 // --- Append Tests ---
 
-func TestAppend_Good(t *testing.T) {
+func TestSqlite_Append_Good(t *testing.T) {
 	m := newTestMedium(t)
 
 	require.NoError(t, m.Write("append.txt", "hello"))
@@ -493,7 +493,7 @@ func TestAppend_Good(t *testing.T) {
 	assert.Equal(t, "hello world", content)
 }
 
-func TestAppend_Good_NewFile(t *testing.T) {
+func TestSqlite_Append_NewFile_Good(t *testing.T) {
 	m := newTestMedium(t)
 
 	w, err := m.Append("new.txt")
@@ -508,7 +508,7 @@ func TestAppend_Good_NewFile(t *testing.T) {
 	assert.Equal(t, "fresh", content)
 }
 
-func TestAppend_Bad_EmptyPath(t *testing.T) {
+func TestSqlite_Append_EmptyPath_Bad(t *testing.T) {
 	m := newTestMedium(t)
 
 	_, err := m.Append("")
@@ -517,7 +517,7 @@ func TestAppend_Bad_EmptyPath(t *testing.T) {
 
 // --- ReadStream Tests ---
 
-func TestReadStream_Good(t *testing.T) {
+func TestSqlite_ReadStream_Good(t *testing.T) {
 	m := newTestMedium(t)
 
 	require.NoError(t, m.Write("stream.txt", "streaming content"))
@@ -531,14 +531,14 @@ func TestReadStream_Good(t *testing.T) {
 	assert.Equal(t, "streaming content", string(data))
 }
 
-func TestReadStream_Bad_NotFound(t *testing.T) {
+func TestSqlite_ReadStream_NotFound_Bad(t *testing.T) {
 	m := newTestMedium(t)
 
 	_, err := m.ReadStream("nonexistent.txt")
 	assert.Error(t, err)
 }
 
-func TestReadStream_Bad_IsDirectory(t *testing.T) {
+func TestSqlite_ReadStream_IsDirectory_Bad(t *testing.T) {
 	m := newTestMedium(t)
 
 	require.NoError(t, m.EnsureDir("mydir"))
@@ -548,13 +548,13 @@ func TestReadStream_Bad_IsDirectory(t *testing.T) {
 
 // --- WriteStream Tests ---
 
-func TestWriteStream_Good(t *testing.T) {
+func TestSqlite_WriteStream_Good(t *testing.T) {
 	m := newTestMedium(t)
 
 	writer, err := m.WriteStream("output.txt")
 	require.NoError(t, err)
 
-	_, err = goio.Copy(writer, strings.NewReader("piped data"))
+	_, err = goio.Copy(writer, core.NewReader("piped data"))
 	require.NoError(t, err)
 	require.NoError(t, writer.Close())
 
@@ -565,7 +565,7 @@ func TestWriteStream_Good(t *testing.T) {
 
 // --- Exists Tests ---
 
-func TestExists_Good(t *testing.T) {
+func TestSqlite_Exists_Good(t *testing.T) {
 	m := newTestMedium(t)
 
 	assert.False(t, m.Exists("nonexistent"))
@@ -577,7 +577,7 @@ func TestExists_Good(t *testing.T) {
 	assert.True(t, m.Exists("mydir"))
 }
 
-func TestExists_Good_EmptyPath(t *testing.T) {
+func TestSqlite_Exists_EmptyPath_Good(t *testing.T) {
 	m := newTestMedium(t)
 	// Root always exists
 	assert.True(t, m.Exists(""))
@@ -585,7 +585,7 @@ func TestExists_Good_EmptyPath(t *testing.T) {
 
 // --- IsDir Tests ---
 
-func TestIsDir_Good(t *testing.T) {
+func TestSqlite_IsDir_Good(t *testing.T) {
 	m := newTestMedium(t)
 
 	require.NoError(t, m.Write("file.txt", "content"))
@@ -599,7 +599,7 @@ func TestIsDir_Good(t *testing.T) {
 
 // --- cleanPath Tests ---
 
-func TestCleanPath_Good(t *testing.T) {
+func TestSqlite_CleanPath_Good(t *testing.T) {
 	assert.Equal(t, "file.txt", cleanPath("file.txt"))
 	assert.Equal(t, "dir/file.txt", cleanPath("dir/file.txt"))
 	assert.Equal(t, "file.txt", cleanPath("/file.txt"))
@@ -612,7 +612,7 @@ func TestCleanPath_Good(t *testing.T) {
 
 // --- Interface Compliance ---
 
-func TestInterfaceCompliance_Ugly(t *testing.T) {
+func TestSqlite_InterfaceCompliance_Ugly(t *testing.T) {
 	m := newTestMedium(t)
 
 	// Verify all methods exist by asserting the interface shape.
@@ -640,7 +640,7 @@ func TestInterfaceCompliance_Ugly(t *testing.T) {
 
 // --- Custom Table ---
 
-func TestCustomTable_Good(t *testing.T) {
+func TestSqlite_CustomTable_Good(t *testing.T) {
 	m, err := New(":memory:", WithTable("my_files"))
 	require.NoError(t, err)
 	defer m.Close()

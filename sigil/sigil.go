@@ -12,6 +12,8 @@
 //	result, _ := sigil.Transmute(data, []sigil.Sigil{hexSigil, base64Sigil})
 package sigil
 
+import core "dappco.re/go/core"
+
 // Sigil defines the interface for a data transformer.
 //
 // A Sigil represents a single transformation unit that can be applied to byte data.
@@ -43,12 +45,14 @@ type Sigil interface {
 // stops immediately and returns nil with that error.
 //
 // To reverse a transmutation, call each sigil's Out method in reverse order.
+//
+//	result := sigil.Transmute(...)
 func Transmute(data []byte, sigils []Sigil) ([]byte, error) {
 	var err error
 	for _, s := range sigils {
 		data, err = s.In(data)
 		if err != nil {
-			return nil, err
+			return nil, core.E("sigil.Transmute", "sigil in failed", err)
 		}
 	}
 	return data, nil
@@ -59,12 +63,14 @@ func Transmute(data []byte, sigils []Sigil) ([]byte, error) {
 // Each sigil's Out method is called in reverse order, with the output of one sigil
 // becoming the input of the next. If any sigil returns an error, Untransmute
 // stops immediately and returns nil with that error.
+//
+//	result := sigil.Untransmute(...)
 func Untransmute(data []byte, sigils []Sigil) ([]byte, error) {
 	var err error
 	for i := len(sigils) - 1; i >= 0; i-- {
 		data, err = sigils[i].Out(data)
 		if err != nil {
-			return nil, err
+			return nil, core.E("sigil.Untransmute", "sigil out failed", err)
 		}
 	}
 	return data, nil

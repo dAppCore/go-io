@@ -7,14 +7,13 @@ import (
 	goio "io"
 	"io/fs"
 	"path"
-	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 
-	coreerr "forge.lthn.ai/core/go-log"
+	core "dappco.re/go/core"
 )
 
 // s3API is the subset of the S3 client API used by this package.
@@ -47,26 +46,28 @@ func deleteObjectsError(prefix string, errs []types.Error) error {
 		msg := aws.ToString(item.Message)
 		switch {
 		case code != "" && msg != "":
-			details = append(details, key+": "+code+" "+msg)
+			details = append(details, core.Concat(key, ": ", code, " ", msg))
 		case code != "":
-			details = append(details, key+": "+code)
+			details = append(details, core.Concat(key, ": ", code))
 		case msg != "":
-			details = append(details, key+": "+msg)
+			details = append(details, core.Concat(key, ": ", msg))
 		default:
 			details = append(details, key)
 		}
 	}
-	return coreerr.E("s3.DeleteAll", "partial delete failed under "+prefix+": "+strings.Join(details, "; "), nil)
+	return core.E("s3.DeleteAll", core.Concat("partial delete failed under ", prefix, ": ", core.Join("; ", details...)), nil)
 }
 
 // Option configures a Medium.
 type Option func(*Medium)
 
 // WithPrefix sets an optional key prefix for all operations.
+//
+//	result := s3.WithPrefix(...)
 func WithPrefix(prefix string) Option {
 	return func(m *Medium) {
 		// Ensure prefix ends with "/" if non-empty
-		if prefix != "" && !strings.HasSuffix(prefix, "/") {
+		if prefix != "" && !core.HasSuffix(prefix, "/") {
 			prefix += "/"
 		}
 		m.prefix = prefix
@@ -74,6 +75,8 @@ func WithPrefix(prefix string) Option {
 }
 
 // WithClient sets the S3 client for dependency injection.
+//
+//	result := s3.WithClient(...)
 func WithClient(client *s3.Client) Option {
 	return func(m *Medium) {
 		m.client = client
@@ -95,14 +98,14 @@ func withAPI(api s3API) Option {
 //	m, _ := s3.New("backups", s3.WithClient(awsClient), s3.WithPrefix("daily"))
 func New(bucket string, opts ...Option) (*Medium, error) {
 	if bucket == "" {
-		return nil, coreerr.E("s3.New", "bucket name is required", nil)
+		return nil, core.E("s3.New", "bucket name is required", nil)
 	}
 	m := &Medium{bucket: bucket}
 	for _, opt := range opts {
 		opt(m)
 	}
 	if m.client == nil {
-		return nil, coreerr.E("s3.New", "S3 client is required (use WithClient option)", nil)
+		return nil, core.E("s3.New", "S3 client is required (use WithClient option)", nil)
 	}
 	return m, nil
 }
@@ -115,7 +118,7 @@ func (m *Medium) key(p string) string {
 	if clean == "/" {
 		clean = ""
 	}
-	clean = strings.TrimPrefix(clean, "/")
+	clean = core.TrimPrefix(clean, "/")
 
 	if m.prefix == "" {
 		return clean
@@ -127,10 +130,12 @@ func (m *Medium) key(p string) string {
 }
 
 // Read retrieves the content of a file as a string.
+//
+//	result := m.Read(...)
 func (m *Medium) Read(p string) (string, error) {
 	key := m.key(p)
 	if key == "" {
-		return "", coreerr.E("s3.Read", "path is required", fs.ErrInvalid)
+		return "", core.E("s3.Read", "path is required", fs.ErrInvalid)
 	}
 
 	out, err := m.client.GetObject(context.Background(), &s3.GetObjectInput{
@@ -138,48 +143,54 @@ func (m *Medium) Read(p string) (string, error) {
 		Key:    aws.String(key),
 	})
 	if err != nil {
-		return "", coreerr.E("s3.Read", "failed to get object: "+key, err)
+		return "", core.E("s3.Read", core.Concat("failed to get object: ", key), err)
 	}
 	defer out.Body.Close()
 
 	data, err := goio.ReadAll(out.Body)
 	if err != nil {
-		return "", coreerr.E("s3.Read", "failed to read body: "+key, err)
+		return "", core.E("s3.Read", core.Concat("failed to read body: ", key), err)
 	}
 	return string(data), nil
 }
 
 // Write saves the given content to a file, overwriting it if it exists.
+//
+//	result := m.Write(...)
 func (m *Medium) Write(p, content string) error {
 	key := m.key(p)
 	if key == "" {
-		return coreerr.E("s3.Write", "path is required", fs.ErrInvalid)
+		return core.E("s3.Write", "path is required", fs.ErrInvalid)
 	}
 
 	_, err := m.client.PutObject(context.Background(), &s3.PutObjectInput{
 		Bucket: aws.String(m.bucket),
 		Key:    aws.String(key),
-		Body:   strings.NewReader(content),
+		Body:   core.NewReader(content),
 	})
 	if err != nil {
-		return coreerr.E("s3.Write", "failed to put object: "+key, err)
+		return core.E("s3.Write", core.Concat("failed to put object: ", key), err)
 	}
 	return nil
 }
 
 // EnsureDir is a no-op for S3 (S3 has no real directories).
+//
+//	result := m.EnsureDir(...)
 func (m *Medium) EnsureDir(_ string) error {
 	return nil
 }
 
 // IsFile checks if a path exists and is a regular file (not a "directory" prefix).
+//
+//	result := m.IsFile(...)
 func (m *Medium) IsFile(p string) bool {
 	key := m.key(p)
 	if key == "" {
 		return false
 	}
 	// A "file" in S3 is an object whose key does not end with "/"
-	if strings.HasSuffix(key, "/") {
+	if core.HasSuffix(key, "/") {
 		return false
 	}
 	_, err := m.client.HeadObject(context.Background(), &s3.HeadObjectInput{
@@ -190,20 +201,26 @@ func (m *Medium) IsFile(p string) bool {
 }
 
 // FileGet is a convenience function that reads a file from the medium.
+//
+//	result := m.FileGet(...)
 func (m *Medium) FileGet(p string) (string, error) {
 	return m.Read(p)
 }
 
 // FileSet is a convenience function that writes a file to the medium.
+//
+//	result := m.FileSet(...)
 func (m *Medium) FileSet(p, content string) error {
 	return m.Write(p, content)
 }
 
 // Delete removes a single object.
+//
+//	result := m.Delete(...)
 func (m *Medium) Delete(p string) error {
 	key := m.key(p)
 	if key == "" {
-		return coreerr.E("s3.Delete", "path is required", fs.ErrInvalid)
+		return core.E("s3.Delete", "path is required", fs.ErrInvalid)
 	}
 
 	_, err := m.client.DeleteObject(context.Background(), &s3.DeleteObjectInput{
@@ -211,16 +228,18 @@ func (m *Medium) Delete(p string) error {
 		Key:    aws.String(key),
 	})
 	if err != nil {
-		return coreerr.E("s3.Delete", "failed to delete object: "+key, err)
+		return core.E("s3.Delete", core.Concat("failed to delete object: ", key), err)
 	}
 	return nil
 }
 
 // DeleteAll removes all objects under the given prefix.
+//
+//	result := m.DeleteAll(...)
 func (m *Medium) DeleteAll(p string) error {
 	key := m.key(p)
 	if key == "" {
-		return coreerr.E("s3.DeleteAll", "path is required", fs.ErrInvalid)
+		return core.E("s3.DeleteAll", "path is required", fs.ErrInvalid)
 	}
 
 	// First, try deleting the exact key
@@ -229,12 +248,12 @@ func (m *Medium) DeleteAll(p string) error {
 		Key:    aws.String(key),
 	})
 	if err != nil {
-		return coreerr.E("s3.DeleteAll", "failed to delete object: "+key, err)
+		return core.E("s3.DeleteAll", core.Concat("failed to delete object: ", key), err)
 	}
 
 	// Then delete all objects under the prefix
 	prefix := key
-	if !strings.HasSuffix(prefix, "/") {
+	if !core.HasSuffix(prefix, "/") {
 		prefix += "/"
 	}
 
@@ -248,7 +267,7 @@ func (m *Medium) DeleteAll(p string) error {
 			ContinuationToken: continuationToken,
 		})
 		if err != nil {
-			return coreerr.E("s3.DeleteAll", "failed to list objects: "+prefix, err)
+			return core.E("s3.DeleteAll", core.Concat("failed to list objects: ", prefix), err)
 		}
 
 		if len(listOut.Contents) == 0 {
@@ -265,7 +284,7 @@ func (m *Medium) DeleteAll(p string) error {
 			Delete: &types.Delete{Objects: objects, Quiet: aws.Bool(true)},
 		})
 		if err != nil {
-			return coreerr.E("s3.DeleteAll", "failed to delete objects", err)
+			return core.E("s3.DeleteAll", "failed to delete objects", err)
 		}
 		if err := deleteObjectsError(prefix, deleteOut.Errors); err != nil {
 			return err
@@ -282,11 +301,13 @@ func (m *Medium) DeleteAll(p string) error {
 }
 
 // Rename moves an object by copying then deleting the original.
+//
+//	result := m.Rename(...)
 func (m *Medium) Rename(oldPath, newPath string) error {
 	oldKey := m.key(oldPath)
 	newKey := m.key(newPath)
 	if oldKey == "" || newKey == "" {
-		return coreerr.E("s3.Rename", "both old and new paths are required", fs.ErrInvalid)
+		return core.E("s3.Rename", "both old and new paths are required", fs.ErrInvalid)
 	}
 
 	copySource := m.bucket + "/" + oldKey
@@ -297,7 +318,7 @@ func (m *Medium) Rename(oldPath, newPath string) error {
 		Key:        aws.String(newKey),
 	})
 	if err != nil {
-		return coreerr.E("s3.Rename", "failed to copy object: "+oldKey+" -> "+newKey, err)
+		return core.E("s3.Rename", core.Concat("failed to copy object: ", oldKey, " -> ", newKey), err)
 	}
 
 	_, err = m.client.DeleteObject(context.Background(), &s3.DeleteObjectInput{
@@ -305,16 +326,18 @@ func (m *Medium) Rename(oldPath, newPath string) error {
 		Key:    aws.String(oldKey),
 	})
 	if err != nil {
-		return coreerr.E("s3.Rename", "failed to delete source object: "+oldKey, err)
+		return core.E("s3.Rename", core.Concat("failed to delete source object: ", oldKey), err)
 	}
 
 	return nil
 }
 
 // List returns directory entries for the given path using ListObjectsV2 with delimiter.
+//
+//	result := m.List(...)
 func (m *Medium) List(p string) ([]fs.DirEntry, error) {
 	prefix := m.key(p)
-	if prefix != "" && !strings.HasSuffix(prefix, "/") {
+	if prefix != "" && !core.HasSuffix(prefix, "/") {
 		prefix += "/"
 	}
 
@@ -326,7 +349,7 @@ func (m *Medium) List(p string) ([]fs.DirEntry, error) {
 		Delimiter: aws.String("/"),
 	})
 	if err != nil {
-		return nil, coreerr.E("s3.List", "failed to list objects: "+prefix, err)
+		return nil, core.E("s3.List", core.Concat("failed to list objects: ", prefix), err)
 	}
 
 	// Common prefixes are "directories"
@@ -334,8 +357,8 @@ func (m *Medium) List(p string) ([]fs.DirEntry, error) {
 		if cp.Prefix == nil {
 			continue
 		}
-		name := strings.TrimPrefix(*cp.Prefix, prefix)
-		name = strings.TrimSuffix(name, "/")
+		name := core.TrimPrefix(*cp.Prefix, prefix)
+		name = core.TrimSuffix(name, "/")
 		if name == "" {
 			continue
 		}
@@ -356,8 +379,8 @@ func (m *Medium) List(p string) ([]fs.DirEntry, error) {
 		if obj.Key == nil {
 			continue
 		}
-		name := strings.TrimPrefix(*obj.Key, prefix)
-		if name == "" || strings.Contains(name, "/") {
+		name := core.TrimPrefix(*obj.Key, prefix)
+		if name == "" || core.Contains(name, "/") {
 			continue
 		}
 		var size int64
@@ -385,10 +408,12 @@ func (m *Medium) List(p string) ([]fs.DirEntry, error) {
 }
 
 // Stat returns file information for the given path using HeadObject.
+//
+//	result := m.Stat(...)
 func (m *Medium) Stat(p string) (fs.FileInfo, error) {
 	key := m.key(p)
 	if key == "" {
-		return nil, coreerr.E("s3.Stat", "path is required", fs.ErrInvalid)
+		return nil, core.E("s3.Stat", "path is required", fs.ErrInvalid)
 	}
 
 	out, err := m.client.HeadObject(context.Background(), &s3.HeadObjectInput{
@@ -396,7 +421,7 @@ func (m *Medium) Stat(p string) (fs.FileInfo, error) {
 		Key:    aws.String(key),
 	})
 	if err != nil {
-		return nil, coreerr.E("s3.Stat", "failed to head object: "+key, err)
+		return nil, core.E("s3.Stat", core.Concat("failed to head object: ", key), err)
 	}
 
 	var size int64
@@ -418,10 +443,12 @@ func (m *Medium) Stat(p string) (fs.FileInfo, error) {
 }
 
 // Open opens the named file for reading.
+//
+//	result := m.Open(...)
 func (m *Medium) Open(p string) (fs.File, error) {
 	key := m.key(p)
 	if key == "" {
-		return nil, coreerr.E("s3.Open", "path is required", fs.ErrInvalid)
+		return nil, core.E("s3.Open", "path is required", fs.ErrInvalid)
 	}
 
 	out, err := m.client.GetObject(context.Background(), &s3.GetObjectInput{
@@ -429,13 +456,13 @@ func (m *Medium) Open(p string) (fs.File, error) {
 		Key:    aws.String(key),
 	})
 	if err != nil {
-		return nil, coreerr.E("s3.Open", "failed to get object: "+key, err)
+		return nil, core.E("s3.Open", core.Concat("failed to get object: ", key), err)
 	}
 
 	data, err := goio.ReadAll(out.Body)
 	out.Body.Close()
 	if err != nil {
-		return nil, coreerr.E("s3.Open", "failed to read body: "+key, err)
+		return nil, core.E("s3.Open", core.Concat("failed to read body: ", key), err)
 	}
 
 	var size int64
@@ -457,10 +484,12 @@ func (m *Medium) Open(p string) (fs.File, error) {
 
 // Create creates or truncates the named file. Returns a writer that
 // uploads the content on Close.
+//
+//	result := m.Create(...)
 func (m *Medium) Create(p string) (goio.WriteCloser, error) {
 	key := m.key(p)
 	if key == "" {
-		return nil, coreerr.E("s3.Create", "path is required", fs.ErrInvalid)
+		return nil, core.E("s3.Create", "path is required", fs.ErrInvalid)
 	}
 	return &s3WriteCloser{
 		medium: m,
@@ -470,10 +499,12 @@ func (m *Medium) Create(p string) (goio.WriteCloser, error) {
 
 // Append opens the named file for appending. It downloads the existing
 // content (if any) and re-uploads the combined content on Close.
+//
+//	result := m.Append(...)
 func (m *Medium) Append(p string) (goio.WriteCloser, error) {
 	key := m.key(p)
 	if key == "" {
-		return nil, coreerr.E("s3.Append", "path is required", fs.ErrInvalid)
+		return nil, core.E("s3.Append", "path is required", fs.ErrInvalid)
 	}
 
 	var existing []byte
@@ -494,10 +525,12 @@ func (m *Medium) Append(p string) (goio.WriteCloser, error) {
 }
 
 // ReadStream returns a reader for the file content.
+//
+//	result := m.ReadStream(...)
 func (m *Medium) ReadStream(p string) (goio.ReadCloser, error) {
 	key := m.key(p)
 	if key == "" {
-		return nil, coreerr.E("s3.ReadStream", "path is required", fs.ErrInvalid)
+		return nil, core.E("s3.ReadStream", "path is required", fs.ErrInvalid)
 	}
 
 	out, err := m.client.GetObject(context.Background(), &s3.GetObjectInput{
@@ -505,17 +538,21 @@ func (m *Medium) ReadStream(p string) (goio.ReadCloser, error) {
 		Key:    aws.String(key),
 	})
 	if err != nil {
-		return nil, coreerr.E("s3.ReadStream", "failed to get object: "+key, err)
+		return nil, core.E("s3.ReadStream", core.Concat("failed to get object: ", key), err)
 	}
 	return out.Body, nil
 }
 
 // WriteStream returns a writer for the file content. Content is uploaded on Close.
+//
+//	result := m.WriteStream(...)
 func (m *Medium) WriteStream(p string) (goio.WriteCloser, error) {
 	return m.Create(p)
 }
 
 // Exists checks if a path exists (file or directory prefix).
+//
+//	result := m.Exists(...)
 func (m *Medium) Exists(p string) bool {
 	key := m.key(p)
 	if key == "" {
@@ -533,7 +570,7 @@ func (m *Medium) Exists(p string) bool {
 
 	// Check as a "directory" prefix
 	prefix := key
-	if !strings.HasSuffix(prefix, "/") {
+	if !core.HasSuffix(prefix, "/") {
 		prefix += "/"
 	}
 	listOut, err := m.client.ListObjectsV2(context.Background(), &s3.ListObjectsV2Input{
@@ -548,6 +585,8 @@ func (m *Medium) Exists(p string) bool {
 }
 
 // IsDir checks if a path exists and is a directory (has objects under it as a prefix).
+//
+//	result := m.IsDir(...)
 func (m *Medium) IsDir(p string) bool {
 	key := m.key(p)
 	if key == "" {
@@ -555,7 +594,7 @@ func (m *Medium) IsDir(p string) bool {
 	}
 
 	prefix := key
-	if !strings.HasSuffix(prefix, "/") {
+	if !core.HasSuffix(prefix, "/") {
 		prefix += "/"
 	}
 
@@ -581,12 +620,35 @@ type fileInfo struct {
 	isDir   bool
 }
 
-func (fi *fileInfo) Name() string       { return fi.name }
-func (fi *fileInfo) Size() int64        { return fi.size }
-func (fi *fileInfo) Mode() fs.FileMode  { return fi.mode }
+// Name documents the Name operation.
+//
+//	result := fi.Name(...)
+func (fi *fileInfo) Name() string { return fi.name }
+
+// Size documents the Size operation.
+//
+//	result := fi.Size(...)
+func (fi *fileInfo) Size() int64 { return fi.size }
+
+// Mode documents the Mode operation.
+//
+//	result := fi.Mode(...)
+func (fi *fileInfo) Mode() fs.FileMode { return fi.mode }
+
+// ModTime documents the ModTime operation.
+//
+//	result := fi.ModTime(...)
 func (fi *fileInfo) ModTime() time.Time { return fi.modTime }
-func (fi *fileInfo) IsDir() bool        { return fi.isDir }
-func (fi *fileInfo) Sys() any           { return nil }
+
+// IsDir documents the IsDir operation.
+//
+//	result := fi.IsDir(...)
+func (fi *fileInfo) IsDir() bool { return fi.isDir }
+
+// Sys documents the Sys operation.
+//
+//	result := fi.Sys(...)
+func (fi *fileInfo) Sys() any { return nil }
 
 // dirEntry implements fs.DirEntry for S3 listings.
 type dirEntry struct {
@@ -596,9 +658,24 @@ type dirEntry struct {
 	info  fs.FileInfo
 }
 
-func (de *dirEntry) Name() string               { return de.name }
-func (de *dirEntry) IsDir() bool                { return de.isDir }
-func (de *dirEntry) Type() fs.FileMode          { return de.mode.Type() }
+// Name documents the Name operation.
+//
+//	result := de.Name(...)
+func (de *dirEntry) Name() string { return de.name }
+
+// IsDir documents the IsDir operation.
+//
+//	result := de.IsDir(...)
+func (de *dirEntry) IsDir() bool { return de.isDir }
+
+// Type documents the Type operation.
+//
+//	result := de.Type(...)
+func (de *dirEntry) Type() fs.FileMode { return de.mode.Type() }
+
+// Info documents the Info operation.
+//
+//	result := de.Info(...)
 func (de *dirEntry) Info() (fs.FileInfo, error) { return de.info, nil }
 
 // s3File implements fs.File for S3 objects.
@@ -610,6 +687,9 @@ type s3File struct {
 	modTime time.Time
 }
 
+// Stat documents the Stat operation.
+//
+//	result := f.Stat(...)
 func (f *s3File) Stat() (fs.FileInfo, error) {
 	return &fileInfo{
 		name:    f.name,
@@ -619,6 +699,9 @@ func (f *s3File) Stat() (fs.FileInfo, error) {
 	}, nil
 }
 
+// Read documents the Read operation.
+//
+//	result := f.Read(...)
 func (f *s3File) Read(b []byte) (int, error) {
 	if f.offset >= int64(len(f.content)) {
 		return 0, goio.EOF
@@ -628,6 +711,9 @@ func (f *s3File) Read(b []byte) (int, error) {
 	return n, nil
 }
 
+// Close documents the Close operation.
+//
+//	result := f.Close(...)
 func (f *s3File) Close() error {
 	return nil
 }
@@ -639,11 +725,17 @@ type s3WriteCloser struct {
 	data   []byte
 }
 
+// Write documents the Write operation.
+//
+//	result := w.Write(...)
 func (w *s3WriteCloser) Write(p []byte) (int, error) {
 	w.data = append(w.data, p...)
 	return len(p), nil
 }
 
+// Close documents the Close operation.
+//
+//	result := w.Close(...)
 func (w *s3WriteCloser) Close() error {
 	_, err := w.medium.client.PutObject(context.Background(), &s3.PutObjectInput{
 		Bucket: aws.String(w.medium.bucket),
@@ -651,7 +743,7 @@ func (w *s3WriteCloser) Close() error {
 		Body:   bytes.NewReader(w.data),
 	})
 	if err != nil {
-		return coreerr.E("s3.writeCloser.Close", "failed to upload on close", err)
+		return core.E("s3.writeCloser.Close", "failed to upload on close", err)
 	}
 	return nil
 }

@@ -1,11 +1,11 @@
 package datanode
 
 import (
-	"errors"
 	"io"
 	"io/fs"
 	"testing"
 
+	core "dappco.re/go/core"
 	coreio "dappco.re/go/core/io"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -14,7 +14,7 @@ import (
 // Compile-time check: Medium implements io.Medium.
 var _ coreio.Medium = (*Medium)(nil)
 
-func TestReadWrite_Good(t *testing.T) {
+func TestClient_ReadWrite_Good(t *testing.T) {
 	m := New()
 
 	err := m.Write("hello.txt", "world")
@@ -25,7 +25,7 @@ func TestReadWrite_Good(t *testing.T) {
 	assert.Equal(t, "world", got)
 }
 
-func TestReadWrite_Bad(t *testing.T) {
+func TestClient_ReadWrite_Bad(t *testing.T) {
 	m := New()
 
 	_, err := m.Read("missing.txt")
@@ -35,7 +35,7 @@ func TestReadWrite_Bad(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestNestedPaths_Good(t *testing.T) {
+func TestClient_NestedPaths_Good(t *testing.T) {
 	m := New()
 
 	require.NoError(t, m.Write("a/b/c/deep.txt", "deep"))
@@ -49,7 +49,7 @@ func TestNestedPaths_Good(t *testing.T) {
 	assert.True(t, m.IsDir("a/b/c"))
 }
 
-func TestLeadingSlash_Good(t *testing.T) {
+func TestClient_LeadingSlash_Good(t *testing.T) {
 	m := New()
 
 	require.NoError(t, m.Write("/leading/file.txt", "stripped"))
@@ -62,7 +62,7 @@ func TestLeadingSlash_Good(t *testing.T) {
 	assert.Equal(t, "stripped", got)
 }
 
-func TestIsFile_Good(t *testing.T) {
+func TestClient_IsFile_Good(t *testing.T) {
 	m := New()
 
 	require.NoError(t, m.Write("file.go", "package main"))
@@ -72,7 +72,7 @@ func TestIsFile_Good(t *testing.T) {
 	assert.False(t, m.IsFile("")) // empty path
 }
 
-func TestEnsureDir_Good(t *testing.T) {
+func TestClient_EnsureDir_Good(t *testing.T) {
 	m := New()
 
 	require.NoError(t, m.EnsureDir("foo/bar/baz"))
@@ -83,7 +83,7 @@ func TestEnsureDir_Good(t *testing.T) {
 	assert.True(t, m.Exists("foo/bar/baz"))
 }
 
-func TestDelete_Good(t *testing.T) {
+func TestClient_Delete_Good(t *testing.T) {
 	m := New()
 
 	require.NoError(t, m.Write("delete-me.txt", "bye"))
@@ -93,7 +93,7 @@ func TestDelete_Good(t *testing.T) {
 	assert.False(t, m.Exists("delete-me.txt"))
 }
 
-func TestDelete_Bad(t *testing.T) {
+func TestClient_Delete_Bad(t *testing.T) {
 	m := New()
 
 	// Delete non-existent
@@ -104,13 +104,13 @@ func TestDelete_Bad(t *testing.T) {
 	assert.Error(t, m.Delete("dir"))
 }
 
-func TestDelete_Bad_DirectoryInspectionFailure(t *testing.T) {
+func TestClient_Delete_DirectoryInspectionFailure_Bad(t *testing.T) {
 	m := New()
 	require.NoError(t, m.Write("dir/file.txt", "content"))
 
 	original := dataNodeWalkDir
 	dataNodeWalkDir = func(_ fs.FS, _ string, _ fs.WalkDirFunc) error {
-		return errors.New("walk failed")
+		return core.NewError("walk failed")
 	}
 	t.Cleanup(func() {
 		dataNodeWalkDir = original
@@ -121,7 +121,7 @@ func TestDelete_Bad_DirectoryInspectionFailure(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to inspect directory")
 }
 
-func TestDeleteAll_Good(t *testing.T) {
+func TestClient_DeleteAll_Good(t *testing.T) {
 	m := New()
 
 	require.NoError(t, m.Write("tree/a.txt", "a"))
@@ -135,13 +135,13 @@ func TestDeleteAll_Good(t *testing.T) {
 	assert.True(t, m.Exists("keep.txt"))
 }
 
-func TestDeleteAll_Bad_WalkFailure(t *testing.T) {
+func TestClient_DeleteAll_WalkFailure_Bad(t *testing.T) {
 	m := New()
 	require.NoError(t, m.Write("tree/a.txt", "a"))
 
 	original := dataNodeWalkDir
 	dataNodeWalkDir = func(_ fs.FS, _ string, _ fs.WalkDirFunc) error {
-		return errors.New("walk failed")
+		return core.NewError("walk failed")
 	}
 	t.Cleanup(func() {
 		dataNodeWalkDir = original
@@ -152,14 +152,14 @@ func TestDeleteAll_Bad_WalkFailure(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to inspect tree")
 }
 
-func TestDelete_Bad_RemoveFailure(t *testing.T) {
+func TestClient_Delete_RemoveFailure_Bad(t *testing.T) {
 	m := New()
 	require.NoError(t, m.Write("keep.txt", "keep"))
 	require.NoError(t, m.Write("bad.txt", "bad"))
 
 	original := dataNodeReadAll
 	dataNodeReadAll = func(_ io.Reader) ([]byte, error) {
-		return nil, errors.New("read failed")
+		return nil, core.NewError("read failed")
 	}
 	t.Cleanup(func() {
 		dataNodeReadAll = original
@@ -170,7 +170,7 @@ func TestDelete_Bad_RemoveFailure(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to delete file")
 }
 
-func TestRename_Good(t *testing.T) {
+func TestClient_Rename_Good(t *testing.T) {
 	m := New()
 
 	require.NoError(t, m.Write("old.txt", "content"))
@@ -182,7 +182,7 @@ func TestRename_Good(t *testing.T) {
 	assert.Equal(t, "content", got)
 }
 
-func TestRenameDir_Good(t *testing.T) {
+func TestClient_RenameDir_Good(t *testing.T) {
 	m := New()
 
 	require.NoError(t, m.Write("src/a.go", "package a"))
@@ -201,13 +201,13 @@ func TestRenameDir_Good(t *testing.T) {
 	assert.Equal(t, "package b", got)
 }
 
-func TestRenameDir_Bad_ReadFailure(t *testing.T) {
+func TestClient_RenameDir_ReadFailure_Bad(t *testing.T) {
 	m := New()
 	require.NoError(t, m.Write("src/a.go", "package a"))
 
 	original := dataNodeReadAll
 	dataNodeReadAll = func(_ io.Reader) ([]byte, error) {
-		return nil, errors.New("read failed")
+		return nil, core.NewError("read failed")
 	}
 	t.Cleanup(func() {
 		dataNodeReadAll = original
@@ -218,7 +218,7 @@ func TestRenameDir_Bad_ReadFailure(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to read source file")
 }
 
-func TestList_Good(t *testing.T) {
+func TestClient_List_Good(t *testing.T) {
 	m := New()
 
 	require.NoError(t, m.Write("root.txt", "r"))
@@ -247,7 +247,7 @@ func TestList_Good(t *testing.T) {
 	assert.Contains(t, names, "sub")
 }
 
-func TestStat_Good(t *testing.T) {
+func TestClient_Stat_Good(t *testing.T) {
 	m := New()
 
 	require.NoError(t, m.Write("stat.txt", "hello"))
@@ -263,7 +263,7 @@ func TestStat_Good(t *testing.T) {
 	assert.True(t, info.IsDir())
 }
 
-func TestOpen_Good(t *testing.T) {
+func TestClient_Open_Good(t *testing.T) {
 	m := New()
 
 	require.NoError(t, m.Write("open.txt", "opened"))
@@ -277,7 +277,7 @@ func TestOpen_Good(t *testing.T) {
 	assert.Equal(t, "opened", string(data))
 }
 
-func TestCreateAppend_Good(t *testing.T) {
+func TestClient_CreateAppend_Good(t *testing.T) {
 	m := New()
 
 	// Create
@@ -301,13 +301,13 @@ func TestCreateAppend_Good(t *testing.T) {
 	assert.Equal(t, "hello world", got)
 }
 
-func TestAppend_Bad_ReadFailure(t *testing.T) {
+func TestClient_Append_ReadFailure_Bad(t *testing.T) {
 	m := New()
 	require.NoError(t, m.Write("new.txt", "hello"))
 
 	original := dataNodeReadAll
 	dataNodeReadAll = func(_ io.Reader) ([]byte, error) {
-		return nil, errors.New("read failed")
+		return nil, core.NewError("read failed")
 	}
 	t.Cleanup(func() {
 		dataNodeReadAll = original
@@ -318,7 +318,7 @@ func TestAppend_Bad_ReadFailure(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to read existing content")
 }
 
-func TestStreams_Good(t *testing.T) {
+func TestClient_Streams_Good(t *testing.T) {
 	m := New()
 
 	// WriteStream
@@ -336,7 +336,7 @@ func TestStreams_Good(t *testing.T) {
 	rs.Close()
 }
 
-func TestFileGetFileSet_Good(t *testing.T) {
+func TestClient_FileGetFileSet_Good(t *testing.T) {
 	m := New()
 
 	require.NoError(t, m.FileSet("alias.txt", "via set"))
@@ -346,7 +346,7 @@ func TestFileGetFileSet_Good(t *testing.T) {
 	assert.Equal(t, "via set", got)
 }
 
-func TestSnapshotRestore_Good(t *testing.T) {
+func TestClient_SnapshotRestore_Good(t *testing.T) {
 	m := New()
 
 	require.NoError(t, m.Write("a.txt", "alpha"))
@@ -369,7 +369,7 @@ func TestSnapshotRestore_Good(t *testing.T) {
 	assert.Equal(t, "charlie", got)
 }
 
-func TestRestore_Good(t *testing.T) {
+func TestClient_Restore_Good(t *testing.T) {
 	m := New()
 
 	require.NoError(t, m.Write("original.txt", "before"))
@@ -391,7 +391,7 @@ func TestRestore_Good(t *testing.T) {
 	assert.False(t, m.Exists("extra.txt"))
 }
 
-func TestDataNode_Good(t *testing.T) {
+func TestClient_DataNode_Good(t *testing.T) {
 	m := New()
 
 	require.NoError(t, m.Write("test.txt", "borg"))
@@ -409,7 +409,7 @@ func TestDataNode_Good(t *testing.T) {
 	assert.Equal(t, "borg", string(data))
 }
 
-func TestOverwrite_Good(t *testing.T) {
+func TestClient_Overwrite_Good(t *testing.T) {
 	m := New()
 
 	require.NoError(t, m.Write("file.txt", "v1"))
@@ -420,7 +420,7 @@ func TestOverwrite_Good(t *testing.T) {
 	assert.Equal(t, "v2", got)
 }
 
-func TestExists_Good(t *testing.T) {
+func TestClient_Exists_Good(t *testing.T) {
 	m := New()
 
 	assert.True(t, m.Exists("")) // root
@@ -430,7 +430,7 @@ func TestExists_Good(t *testing.T) {
 	assert.True(t, m.Exists("x"))
 }
 
-func TestReadDir_Ugly(t *testing.T) {
+func TestClient_ReadDir_Ugly(t *testing.T) {
 	m := New()
 
 	// Read from a file path (not a dir) should return empty or error

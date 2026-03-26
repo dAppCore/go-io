@@ -4,11 +4,9 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"io/fs"
-	"strings"
 	"sync"
 
 	core "dappco.re/go/core"
-	coreerr "forge.lthn.ai/core/go-log"
 
 	"dappco.re/go/core/io"
 )
@@ -46,7 +44,7 @@ type Service struct {
 func New(c *core.Core, crypt ...cryptProvider) (any, error) {
 	home := workspaceHome()
 	if home == "" {
-		return nil, coreerr.E("workspace.New", "failed to determine home directory", fs.ErrNotExist)
+		return nil, core.E("workspace.New", "failed to determine home directory", fs.ErrNotExist)
 	}
 	rootPath := core.Path(home, ".core", "workspaces")
 
@@ -61,7 +59,7 @@ func New(c *core.Core, crypt ...cryptProvider) (any, error) {
 	}
 
 	if err := s.medium.EnsureDir(rootPath); err != nil {
-		return nil, coreerr.E("workspace.New", "failed to ensure root directory", err)
+		return nil, core.E("workspace.New", "failed to ensure root directory", err)
 	}
 
 	return s, nil
@@ -70,12 +68,14 @@ func New(c *core.Core, crypt ...cryptProvider) (any, error) {
 // CreateWorkspace creates a new encrypted workspace.
 // Identifier is hashed (SHA-256) to create the directory name.
 // A PGP keypair is generated using the password.
+//
+//	result := s.CreateWorkspace(...)
 func (s *Service) CreateWorkspace(identifier, password string) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if s.crypt == nil {
-		return "", coreerr.E("workspace.CreateWorkspace", "crypt service not available", nil)
+		return "", core.E("workspace.CreateWorkspace", "crypt service not available", nil)
 	}
 
 	hash := sha256.Sum256([]byte(identifier))
@@ -86,28 +86,30 @@ func (s *Service) CreateWorkspace(identifier, password string) (string, error) {
 	}
 
 	if s.medium.Exists(wsPath) {
-		return "", coreerr.E("workspace.CreateWorkspace", "workspace already exists", nil)
+		return "", core.E("workspace.CreateWorkspace", "workspace already exists", nil)
 	}
 
 	for _, d := range []string{"config", "log", "data", "files", "keys"} {
 		if err := s.medium.EnsureDir(core.Path(wsPath, d)); err != nil {
-			return "", coreerr.E("workspace.CreateWorkspace", "failed to create directory: "+d, err)
+			return "", core.E("workspace.CreateWorkspace", core.Concat("failed to create directory: ", d), err)
 		}
 	}
 
 	privKey, err := s.crypt.CreateKeyPair(identifier, password)
 	if err != nil {
-		return "", coreerr.E("workspace.CreateWorkspace", "failed to generate keys", err)
+		return "", core.E("workspace.CreateWorkspace", "failed to generate keys", err)
 	}
 
 	if err := s.medium.WriteMode(core.Path(wsPath, "keys", "private.key"), privKey, 0600); err != nil {
-		return "", coreerr.E("workspace.CreateWorkspace", "failed to save private key", err)
+		return "", core.E("workspace.CreateWorkspace", "failed to save private key", err)
 	}
 
 	return wsID, nil
 }
 
 // SwitchWorkspace changes the active workspace.
+//
+//	result := s.SwitchWorkspace(...)
 func (s *Service) SwitchWorkspace(name string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -117,7 +119,7 @@ func (s *Service) SwitchWorkspace(name string) error {
 		return err
 	}
 	if !s.medium.IsDir(wsPath) {
-		return coreerr.E("workspace.SwitchWorkspace", "workspace not found: "+name, nil)
+		return core.E("workspace.SwitchWorkspace", core.Concat("workspace not found: ", name), nil)
 	}
 
 	s.activeWorkspace = core.PathBase(wsPath)
@@ -128,20 +130,22 @@ func (s *Service) SwitchWorkspace(name string) error {
 // or an error if no workspace is active.
 func (s *Service) activeFilePath(op, filename string) (string, error) {
 	if s.activeWorkspace == "" {
-		return "", coreerr.E(op, "no active workspace", nil)
+		return "", core.E(op, "no active workspace", nil)
 	}
 	filesRoot := core.Path(s.rootPath, s.activeWorkspace, "files")
 	path, err := joinWithinRoot(filesRoot, filename)
 	if err != nil {
-		return "", coreerr.E(op, "file path escapes workspace files", fs.ErrPermission)
+		return "", core.E(op, "file path escapes workspace files", fs.ErrPermission)
 	}
 	if path == filesRoot {
-		return "", coreerr.E(op, "filename is required", fs.ErrInvalid)
+		return "", core.E(op, "filename is required", fs.ErrInvalid)
 	}
 	return path, nil
 }
 
 // WorkspaceFileGet retrieves the content of a file from the active workspace.
+//
+//	result := s.WorkspaceFileGet(...)
 func (s *Service) WorkspaceFileGet(filename string) (string, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -154,6 +158,8 @@ func (s *Service) WorkspaceFileGet(filename string) (string, error) {
 }
 
 // WorkspaceFileSet saves content to a file in the active workspace.
+//
+//	result := s.WorkspaceFileSet(...)
 func (s *Service) WorkspaceFileSet(filename, content string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -166,6 +172,8 @@ func (s *Service) WorkspaceFileSet(filename, content string) error {
 }
 
 // HandleIPCEvents handles workspace-related IPC messages.
+//
+//	result := s.HandleIPCEvents(...)
 func (s *Service) HandleIPCEvents(c *core.Core, msg core.Message) core.Result {
 	switch m := msg.(type) {
 	case map[string]any:
@@ -203,7 +211,7 @@ func workspaceHome() string {
 func joinWithinRoot(root string, parts ...string) (string, error) {
 	candidate := core.Path(append([]string{root}, parts...)...)
 	sep := core.Env("DS")
-	if candidate == root || strings.HasPrefix(candidate, root+sep) {
+	if candidate == root || core.HasPrefix(candidate, root+sep) {
 		return candidate, nil
 	}
 	return "", fs.ErrPermission
@@ -211,14 +219,14 @@ func joinWithinRoot(root string, parts ...string) (string, error) {
 
 func (s *Service) workspacePath(op, name string) (string, error) {
 	if name == "" {
-		return "", coreerr.E(op, "workspace name is required", fs.ErrInvalid)
+		return "", core.E(op, "workspace name is required", fs.ErrInvalid)
 	}
 	path, err := joinWithinRoot(s.rootPath, name)
 	if err != nil {
-		return "", coreerr.E(op, "workspace path escapes root", err)
+		return "", core.E(op, "workspace path escapes root", err)
 	}
 	if core.PathDir(path) != s.rootPath {
-		return "", coreerr.E(op, "invalid workspace name: "+name, fs.ErrPermission)
+		return "", core.E(op, core.Concat("invalid workspace name: ", name), fs.ErrPermission)
 	}
 	return path, nil
 }

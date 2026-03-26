@@ -4,10 +4,9 @@ import (
 	goio "io"
 	"io/fs"
 	"path"
-	"strings"
 	"time"
 
-	coreerr "forge.lthn.ai/core/go-log"
+	core "dappco.re/go/core"
 )
 
 // Medium wraps a Store to satisfy the io.Medium interface.
@@ -33,16 +32,22 @@ func NewMedium(dbPath string) (*Medium, error) {
 }
 
 // AsMedium returns a Medium adapter for an existing Store.
+//
+//	result := s.AsMedium(...)
 func (s *Store) AsMedium() *Medium {
 	return &Medium{s: s}
 }
 
 // Store returns the underlying KV store for direct access.
+//
+//	result := m.Store(...)
 func (m *Medium) Store() *Store {
 	return m.s
 }
 
 // Close closes the underlying store.
+//
+//	result := m.Close(...)
 func (m *Medium) Close() error {
 	return m.s.Close()
 }
@@ -51,11 +56,11 @@ func (m *Medium) Close() error {
 // First segment = group, remainder = key.
 func splitPath(p string) (group, key string) {
 	clean := path.Clean(p)
-	clean = strings.TrimPrefix(clean, "/")
+	clean = core.TrimPrefix(clean, "/")
 	if clean == "" || clean == "." {
 		return "", ""
 	}
-	parts := strings.SplitN(clean, "/", 2)
+	parts := core.SplitN(clean, "/", 2)
 	if len(parts) == 1 {
 		return parts[0], ""
 	}
@@ -63,29 +68,37 @@ func splitPath(p string) (group, key string) {
 }
 
 // Read retrieves the value at group/key.
+//
+//	result := m.Read(...)
 func (m *Medium) Read(p string) (string, error) {
 	group, key := splitPath(p)
 	if key == "" {
-		return "", coreerr.E("store.Read", "path must include group/key", fs.ErrInvalid)
+		return "", core.E("store.Read", "path must include group/key", fs.ErrInvalid)
 	}
 	return m.s.Get(group, key)
 }
 
 // Write stores a value at group/key.
+//
+//	result := m.Write(...)
 func (m *Medium) Write(p, content string) error {
 	group, key := splitPath(p)
 	if key == "" {
-		return coreerr.E("store.Write", "path must include group/key", fs.ErrInvalid)
+		return core.E("store.Write", "path must include group/key", fs.ErrInvalid)
 	}
 	return m.s.Set(group, key, content)
 }
 
 // EnsureDir is a no-op — groups are created implicitly on Set.
+//
+//	result := m.EnsureDir(...)
 func (m *Medium) EnsureDir(_ string) error {
 	return nil
 }
 
 // IsFile returns true if a group/key pair exists.
+//
+//	result := m.IsFile(...)
 func (m *Medium) IsFile(p string) bool {
 	group, key := splitPath(p)
 	if key == "" {
@@ -96,20 +109,26 @@ func (m *Medium) IsFile(p string) bool {
 }
 
 // FileGet is an alias for Read.
+//
+//	result := m.FileGet(...)
 func (m *Medium) FileGet(p string) (string, error) {
 	return m.Read(p)
 }
 
 // FileSet is an alias for Write.
+//
+//	result := m.FileSet(...)
 func (m *Medium) FileSet(p, content string) error {
 	return m.Write(p, content)
 }
 
 // Delete removes a key, or checks that a group is empty.
+//
+//	result := m.Delete(...)
 func (m *Medium) Delete(p string) error {
 	group, key := splitPath(p)
 	if group == "" {
-		return coreerr.E("store.Delete", "path is required", fs.ErrInvalid)
+		return core.E("store.Delete", "path is required", fs.ErrInvalid)
 	}
 	if key == "" {
 		n, err := m.s.Count(group)
@@ -117,7 +136,7 @@ func (m *Medium) Delete(p string) error {
 			return err
 		}
 		if n > 0 {
-			return coreerr.E("store.Delete", "group not empty: "+group, fs.ErrExist)
+			return core.E("store.Delete", core.Concat("group not empty: ", group), fs.ErrExist)
 		}
 		return nil
 	}
@@ -125,10 +144,12 @@ func (m *Medium) Delete(p string) error {
 }
 
 // DeleteAll removes a key, or all keys in a group.
+//
+//	result := m.DeleteAll(...)
 func (m *Medium) DeleteAll(p string) error {
 	group, key := splitPath(p)
 	if group == "" {
-		return coreerr.E("store.DeleteAll", "path is required", fs.ErrInvalid)
+		return core.E("store.DeleteAll", "path is required", fs.ErrInvalid)
 	}
 	if key == "" {
 		return m.s.DeleteGroup(group)
@@ -137,11 +158,13 @@ func (m *Medium) DeleteAll(p string) error {
 }
 
 // Rename moves a key from one path to another.
+//
+//	result := m.Rename(...)
 func (m *Medium) Rename(oldPath, newPath string) error {
 	og, ok := splitPath(oldPath)
 	ng, nk := splitPath(newPath)
 	if ok == "" || nk == "" {
-		return coreerr.E("store.Rename", "both paths must include group/key", fs.ErrInvalid)
+		return core.E("store.Rename", "both paths must include group/key", fs.ErrInvalid)
 	}
 	val, err := m.s.Get(og, ok)
 	if err != nil {
@@ -155,13 +178,15 @@ func (m *Medium) Rename(oldPath, newPath string) error {
 
 // List returns directory entries. Empty path returns groups.
 // A group path returns keys in that group.
+//
+//	result := m.List(...)
 func (m *Medium) List(p string) ([]fs.DirEntry, error) {
 	group, key := splitPath(p)
 
 	if group == "" {
 		rows, err := m.s.db.Query("SELECT DISTINCT grp FROM kv ORDER BY grp")
 		if err != nil {
-			return nil, coreerr.E("store.List", "query groups", err)
+			return nil, core.E("store.List", "query groups", err)
 		}
 		defer rows.Close()
 
@@ -169,7 +194,7 @@ func (m *Medium) List(p string) ([]fs.DirEntry, error) {
 		for rows.Next() {
 			var g string
 			if err := rows.Scan(&g); err != nil {
-				return nil, coreerr.E("store.List", "scan", err)
+				return nil, core.E("store.List", "scan", err)
 			}
 			entries = append(entries, &kvDirEntry{name: g, isDir: true})
 		}
@@ -192,10 +217,12 @@ func (m *Medium) List(p string) ([]fs.DirEntry, error) {
 }
 
 // Stat returns file info for a group (dir) or key (file).
+//
+//	result := m.Stat(...)
 func (m *Medium) Stat(p string) (fs.FileInfo, error) {
 	group, key := splitPath(p)
 	if group == "" {
-		return nil, coreerr.E("store.Stat", "path is required", fs.ErrInvalid)
+		return nil, core.E("store.Stat", "path is required", fs.ErrInvalid)
 	}
 	if key == "" {
 		n, err := m.s.Count(group)
@@ -203,7 +230,7 @@ func (m *Medium) Stat(p string) (fs.FileInfo, error) {
 			return nil, err
 		}
 		if n == 0 {
-			return nil, coreerr.E("store.Stat", "group not found: "+group, fs.ErrNotExist)
+			return nil, core.E("store.Stat", core.Concat("group not found: ", group), fs.ErrNotExist)
 		}
 		return &kvFileInfo{name: group, isDir: true}, nil
 	}
@@ -215,10 +242,12 @@ func (m *Medium) Stat(p string) (fs.FileInfo, error) {
 }
 
 // Open opens a key for reading.
+//
+//	result := m.Open(...)
 func (m *Medium) Open(p string) (fs.File, error) {
 	group, key := splitPath(p)
 	if key == "" {
-		return nil, coreerr.E("store.Open", "path must include group/key", fs.ErrInvalid)
+		return nil, core.E("store.Open", "path must include group/key", fs.ErrInvalid)
 	}
 	val, err := m.s.Get(group, key)
 	if err != nil {
@@ -228,43 +257,53 @@ func (m *Medium) Open(p string) (fs.File, error) {
 }
 
 // Create creates or truncates a key. Content is stored on Close.
+//
+//	result := m.Create(...)
 func (m *Medium) Create(p string) (goio.WriteCloser, error) {
 	group, key := splitPath(p)
 	if key == "" {
-		return nil, coreerr.E("store.Create", "path must include group/key", fs.ErrInvalid)
+		return nil, core.E("store.Create", "path must include group/key", fs.ErrInvalid)
 	}
 	return &kvWriteCloser{s: m.s, group: group, key: key}, nil
 }
 
 // Append opens a key for appending. Content is stored on Close.
+//
+//	result := m.Append(...)
 func (m *Medium) Append(p string) (goio.WriteCloser, error) {
 	group, key := splitPath(p)
 	if key == "" {
-		return nil, coreerr.E("store.Append", "path must include group/key", fs.ErrInvalid)
+		return nil, core.E("store.Append", "path must include group/key", fs.ErrInvalid)
 	}
 	existing, _ := m.s.Get(group, key)
 	return &kvWriteCloser{s: m.s, group: group, key: key, data: []byte(existing)}, nil
 }
 
 // ReadStream returns a reader for the value.
+//
+//	result := m.ReadStream(...)
 func (m *Medium) ReadStream(p string) (goio.ReadCloser, error) {
 	group, key := splitPath(p)
 	if key == "" {
-		return nil, coreerr.E("store.ReadStream", "path must include group/key", fs.ErrInvalid)
+		return nil, core.E("store.ReadStream", "path must include group/key", fs.ErrInvalid)
 	}
 	val, err := m.s.Get(group, key)
 	if err != nil {
 		return nil, err
 	}
-	return goio.NopCloser(strings.NewReader(val)), nil
+	return goio.NopCloser(core.NewReader(val)), nil
 }
 
 // WriteStream returns a writer. Content is stored on Close.
+//
+//	result := m.WriteStream(...)
 func (m *Medium) WriteStream(p string) (goio.WriteCloser, error) {
 	return m.Create(p)
 }
 
 // Exists returns true if a group or key exists.
+//
+//	result := m.Exists(...)
 func (m *Medium) Exists(p string) bool {
 	group, key := splitPath(p)
 	if group == "" {
@@ -279,6 +318,8 @@ func (m *Medium) Exists(p string) bool {
 }
 
 // IsDir returns true if the path is a group with entries.
+//
+//	result := m.IsDir(...)
 func (m *Medium) IsDir(p string) bool {
 	group, key := splitPath(p)
 	if key != "" || group == "" {
@@ -296,17 +337,40 @@ type kvFileInfo struct {
 	isDir bool
 }
 
+// Name documents the Name operation.
+//
+//	result := fi.Name(...)
 func (fi *kvFileInfo) Name() string { return fi.name }
-func (fi *kvFileInfo) Size() int64  { return fi.size }
+
+// Size documents the Size operation.
+//
+//	result := fi.Size(...)
+func (fi *kvFileInfo) Size() int64 { return fi.size }
+
+// Mode documents the Mode operation.
+//
+//	result := fi.Mode(...)
 func (fi *kvFileInfo) Mode() fs.FileMode {
 	if fi.isDir {
 		return fs.ModeDir | 0755
 	}
 	return 0644
 }
+
+// ModTime documents the ModTime operation.
+//
+//	result := fi.ModTime(...)
 func (fi *kvFileInfo) ModTime() time.Time { return time.Time{} }
-func (fi *kvFileInfo) IsDir() bool        { return fi.isDir }
-func (fi *kvFileInfo) Sys() any           { return nil }
+
+// IsDir documents the IsDir operation.
+//
+//	result := fi.IsDir(...)
+func (fi *kvFileInfo) IsDir() bool { return fi.isDir }
+
+// Sys documents the Sys operation.
+//
+//	result := fi.Sys(...)
+func (fi *kvFileInfo) Sys() any { return nil }
 
 type kvDirEntry struct {
 	name  string
@@ -314,14 +378,29 @@ type kvDirEntry struct {
 	size  int64
 }
 
+// Name documents the Name operation.
+//
+//	result := de.Name(...)
 func (de *kvDirEntry) Name() string { return de.name }
-func (de *kvDirEntry) IsDir() bool  { return de.isDir }
+
+// IsDir documents the IsDir operation.
+//
+//	result := de.IsDir(...)
+func (de *kvDirEntry) IsDir() bool { return de.isDir }
+
+// Type documents the Type operation.
+//
+//	result := de.Type(...)
 func (de *kvDirEntry) Type() fs.FileMode {
 	if de.isDir {
 		return fs.ModeDir
 	}
 	return 0
 }
+
+// Info documents the Info operation.
+//
+//	result := de.Info(...)
 func (de *kvDirEntry) Info() (fs.FileInfo, error) {
 	return &kvFileInfo{name: de.name, size: de.size, isDir: de.isDir}, nil
 }
@@ -332,10 +411,16 @@ type kvFile struct {
 	offset  int64
 }
 
+// Stat documents the Stat operation.
+//
+//	result := f.Stat(...)
 func (f *kvFile) Stat() (fs.FileInfo, error) {
 	return &kvFileInfo{name: f.name, size: int64(len(f.content))}, nil
 }
 
+// Read documents the Read operation.
+//
+//	result := f.Read(...)
 func (f *kvFile) Read(b []byte) (int, error) {
 	if f.offset >= int64(len(f.content)) {
 		return 0, goio.EOF
@@ -345,6 +430,9 @@ func (f *kvFile) Read(b []byte) (int, error) {
 	return n, nil
 }
 
+// Close documents the Close operation.
+//
+//	result := f.Close(...)
 func (f *kvFile) Close() error { return nil }
 
 type kvWriteCloser struct {
@@ -354,11 +442,17 @@ type kvWriteCloser struct {
 	data  []byte
 }
 
+// Write documents the Write operation.
+//
+//	result := w.Write(...)
 func (w *kvWriteCloser) Write(p []byte) (int, error) {
 	w.data = append(w.data, p...)
 	return len(p), nil
 }
 
+// Close documents the Close operation.
+//
+//	result := w.Close(...)
 func (w *kvWriteCloser) Close() error {
 	return w.s.Set(w.group, w.key, string(w.data))
 }
