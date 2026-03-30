@@ -1,6 +1,6 @@
 // This file implements the Pre-Obfuscation Layer Protocol with
 // XChaCha20-Poly1305 encryption. The protocol applies a reversible transformation
-// to plaintext BEFORE it reaches CPU encryption routines, providing defense-in-depth
+// to plaintext BEFORE it reaches CPU encryption routines, providing defence-in-depth
 // against side-channel attacks.
 //
 // The encryption flow is:
@@ -35,7 +35,7 @@ var (
 
 // PreObfuscator applies a reversible transformation to data before encryption.
 // This ensures that raw plaintext patterns are never sent directly to CPU
-// encryption routines, providing defense against side-channel attacks.
+// encryption routines, providing defence against side-channel attacks.
 //
 // Implementations must be deterministic: given the same entropy, the transformation
 // must be perfectly reversible: Deobfuscate(Obfuscate(x, e), e) == x
