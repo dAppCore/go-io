@@ -1,8 +1,8 @@
 // Package s3 stores io.Medium data in S3 objects.
 //
-//	client := awss3.NewFromConfig(aws.Config{Region: "us-east-1"})
-//	medium, _ := s3.New(s3.Options{Bucket: "backups", Client: client, Prefix: "daily/"})
-//	_ = medium.Write("reports/daily.txt", "done")
+// Example: client := awss3.NewFromConfig(aws.Config{Region: "us-east-1"})
+// Example: medium, _ := s3.New(s3.Options{Bucket: "backups", Client: client, Prefix: "daily/"})
+// Example: _ = medium.Write("reports/daily.txt", "done")
 package s3
 
 import (
@@ -22,7 +22,7 @@ import (
 )
 
 // Example: client := awss3.NewFromConfig(aws.Config{Region: "us-east-1"})
-// medium, _ := s3.New(s3.Options{Bucket: "backups", Client: client, Prefix: "daily/"})
+// Example: medium, _ := s3.New(s3.Options{Bucket: "backups", Client: client, Prefix: "daily/"})
 type Client interface {
 	GetObject(ctx context.Context, params *awss3.GetObjectInput, optFns ...func(*awss3.Options)) (*awss3.GetObjectOutput, error)
 	PutObject(ctx context.Context, params *awss3.PutObjectInput, optFns ...func(*awss3.Options)) (*awss3.PutObjectOutput, error)
@@ -34,7 +34,7 @@ type Client interface {
 }
 
 // Example: medium, _ := s3.New(s3.Options{Bucket: "backups", Client: client, Prefix: "daily/"})
-// _ = medium.Write("reports/daily.txt", "done")
+// Example: _ = medium.Write("reports/daily.txt", "done")
 type Medium struct {
 	client Client
 	bucket string
@@ -92,7 +92,7 @@ func normalisePrefix(prefix string) string {
 }
 
 // Example: medium, _ := s3.New(s3.Options{Bucket: "backups", Client: client, Prefix: "daily/"})
-// _ = medium.Write("reports/daily.txt", "done")
+// Example: _ = medium.Write("reports/daily.txt", "done")
 func New(options Options) (*Medium, error) {
 	if options.Bucket == "" {
 		return nil, core.E("s3.New", "bucket name is required", nil)
@@ -331,11 +331,11 @@ func (medium *Medium) List(filePath string) ([]fs.DirEntry, error) {
 	}
 
 	// Common prefixes are "directories"
-	for _, cp := range listOut.CommonPrefixes {
-		if cp.Prefix == nil {
+	for _, commonPrefix := range listOut.CommonPrefixes {
+		if commonPrefix.Prefix == nil {
 			continue
 		}
-		name := core.TrimPrefix(*cp.Prefix, prefix)
+		name := core.TrimPrefix(*commonPrefix.Prefix, prefix)
 		name = core.TrimSuffix(name, "/")
 		if name == "" {
 			continue
@@ -568,7 +568,6 @@ func (medium *Medium) IsDir(filePath string) bool {
 
 // --- Internal types ---
 
-// fileInfo implements fs.FileInfo for S3 objects.
 type fileInfo struct {
 	name    string
 	size    int64
@@ -577,19 +576,18 @@ type fileInfo struct {
 	isDir   bool
 }
 
-func (fi *fileInfo) Name() string { return fi.name }
+func (info *fileInfo) Name() string { return info.name }
 
-func (fi *fileInfo) Size() int64 { return fi.size }
+func (info *fileInfo) Size() int64 { return info.size }
 
-func (fi *fileInfo) Mode() fs.FileMode { return fi.mode }
+func (info *fileInfo) Mode() fs.FileMode { return info.mode }
 
-func (fi *fileInfo) ModTime() time.Time { return fi.modTime }
+func (info *fileInfo) ModTime() time.Time { return info.modTime }
 
-func (fi *fileInfo) IsDir() bool { return fi.isDir }
+func (info *fileInfo) IsDir() bool { return info.isDir }
 
-func (fi *fileInfo) Sys() any { return nil }
+func (info *fileInfo) Sys() any { return nil }
 
-// dirEntry implements fs.DirEntry for S3 listings.
 type dirEntry struct {
 	name  string
 	isDir bool
@@ -597,15 +595,14 @@ type dirEntry struct {
 	info  fs.FileInfo
 }
 
-func (de *dirEntry) Name() string { return de.name }
+func (entry *dirEntry) Name() string { return entry.name }
 
-func (de *dirEntry) IsDir() bool { return de.isDir }
+func (entry *dirEntry) IsDir() bool { return entry.isDir }
 
-func (de *dirEntry) Type() fs.FileMode { return de.mode.Type() }
+func (entry *dirEntry) Type() fs.FileMode { return entry.mode.Type() }
 
-func (de *dirEntry) Info() (fs.FileInfo, error) { return de.info, nil }
+func (entry *dirEntry) Info() (fs.FileInfo, error) { return entry.info, nil }
 
-// s3File implements fs.File for S3 objects.
 type s3File struct {
 	name    string
 	content []byte
@@ -614,45 +611,44 @@ type s3File struct {
 	modTime time.Time
 }
 
-func (f *s3File) Stat() (fs.FileInfo, error) {
+func (file *s3File) Stat() (fs.FileInfo, error) {
 	return &fileInfo{
-		name:    f.name,
-		size:    int64(len(f.content)),
+		name:    file.name,
+		size:    int64(len(file.content)),
 		mode:    0644,
-		modTime: f.modTime,
+		modTime: file.modTime,
 	}, nil
 }
 
-func (f *s3File) Read(b []byte) (int, error) {
-	if f.offset >= int64(len(f.content)) {
+func (file *s3File) Read(buffer []byte) (int, error) {
+	if file.offset >= int64(len(file.content)) {
 		return 0, goio.EOF
 	}
-	n := copy(b, f.content[f.offset:])
-	f.offset += int64(n)
+	n := copy(buffer, file.content[file.offset:])
+	file.offset += int64(n)
 	return n, nil
 }
 
-func (f *s3File) Close() error {
+func (file *s3File) Close() error {
 	return nil
 }
 
-// s3WriteCloser buffers writes and uploads to S3 on Close.
 type s3WriteCloser struct {
 	medium *Medium
 	key    string
 	data   []byte
 }
 
-func (w *s3WriteCloser) Write(p []byte) (int, error) {
-	w.data = append(w.data, p...)
-	return len(p), nil
+func (writer *s3WriteCloser) Write(data []byte) (int, error) {
+	writer.data = append(writer.data, data...)
+	return len(data), nil
 }
 
-func (w *s3WriteCloser) Close() error {
-	_, err := w.medium.client.PutObject(context.Background(), &awss3.PutObjectInput{
-		Bucket: aws.String(w.medium.bucket),
-		Key:    aws.String(w.key),
-		Body:   bytes.NewReader(w.data),
+func (writer *s3WriteCloser) Close() error {
+	_, err := writer.medium.client.PutObject(context.Background(), &awss3.PutObjectInput{
+		Bucket: aws.String(writer.medium.bucket),
+		Key:    aws.String(writer.key),
+		Body:   bytes.NewReader(writer.data),
 	})
 	if err != nil {
 		return core.E("s3.writeCloser.Close", "failed to upload on close", err)

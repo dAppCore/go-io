@@ -1,7 +1,7 @@
 // Package sqlite stores io.Medium content in SQLite.
 //
-//	medium, _ := sqlite.New(sqlite.Options{Path: ":memory:"})
-//	_ = medium.Write("config/app.yaml", "port: 8080")
+// Example: medium, _ := sqlite.New(sqlite.Options{Path: ":memory:"})
+// Example: _ = medium.Write("config/app.yaml", "port: 8080")
 package sqlite
 
 import (
@@ -19,7 +19,7 @@ import (
 )
 
 // Example: medium, _ := sqlite.New(sqlite.Options{Path: ":memory:"})
-// _ = medium.Write("config/app.yaml", "port: 8080")
+// Example: _ = medium.Write("config/app.yaml", "port: 8080")
 type Medium struct {
 	database *sql.DB
 	table    string
@@ -42,7 +42,7 @@ func normaliseTableName(table string) string {
 }
 
 // Example: medium, _ := sqlite.New(sqlite.Options{Path: ":memory:", Table: "files"})
-// _ = medium.Write("config/app.yaml", "port: 8080")
+// Example: _ = medium.Write("config/app.yaml", "port: 8080")
 func New(options Options) (*Medium, error) {
 	if options.Path == "" {
 		return nil, core.E("sqlite.New", "database path is required", nil)
@@ -78,7 +78,7 @@ func New(options Options) (*Medium, error) {
 	return medium, nil
 }
 
-// Close closes the underlying database connection.
+// Example: _ = medium.Close()
 func (medium *Medium) Close() error {
 	if medium.database != nil {
 		return medium.database.Close()
@@ -583,7 +583,6 @@ func (medium *Medium) IsDir(filePath string) bool {
 
 // --- Internal types ---
 
-// fileInfo implements fs.FileInfo for SQLite entries.
 type fileInfo struct {
 	name    string
 	size    int64
@@ -592,19 +591,18 @@ type fileInfo struct {
 	isDir   bool
 }
 
-func (fi *fileInfo) Name() string { return fi.name }
+func (info *fileInfo) Name() string { return info.name }
 
-func (fi *fileInfo) Size() int64 { return fi.size }
+func (info *fileInfo) Size() int64 { return info.size }
 
-func (fi *fileInfo) Mode() fs.FileMode { return fi.mode }
+func (info *fileInfo) Mode() fs.FileMode { return info.mode }
 
-func (fi *fileInfo) ModTime() time.Time { return fi.modTime }
+func (info *fileInfo) ModTime() time.Time { return info.modTime }
 
-func (fi *fileInfo) IsDir() bool { return fi.isDir }
+func (info *fileInfo) IsDir() bool { return info.isDir }
 
-func (fi *fileInfo) Sys() any { return nil }
+func (info *fileInfo) Sys() any { return nil }
 
-// dirEntry implements fs.DirEntry for SQLite listings.
 type dirEntry struct {
 	name  string
 	isDir bool
@@ -612,15 +610,14 @@ type dirEntry struct {
 	info  fs.FileInfo
 }
 
-func (de *dirEntry) Name() string { return de.name }
+func (entry *dirEntry) Name() string { return entry.name }
 
-func (de *dirEntry) IsDir() bool { return de.isDir }
+func (entry *dirEntry) IsDir() bool { return entry.isDir }
 
-func (de *dirEntry) Type() fs.FileMode { return de.mode.Type() }
+func (entry *dirEntry) Type() fs.FileMode { return entry.mode.Type() }
 
-func (de *dirEntry) Info() (fs.FileInfo, error) { return de.info, nil }
+func (entry *dirEntry) Info() (fs.FileInfo, error) { return entry.info, nil }
 
-// sqliteFile implements fs.File for SQLite entries.
 type sqliteFile struct {
 	name    string
 	content []byte
@@ -629,48 +626,47 @@ type sqliteFile struct {
 	modTime time.Time
 }
 
-func (f *sqliteFile) Stat() (fs.FileInfo, error) {
+func (file *sqliteFile) Stat() (fs.FileInfo, error) {
 	return &fileInfo{
-		name:    f.name,
-		size:    int64(len(f.content)),
-		mode:    f.mode,
-		modTime: f.modTime,
+		name:    file.name,
+		size:    int64(len(file.content)),
+		mode:    file.mode,
+		modTime: file.modTime,
 	}, nil
 }
 
-func (f *sqliteFile) Read(b []byte) (int, error) {
-	if f.offset >= int64(len(f.content)) {
+func (file *sqliteFile) Read(buffer []byte) (int, error) {
+	if file.offset >= int64(len(file.content)) {
 		return 0, goio.EOF
 	}
-	n := copy(b, f.content[f.offset:])
-	f.offset += int64(n)
+	n := copy(buffer, file.content[file.offset:])
+	file.offset += int64(n)
 	return n, nil
 }
 
-func (f *sqliteFile) Close() error {
+func (file *sqliteFile) Close() error {
 	return nil
 }
 
-// sqliteWriteCloser buffers writes and stores to SQLite on Close.
 type sqliteWriteCloser struct {
 	medium *Medium
 	path   string
 	data   []byte
 }
 
-func (w *sqliteWriteCloser) Write(p []byte) (int, error) {
-	w.data = append(w.data, p...)
-	return len(p), nil
+func (writer *sqliteWriteCloser) Write(data []byte) (int, error) {
+	writer.data = append(writer.data, data...)
+	return len(data), nil
 }
 
-func (w *sqliteWriteCloser) Close() error {
-	_, err := w.medium.database.Exec(
-		`INSERT INTO `+w.medium.table+` (path, content, mode, is_dir, mtime) VALUES (?, ?, 420, FALSE, ?)
+func (writer *sqliteWriteCloser) Close() error {
+	_, err := writer.medium.database.Exec(
+		`INSERT INTO `+writer.medium.table+` (path, content, mode, is_dir, mtime) VALUES (?, ?, 420, FALSE, ?)
 		 ON CONFLICT(path) DO UPDATE SET content = excluded.content, is_dir = FALSE, mtime = excluded.mtime`,
-		w.path, w.data, time.Now().UTC(),
+		writer.path, writer.data, time.Now().UTC(),
 	)
 	if err != nil {
-		return core.E("sqlite.WriteCloser.Close", core.Concat("store failed: ", w.path), err)
+		return core.E("sqlite.WriteCloser.Close", core.Concat("store failed: ", writer.path), err)
 	}
 	return nil
 }

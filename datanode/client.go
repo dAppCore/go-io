@@ -20,14 +20,14 @@ import (
 )
 
 var (
-	dataNodeWalkDir = func(fsys fs.FS, root string, fn fs.WalkDirFunc) error {
-		return fs.WalkDir(fsys, root, fn)
+	dataNodeWalkDir = func(fileSystem fs.FS, root string, callback fs.WalkDirFunc) error {
+		return fs.WalkDir(fileSystem, root, callback)
 	}
-	dataNodeOpen = func(dn *borgdatanode.DataNode, name string) (fs.File, error) {
-		return dn.Open(name)
+	dataNodeOpen = func(dataNode *borgdatanode.DataNode, filePath string) (fs.File, error) {
+		return dataNode.Open(filePath)
 	}
-	dataNodeReadAll = func(r goio.Reader) ([]byte, error) {
-		return goio.ReadAll(r)
+	dataNodeReadAll = func(reader goio.Reader) ([]byte, error) {
+		return goio.ReadAll(reader)
 	}
 )
 
@@ -109,13 +109,13 @@ func (medium *Medium) Read(filePath string) (string, error) {
 	defer medium.mu.RUnlock()
 
 	filePath = normaliseEntryPath(filePath)
-	f, err := medium.dataNode.Open(filePath)
+	file, err := medium.dataNode.Open(filePath)
 	if err != nil {
 		return "", core.E("datanode.Read", core.Concat("not found: ", filePath), fs.ErrNotExist)
 	}
-	defer f.Close()
+	defer file.Close()
 
-	info, err := f.Stat()
+	info, err := file.Stat()
 	if err != nil {
 		return "", core.E("datanode.Read", core.Concat("stat failed: ", filePath), err)
 	}
@@ -123,7 +123,7 @@ func (medium *Medium) Read(filePath string) (string, error) {
 		return "", core.E("datanode.Read", core.Concat("is a directory: ", filePath), fs.ErrInvalid)
 	}
 
-	data, err := goio.ReadAll(f)
+	data, err := goio.ReadAll(file)
 	if err != nil {
 		return "", core.E("datanode.Read", core.Concat("read failed: ", filePath), err)
 	}
@@ -461,11 +461,11 @@ func (medium *Medium) ReadStream(filePath string) (goio.ReadCloser, error) {
 	defer medium.mu.RUnlock()
 
 	filePath = normaliseEntryPath(filePath)
-	f, err := medium.dataNode.Open(filePath)
+	file, err := medium.dataNode.Open(filePath)
 	if err != nil {
 		return nil, core.E("datanode.ReadStream", core.Concat("not found: ", filePath), fs.ErrNotExist)
 	}
-	return f.(goio.ReadCloser), nil
+	return file.(goio.ReadCloser), nil
 }
 
 func (medium *Medium) WriteStream(filePath string) (goio.WriteCloser, error) {
@@ -538,13 +538,13 @@ func (medium *Medium) collectAllLocked() ([]string, error) {
 	return names, err
 }
 
-func (medium *Medium) readFileLocked(name string) ([]byte, error) {
-	f, err := dataNodeOpen(medium.dataNode, name)
+func (medium *Medium) readFileLocked(filePath string) ([]byte, error) {
+	file, err := dataNodeOpen(medium.dataNode, filePath)
 	if err != nil {
 		return nil, err
 	}
-	data, readErr := dataNodeReadAll(f)
-	closeErr := f.Close()
+	data, readErr := dataNodeReadAll(file)
+	closeErr := file.Close()
 	if readErr != nil {
 		return nil, readErr
 	}
@@ -562,7 +562,7 @@ func (medium *Medium) removeFileLocked(target string) error {
 	if err != nil {
 		return err
 	}
-	newDN := borgdatanode.New()
+	newDataNode := borgdatanode.New()
 	for _, name := range entries {
 		if name == target {
 			continue
@@ -571,9 +571,9 @@ func (medium *Medium) removeFileLocked(target string) error {
 		if err != nil {
 			return err
 		}
-		newDN.AddData(name, data)
+		newDataNode.AddData(name, data)
 	}
-	medium.dataNode = newDN
+	medium.dataNode = newDataNode
 	return nil
 }
 
@@ -585,17 +585,17 @@ type writeCloser struct {
 	buf    []byte
 }
 
-func (w *writeCloser) Write(p []byte) (int, error) {
-	w.buf = append(w.buf, p...)
-	return len(p), nil
+func (writer *writeCloser) Write(data []byte) (int, error) {
+	writer.buf = append(writer.buf, data...)
+	return len(data), nil
 }
 
-func (w *writeCloser) Close() error {
-	w.medium.mu.Lock()
-	defer w.medium.mu.Unlock()
+func (writer *writeCloser) Close() error {
+	writer.medium.mu.Lock()
+	defer writer.medium.mu.Unlock()
 
-	w.medium.dataNode.AddData(w.path, w.buf)
-	w.medium.ensureDirsLocked(path.Dir(w.path))
+	writer.medium.dataNode.AddData(writer.path, writer.buf)
+	writer.medium.ensureDirsLocked(path.Dir(writer.path))
 	return nil
 }
 
@@ -605,14 +605,14 @@ type dirEntry struct {
 	name string
 }
 
-func (d *dirEntry) Name() string { return d.name }
+func (entry *dirEntry) Name() string { return entry.name }
 
-func (d *dirEntry) IsDir() bool { return true }
+func (entry *dirEntry) IsDir() bool { return true }
 
-func (d *dirEntry) Type() fs.FileMode { return fs.ModeDir }
+func (entry *dirEntry) Type() fs.FileMode { return fs.ModeDir }
 
-func (d *dirEntry) Info() (fs.FileInfo, error) {
-	return &fileInfo{name: d.name, isDir: true, mode: fs.ModeDir | 0755}, nil
+func (entry *dirEntry) Info() (fs.FileInfo, error) {
+	return &fileInfo{name: entry.name, isDir: true, mode: fs.ModeDir | 0755}, nil
 }
 
 type fileInfo struct {
@@ -623,14 +623,14 @@ type fileInfo struct {
 	isDir   bool
 }
 
-func (fi *fileInfo) Name() string { return fi.name }
+func (info *fileInfo) Name() string { return info.name }
 
-func (fi *fileInfo) Size() int64 { return fi.size }
+func (info *fileInfo) Size() int64 { return info.size }
 
-func (fi *fileInfo) Mode() fs.FileMode { return fi.mode }
+func (info *fileInfo) Mode() fs.FileMode { return info.mode }
 
-func (fi *fileInfo) ModTime() time.Time { return fi.modTime }
+func (info *fileInfo) ModTime() time.Time { return info.modTime }
 
-func (fi *fileInfo) IsDir() bool { return fi.isDir }
+func (info *fileInfo) IsDir() bool { return info.isDir }
 
-func (fi *fileInfo) Sys() any { return nil }
+func (info *fileInfo) Sys() any { return nil }
