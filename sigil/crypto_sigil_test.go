@@ -3,7 +3,7 @@ package sigil
 import (
 	"bytes"
 	"crypto/rand"
-	"io"
+	goio "io"
 	"testing"
 
 	core "dappco.re/go/core"
@@ -352,12 +352,12 @@ func (f *failReader) Read([]byte) (int, error) {
 	return 0, core.NewError("entropy source failed")
 }
 
-func TestCryptoSigil_ChaChaPolySigil_RandReaderFailure_Bad(t *testing.T) {
+func TestCryptoSigil_ChaChaPolySigil_RandomReaderFailure_Bad(t *testing.T) {
 	key := make([]byte, 32)
 	_, _ = rand.Read(key)
 
 	s, _ := NewChaChaPolySigil(key)
-	s.randReader = &failReader{}
+	s.randomReader = &failReader{}
 
 	_, err := s.In([]byte("data"))
 	assert.Error(t, err)
@@ -475,14 +475,14 @@ func TestCryptoSigil_Untransmute_ErrorPropagation_Bad(t *testing.T) {
 	assert.Contains(t, err.Error(), "fail out")
 }
 
-// ── GzipSigil with custom writer (edge case) ──────────────────────
+// ── GzipSigil with custom output writer (edge case) ───────────────
 
-func TestCryptoSigil_GzipSigil_CustomWriter_Good(t *testing.T) {
+func TestCryptoSigil_GzipSigil_CustomOutputWriter_Good(t *testing.T) {
 	var buf bytes.Buffer
-	s := &GzipSigil{writer: &buf}
+	s := &GzipSigil{outputWriter: &buf}
 
-	// With custom writer, compressed data goes to buf, returned bytes will be empty
-	// because the internal buffer 'b' is unused when s.writer is set.
+	// With a custom output writer, compressed data goes to buf, returned bytes will be empty
+	// because the internal buffer 'b' is unused when s.outputWriter is set.
 	_, err := s.In([]byte("test data"))
 	require.NoError(t, err)
 	assert.Greater(t, buf.Len(), 0)
@@ -503,14 +503,14 @@ func TestCryptoSigil_DeriveKeyStream_ExactBlockSize_Good(t *testing.T) {
 	assert.Equal(t, data, restored)
 }
 
-// ── io.Reader fallback in In ───────────────────────────────────────
+// ── random reader fallback in In ───────────────────────────────────
 
-func TestCryptoSigil_ChaChaPolySigil_NilRandReader_Good(t *testing.T) {
+func TestCryptoSigil_ChaChaPolySigil_NilRandomReader_Good(t *testing.T) {
 	key := make([]byte, 32)
 	_, _ = rand.Read(key)
 
 	s, _ := NewChaChaPolySigil(key)
-	s.randReader = nil // Should fall back to crypto/rand.Reader.
+	s.randomReader = nil // Should fall back to crypto/rand.Reader.
 
 	ciphertext, err := s.In([]byte("fallback reader"))
 	require.NoError(t, err)
@@ -528,7 +528,7 @@ type limitReader struct {
 
 func (l *limitReader) Read(p []byte) (int, error) {
 	if l.pos >= len(l.data) {
-		return 0, io.EOF
+		return 0, goio.EOF
 	}
 	n := copy(p, l.data[l.pos:])
 	l.pos += n

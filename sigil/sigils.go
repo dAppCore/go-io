@@ -10,7 +10,7 @@ import (
 	"crypto/sha512"
 	"encoding/base64"
 	"encoding/hex"
-	"io"
+	goio "io"
 
 	core "dappco.re/go/core"
 	"golang.org/x/crypto/blake2b"
@@ -92,7 +92,7 @@ func (s *Base64Sigil) Out(data []byte) ([]byte, error) {
 // GzipSigil is a Sigil that compresses/decompresses data using gzip.
 // The In method compresses the data, and the Out method decompresses it.
 type GzipSigil struct {
-	writer io.Writer
+	outputWriter goio.Writer
 }
 
 // In compresses the data using gzip.
@@ -101,15 +101,15 @@ func (s *GzipSigil) In(data []byte) ([]byte, error) {
 		return nil, nil
 	}
 	var b bytes.Buffer
-	w := s.writer
-	if w == nil {
-		w = &b
+	outputWriter := s.outputWriter
+	if outputWriter == nil {
+		outputWriter = &b
 	}
-	gz := gzip.NewWriter(w)
-	if _, err := gz.Write(data); err != nil {
+	gzipWriter := gzip.NewWriter(outputWriter)
+	if _, err := gzipWriter.Write(data); err != nil {
 		return nil, core.E("sigil.GzipSigil.In", "write gzip payload", err)
 	}
-	if err := gz.Close(); err != nil {
+	if err := gzipWriter.Close(); err != nil {
 		return nil, core.E("sigil.GzipSigil.In", "close gzip writer", err)
 	}
 	return b.Bytes(), nil
@@ -120,12 +120,12 @@ func (s *GzipSigil) Out(data []byte) ([]byte, error) {
 	if data == nil {
 		return nil, nil
 	}
-	r, err := gzip.NewReader(bytes.NewReader(data))
+	gzipReader, err := gzip.NewReader(bytes.NewReader(data))
 	if err != nil {
 		return nil, core.E("sigil.GzipSigil.Out", "open gzip reader", err)
 	}
-	defer r.Close()
-	out, err := io.ReadAll(r)
+	defer gzipReader.Close()
+	out, err := goio.ReadAll(gzipReader)
 	if err != nil {
 		return nil, core.E("sigil.GzipSigil.Out", "read gzip payload", err)
 	}
@@ -180,51 +180,51 @@ func NewHashSigil(h crypto.Hash) *HashSigil {
 
 // In hashes the data.
 func (s *HashSigil) In(data []byte) ([]byte, error) {
-	var h io.Writer
+	var hasher goio.Writer
 	switch s.Hash {
 	case crypto.MD4:
-		h = md4.New()
+		hasher = md4.New()
 	case crypto.MD5:
-		h = md5.New()
+		hasher = md5.New()
 	case crypto.SHA1:
-		h = sha1.New()
+		hasher = sha1.New()
 	case crypto.SHA224:
-		h = sha256.New224()
+		hasher = sha256.New224()
 	case crypto.SHA256:
-		h = sha256.New()
+		hasher = sha256.New()
 	case crypto.SHA384:
-		h = sha512.New384()
+		hasher = sha512.New384()
 	case crypto.SHA512:
-		h = sha512.New()
+		hasher = sha512.New()
 	case crypto.RIPEMD160:
-		h = ripemd160.New()
+		hasher = ripemd160.New()
 	case crypto.SHA3_224:
-		h = sha3.New224()
+		hasher = sha3.New224()
 	case crypto.SHA3_256:
-		h = sha3.New256()
+		hasher = sha3.New256()
 	case crypto.SHA3_384:
-		h = sha3.New384()
+		hasher = sha3.New384()
 	case crypto.SHA3_512:
-		h = sha3.New512()
+		hasher = sha3.New512()
 	case crypto.SHA512_224:
-		h = sha512.New512_224()
+		hasher = sha512.New512_224()
 	case crypto.SHA512_256:
-		h = sha512.New512_256()
+		hasher = sha512.New512_256()
 	case crypto.BLAKE2s_256:
-		h, _ = blake2s.New256(nil)
+		hasher, _ = blake2s.New256(nil)
 	case crypto.BLAKE2b_256:
-		h, _ = blake2b.New256(nil)
+		hasher, _ = blake2b.New256(nil)
 	case crypto.BLAKE2b_384:
-		h, _ = blake2b.New384(nil)
+		hasher, _ = blake2b.New384(nil)
 	case crypto.BLAKE2b_512:
-		h, _ = blake2b.New512(nil)
+		hasher, _ = blake2b.New512(nil)
 	default:
 		// MD5SHA1 is not supported as a direct hash
 		return nil, core.E("sigil.HashSigil.In", "hash algorithm not available", nil)
 	}
 
-	h.Write(data)
-	return h.(interface{ Sum([]byte) []byte }).Sum(nil), nil
+	hasher.Write(data)
+	return hasher.(interface{ Sum([]byte) []byte }).Sum(nil), nil
 }
 
 // Out is a no-op for HashSigil.

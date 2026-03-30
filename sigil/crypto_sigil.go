@@ -16,7 +16,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/binary"
-	"io"
+	goio "io"
 
 	core "dappco.re/go/core"
 	"golang.org/x/crypto/chacha20poly1305"
@@ -240,9 +240,9 @@ func (s *ShuffleMaskObfuscator) deriveMask(entropy []byte, length int) []byte {
 // Unlike demo implementations, the nonce is ONLY embedded in the ciphertext,
 // not exposed separately in headers.
 type ChaChaPolySigil struct {
-	Key        []byte
-	Obfuscator PreObfuscator
-	randReader io.Reader // for testing injection
+	Key          []byte
+	Obfuscator   PreObfuscator
+	randomReader goio.Reader // for testing injection
 }
 
 // Use NewChaChaPolySigil with a 32-byte key to encrypt payloads.
@@ -263,9 +263,9 @@ func NewChaChaPolySigil(key []byte) (*ChaChaPolySigil, error) {
 	copy(keyCopy, key)
 
 	return &ChaChaPolySigil{
-		Key:        keyCopy,
-		Obfuscator: &XORObfuscator{},
-		randReader: rand.Reader,
+		Key:          keyCopy,
+		Obfuscator:   &XORObfuscator{},
+		randomReader: rand.Reader,
 	}, nil
 }
 
@@ -278,14 +278,14 @@ func NewChaChaPolySigil(key []byte) (*ChaChaPolySigil, error) {
 //	ciphertext, _ := cipherSigil.In([]byte("payload"))
 //	plaintext, _ := cipherSigil.Out(ciphertext)
 func NewChaChaPolySigilWithObfuscator(key []byte, obfuscator PreObfuscator) (*ChaChaPolySigil, error) {
-	sigil, err := NewChaChaPolySigil(key)
+	cipherSigil, err := NewChaChaPolySigil(key)
 	if err != nil {
 		return nil, err
 	}
 	if obfuscator != nil {
-		sigil.Obfuscator = obfuscator
+		cipherSigil.Obfuscator = obfuscator
 	}
-	return sigil, nil
+	return cipherSigil, nil
 }
 
 // In encrypts the data with pre-obfuscation.
@@ -305,11 +305,11 @@ func (s *ChaChaPolySigil) In(data []byte) ([]byte, error) {
 
 	// Generate nonce
 	nonce := make([]byte, aead.NonceSize())
-	reader := s.randReader
+	reader := s.randomReader
 	if reader == nil {
 		reader = rand.Reader
 	}
-	if _, err := io.ReadFull(reader, nonce); err != nil {
+	if _, err := goio.ReadFull(reader, nonce); err != nil {
 		return nil, core.E("sigil.ChaChaPolySigil.In", "read nonce", err)
 	}
 
