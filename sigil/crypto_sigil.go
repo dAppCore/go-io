@@ -25,27 +25,15 @@ import (
 var (
 	// InvalidKeyError is returned when the encryption key is not 32 bytes.
 	InvalidKeyError = core.E("sigil.InvalidKeyError", "invalid key size, must be 32 bytes", nil)
-	// ErrInvalidKey is kept for compatibility with older callers.
-	// Deprecated: use InvalidKeyError.
-	ErrInvalidKey = InvalidKeyError
 
 	// CiphertextTooShortError is returned when the ciphertext is too short to decrypt.
 	CiphertextTooShortError = core.E("sigil.CiphertextTooShortError", "ciphertext too short", nil)
-	// ErrCiphertextTooShort is kept for compatibility with older callers.
-	// Deprecated: use CiphertextTooShortError.
-	ErrCiphertextTooShort = CiphertextTooShortError
 
 	// DecryptionFailedError is returned when decryption or authentication fails.
 	DecryptionFailedError = core.E("sigil.DecryptionFailedError", "decryption failed", nil)
-	// ErrDecryptionFailed is kept for compatibility with older callers.
-	// Deprecated: use DecryptionFailedError.
-	ErrDecryptionFailed = DecryptionFailedError
 
 	// NoKeyConfiguredError is returned when no encryption key has been set.
 	NoKeyConfiguredError = core.E("sigil.NoKeyConfiguredError", "no encryption key configured", nil)
-	// ErrNoKeyConfigured is kept for compatibility with older callers.
-	// Deprecated: use NoKeyConfiguredError.
-	ErrNoKeyConfigured = NoKeyConfiguredError
 )
 
 // PreObfuscator applies a reversible transformation to data before encryption.

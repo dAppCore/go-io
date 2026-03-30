@@ -204,10 +204,6 @@ func (s *Service) HandleIPCEvents(_ *core.Core, message core.Message) core.Resul
 			return core.Result{Value: workspaceID, OK: true}
 		case "workspace.switch":
 			workspaceID, _ := payload["workspaceID"].(string)
-			if workspaceID == "" {
-				// Keep the legacy key as a fallback for older callers.
-				workspaceID, _ = payload["name"].(string)
-			}
 			if err := s.SwitchWorkspace(workspaceID); err != nil {
 				return core.Result{}.New(err)
 			}

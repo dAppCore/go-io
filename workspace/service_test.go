@@ -113,7 +113,8 @@ func TestService_HandleIPCEvents_Good(t *testing.T) {
 		"action": "workspace.switch",
 		"name":   workspaceID,
 	})
-	assert.True(t, legacySwitch.OK)
+	assert.False(t, legacySwitch.OK)
+	assert.Equal(t, workspaceID, s.activeWorkspaceID)
 
 	failedSwitch := s.HandleIPCEvents(core.New(), map[string]any{
 		"action":      "workspace.switch",

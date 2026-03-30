@@ -13,10 +13,6 @@ import (
 // NotFoundError is returned when a key does not exist in the store.
 var NotFoundError = errors.New("key not found")
 
-// ErrNotFound is kept for compatibility with older callers.
-// Deprecated: use NotFoundError.
-var ErrNotFound = NotFoundError
-
 // Store is a group-namespaced key-value store backed by SQLite.
 type Store struct {
 	database *sql.DB
