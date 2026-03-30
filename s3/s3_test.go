@@ -655,8 +655,8 @@ func TestS3_ObjectKey_Good(t *testing.T) {
 	assert.Equal(t, "pfx/", m2.objectKey(""))
 }
 
-// Ugly: verify the Medium interface is satisfied at compile time.
-func TestS3_InterfaceCompliance_Ugly(t *testing.T) {
+// Compile-time check: Medium satisfies the io.Medium interface.
+func TestS3_InterfaceCompliance(t *testing.T) {
 	mock := newMockS3()
 	m, err := New(Options{Bucket: "bucket", Client: mock})
 	require.NoError(t, err)

@@ -430,11 +430,11 @@ func TestClient_Exists_Good(t *testing.T) {
 	assert.True(t, m.Exists("x"))
 }
 
-func TestClient_ReadDir_Ugly(t *testing.T) {
+func TestClient_ReadExistingFile_Good(t *testing.T) {
 	m := New()
 
-	// Read from a file path (not a dir) should return empty or error
 	require.NoError(t, m.Write("file.txt", "content"))
-	_, err := m.Read("file.txt")
+	got, err := m.Read("file.txt")
 	require.NoError(t, err)
+	assert.Equal(t, "content", got)
 }

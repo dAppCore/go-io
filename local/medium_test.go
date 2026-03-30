@@ -438,7 +438,7 @@ func TestClient_WriteStream_Basic_Good(t *testing.T) {
 	assert.Equal(t, "piped data", content)
 }
 
-func TestClient_Path_TraversalAdvanced_Ugly(t *testing.T) {
+func TestClient_Path_TraversalSandbox_Good(t *testing.T) {
 	m := &Medium{filesystemRoot: "/sandbox"}
 
 	// Multiple levels of traversal
@@ -494,7 +494,7 @@ func TestClient_ValidatePath_SymlinkEscape_Bad(t *testing.T) {
 	assert.ErrorIs(t, err, fs.ErrPermission)
 }
 
-func TestClient_EmptyPaths_Ugly(t *testing.T) {
+func TestClient_EmptyPaths_Good(t *testing.T) {
 	root := t.TempDir()
 	m, err := New(root)
 	assert.NoError(t, err)

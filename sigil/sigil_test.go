@@ -39,7 +39,7 @@ func TestSigil_ReverseSigil_Bad(t *testing.T) {
 	assert.Equal(t, []byte{}, out)
 }
 
-func TestSigil_ReverseSigil_Ugly(t *testing.T) {
+func TestSigil_ReverseSigil_NilInput_Good(t *testing.T) {
 	s := &ReverseSigil{}
 
 	// Nil input returns nil.
@@ -82,7 +82,7 @@ func TestSigil_HexSigil_Bad(t *testing.T) {
 	assert.Equal(t, []byte{}, out)
 }
 
-func TestSigil_HexSigil_Ugly(t *testing.T) {
+func TestSigil_HexSigil_NilInput_Good(t *testing.T) {
 	s := &HexSigil{}
 
 	out, err := s.In(nil)
@@ -124,7 +124,7 @@ func TestSigil_Base64Sigil_Bad(t *testing.T) {
 	assert.Equal(t, []byte{}, out)
 }
 
-func TestSigil_Base64Sigil_Ugly(t *testing.T) {
+func TestSigil_Base64Sigil_NilInput_Good(t *testing.T) {
 	s := &Base64Sigil{}
 
 	out, err := s.In(nil)
@@ -170,7 +170,7 @@ func TestSigil_GzipSigil_Bad(t *testing.T) {
 	assert.Equal(t, []byte{}, decompressed)
 }
 
-func TestSigil_GzipSigil_Ugly(t *testing.T) {
+func TestSigil_GzipSigil_NilInput_Good(t *testing.T) {
 	s := &GzipSigil{}
 
 	out, err := s.In(nil)
@@ -218,7 +218,7 @@ func TestSigil_JSONSigil_Bad(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestSigil_JSONSigil_Ugly(t *testing.T) {
+func TestSigil_JSONSigil_NilInput_Good(t *testing.T) {
 	s := &JSONSigil{Indent: false}
 
 	// Nil input is passed through without error, matching the Sigil contract.
@@ -289,7 +289,7 @@ func TestSigil_HashSigil_Bad(t *testing.T) {
 	assert.Contains(t, err.Error(), "not available")
 }
 
-func TestSigil_HashSigil_Ugly(t *testing.T) {
+func TestSigil_HashSigil_EmptyInput_Good(t *testing.T) {
 	// Hashing empty data should still produce a valid digest.
 	s, err := NewSigil("sha256")
 	require.NoError(t, err)
@@ -328,7 +328,7 @@ func TestSigil_NewSigil_Bad(t *testing.T) {
 	assert.Contains(t, err.Error(), "unknown sigil name")
 }
 
-func TestSigil_NewSigil_Ugly(t *testing.T) {
+func TestSigil_NewSigil_EmptyName_Bad(t *testing.T) {
 	_, err := NewSigil("")
 	assert.Error(t, err)
 }
@@ -403,7 +403,7 @@ func TestSigil_Transmute_Bad(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestSigil_Transmute_Ugly(t *testing.T) {
+func TestSigil_Transmute_NilAndEmptyInput_Good(t *testing.T) {
 	// Empty sigil chain is a no-op.
 	data := []byte("unchanged")
 

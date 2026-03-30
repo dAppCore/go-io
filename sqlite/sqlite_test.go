@@ -612,7 +612,7 @@ func TestSqlite_NormaliseEntryPath_Good(t *testing.T) {
 
 // --- Interface Compliance ---
 
-func TestSqlite_InterfaceCompliance_Ugly(t *testing.T) {
+func TestSqlite_InterfaceCompliance(t *testing.T) {
 	m := newTestMedium(t)
 
 	// Verify all methods exist by asserting the interface shape.

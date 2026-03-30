@@ -53,7 +53,7 @@ func TestNode_AddData_Bad(t *testing.T) {
 	assert.Empty(t, n.files, "directory entry must not be stored")
 }
 
-func TestNode_AddData_Ugly(t *testing.T) {
+func TestNode_AddData_EdgeCases_Good(t *testing.T) {
 	t.Run("Overwrite", func(t *testing.T) {
 		n := New()
 		n.AddData("foo.txt", []byte("foo"))
@@ -96,7 +96,7 @@ func TestNode_Open_Bad(t *testing.T) {
 	assert.ErrorIs(t, err, fs.ErrNotExist)
 }
 
-func TestNode_Open_Ugly(t *testing.T) {
+func TestNode_Open_Directory_Good(t *testing.T) {
 	n := New()
 	n.AddData("bar/baz.txt", []byte("baz"))
 
@@ -144,7 +144,7 @@ func TestNode_Stat_Bad(t *testing.T) {
 	assert.ErrorIs(t, err, fs.ErrNotExist)
 }
 
-func TestNode_Stat_Ugly(t *testing.T) {
+func TestNode_Stat_RootDirectory_Good(t *testing.T) {
 	n := New()
 	n.AddData("foo.txt", []byte("foo"))
 
@@ -175,7 +175,7 @@ func TestNode_ReadFile_Bad(t *testing.T) {
 	assert.ErrorIs(t, err, fs.ErrNotExist)
 }
 
-func TestNode_ReadFile_Ugly(t *testing.T) {
+func TestNode_ReadFile_ReturnsCopy_Good(t *testing.T) {
 	n := New()
 	n.AddData("data.bin", []byte("original"))
 
@@ -222,7 +222,7 @@ func TestNode_ReadDir_Bad(t *testing.T) {
 	assert.Equal(t, fs.ErrInvalid, pathErr.Err)
 }
 
-func TestNode_ReadDir_Ugly(t *testing.T) {
+func TestNode_ReadDir_IgnoresEmptyEntry_Good(t *testing.T) {
 	n := New()
 	n.AddData("bar/baz.txt", []byte("baz"))
 	n.AddData("empty_dir/", nil) // Ignored by AddData.
@@ -250,7 +250,7 @@ func TestNode_Exists_Bad(t *testing.T) {
 	assert.False(t, n.Exists("nonexistent"))
 }
 
-func TestNode_Exists_Ugly(t *testing.T) {
+func TestNode_Exists_RootAndEmptyPath_Good(t *testing.T) {
 	n := New()
 	n.AddData("dummy.txt", []byte("dummy"))
 
@@ -293,7 +293,7 @@ func TestNode_WalkWithOptions_Default_Bad(t *testing.T) {
 	assert.ErrorIs(t, err, fs.ErrNotExist)
 }
 
-func TestNode_WalkWithOptions_Default_Ugly(t *testing.T) {
+func TestNode_WalkWithOptions_CallbackError_Good(t *testing.T) {
 	n := New()
 	n.AddData("a/b.txt", []byte("b"))
 	n.AddData("a/c.txt", []byte("c"))
@@ -405,7 +405,7 @@ func TestNode_CopyFile_Bad(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestNode_CopyFile_Ugly(t *testing.T) {
+func TestNode_CopyFile_DirectorySource_Bad(t *testing.T) {
 	n := New()
 	n.AddData("bar/baz.txt", []byte("baz"))
 	tmpfile := core.Path(t.TempDir(), "test.txt")
