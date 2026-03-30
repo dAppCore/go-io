@@ -1,9 +1,12 @@
 package io
 
 import (
+	goio "io"
+	"io/fs"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // --- MockMedium Tests ---
@@ -41,6 +44,17 @@ func TestClient_MockMedium_Write_Good(t *testing.T) {
 	err = m.Write("test.txt", "new content")
 	assert.NoError(t, err)
 	assert.Equal(t, "new content", m.Files["test.txt"])
+}
+
+func TestClient_MockMedium_WriteMode_Good(t *testing.T) {
+	m := NewMockMedium()
+
+	err := m.WriteMode("secure.txt", "secret", 0600)
+	require.NoError(t, err)
+
+	content, err := m.Read("secure.txt")
+	require.NoError(t, err)
+	assert.Equal(t, "secret", content)
 }
 
 func TestClient_MockMedium_EnsureDir_Good(t *testing.T) {
@@ -194,6 +208,68 @@ func TestClient_MockMedium_IsDir_Good(t *testing.T) {
 	assert.False(t, m.IsDir("nonexistent"))
 }
 
+func TestClient_MockMedium_StreamAndFSHelpers_Good(t *testing.T) {
+	m := NewMockMedium()
+	require.NoError(t, m.EnsureDir("dir"))
+	require.NoError(t, m.Write("dir/file.txt", "alpha"))
+
+	file, err := m.Open("dir/file.txt")
+	require.NoError(t, err)
+
+	info, err := file.Stat()
+	require.NoError(t, err)
+	assert.Equal(t, "file.txt", info.Name())
+	assert.Equal(t, int64(5), info.Size())
+	assert.Equal(t, fs.FileMode(0), info.Mode())
+	assert.True(t, info.ModTime().IsZero())
+	assert.False(t, info.IsDir())
+	assert.Nil(t, info.Sys())
+
+	data, err := goio.ReadAll(file)
+	require.NoError(t, err)
+	assert.Equal(t, "alpha", string(data))
+	require.NoError(t, file.Close())
+
+	entries, err := m.List("dir")
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
+	assert.Equal(t, "file.txt", entries[0].Name())
+	assert.False(t, entries[0].IsDir())
+	assert.Equal(t, fs.FileMode(0), entries[0].Type())
+
+	entryInfo, err := entries[0].Info()
+	require.NoError(t, err)
+	assert.Equal(t, "file.txt", entryInfo.Name())
+	assert.Equal(t, int64(5), entryInfo.Size())
+
+	writer, err := m.Create("created.txt")
+	require.NoError(t, err)
+	_, err = writer.Write([]byte("created"))
+	require.NoError(t, err)
+	require.NoError(t, writer.Close())
+
+	appendWriter, err := m.Append("created.txt")
+	require.NoError(t, err)
+	_, err = appendWriter.Write([]byte(" later"))
+	require.NoError(t, err)
+	require.NoError(t, appendWriter.Close())
+
+	reader, err := m.ReadStream("created.txt")
+	require.NoError(t, err)
+	streamed, err := goio.ReadAll(reader)
+	require.NoError(t, err)
+	assert.Equal(t, "created later", string(streamed))
+	require.NoError(t, reader.Close())
+
+	writeStream, err := m.WriteStream("streamed.txt")
+	require.NoError(t, err)
+	_, err = writeStream.Write([]byte("stream output"))
+	require.NoError(t, err)
+	require.NoError(t, writeStream.Close())
+
+	assert.Equal(t, "stream output", m.Files["streamed.txt"])
+}
+
 // --- Wrapper Function Tests ---
 
 func TestClient_Read_Good(t *testing.T) {
@@ -224,6 +300,37 @@ func TestClient_IsFile_Good(t *testing.T) {
 
 	assert.True(t, IsFile(m, "exists.txt"))
 	assert.False(t, IsFile(m, "nonexistent.txt"))
+}
+
+func TestClient_NewSandboxed_Good(t *testing.T) {
+	root := t.TempDir()
+
+	m, err := NewSandboxed(root)
+	require.NoError(t, err)
+
+	require.NoError(t, m.Write("config/app.yaml", "port: 8080"))
+
+	content, err := m.Read("config/app.yaml")
+	require.NoError(t, err)
+	assert.Equal(t, "port: 8080", content)
+	assert.True(t, m.IsDir("config"))
+}
+
+func TestClient_ReadWriteStream_Good(t *testing.T) {
+	m := NewMockMedium()
+
+	writer, err := WriteStream(m, "logs/run.txt")
+	require.NoError(t, err)
+	_, err = writer.Write([]byte("started"))
+	require.NoError(t, err)
+	require.NoError(t, writer.Close())
+
+	reader, err := ReadStream(m, "logs/run.txt")
+	require.NoError(t, err)
+	data, err := goio.ReadAll(reader)
+	require.NoError(t, err)
+	assert.Equal(t, "started", string(data))
+	require.NoError(t, reader.Close())
 }
 
 func TestClient_Copy_Good(t *testing.T) {

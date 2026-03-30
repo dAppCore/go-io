@@ -87,3 +87,34 @@ func TestService_WorkspaceFileSet_TraversalBlocked_Bad(t *testing.T) {
 	_, err = s.WorkspaceFileGet("../keys/private.key")
 	require.Error(t, err)
 }
+
+func TestService_HandleIPCEvents_Good(t *testing.T) {
+	s, _ := newTestService(t)
+
+	create := s.HandleIPCEvents(core.New(), map[string]any{
+		"action":     "workspace.create",
+		"identifier": "ipc-user",
+		"password":   "pass123",
+	})
+	assert.True(t, create.OK)
+
+	id, ok := create.Value.(string)
+	require.True(t, ok)
+	require.NotEmpty(t, id)
+
+	switchResult := s.HandleIPCEvents(core.New(), map[string]any{
+		"action": "workspace.switch",
+		"name":   id,
+	})
+	assert.True(t, switchResult.OK)
+	assert.Equal(t, id, s.activeWorkspace)
+
+	failedSwitch := s.HandleIPCEvents(core.New(), map[string]any{
+		"action": "workspace.switch",
+		"name":   "missing",
+	})
+	assert.False(t, failedSwitch.OK)
+
+	unknown := s.HandleIPCEvents(core.New(), "noop")
+	assert.True(t, unknown.OK)
+}

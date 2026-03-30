@@ -2,6 +2,7 @@ package store
 
 import (
 	"io"
+	"io/fs"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -199,4 +200,63 @@ func TestMedium_Medium_AsMedium_Good(t *testing.T) {
 	val, err = m.Read("grp/key")
 	require.NoError(t, err)
 	assert.Equal(t, "val", val)
+}
+
+func TestMedium_Medium_Store_Good(t *testing.T) {
+	m := newTestMedium(t)
+
+	assert.NotNil(t, m.Store())
+	assert.Same(t, m.Store(), m.Store())
+}
+
+func TestMedium_Medium_EnsureDir_FileHelpers_Good(t *testing.T) {
+	m := newTestMedium(t)
+
+	require.NoError(t, m.EnsureDir("ignored"))
+	require.NoError(t, m.FileSet("grp/key", "value"))
+
+	value, err := m.FileGet("grp/key")
+	require.NoError(t, err)
+	assert.Equal(t, "value", value)
+}
+
+func TestMedium_Medium_StreamHelpers_Good(t *testing.T) {
+	m := newTestMedium(t)
+
+	writer, err := m.WriteStream("grp/key")
+	require.NoError(t, err)
+	_, err = writer.Write([]byte("streamed"))
+	require.NoError(t, err)
+	require.NoError(t, writer.Close())
+
+	reader, err := m.ReadStream("grp/key")
+	require.NoError(t, err)
+	data, err := io.ReadAll(reader)
+	require.NoError(t, err)
+	assert.Equal(t, "streamed", string(data))
+	require.NoError(t, reader.Close())
+
+	file, err := m.Open("grp/key")
+	require.NoError(t, err)
+	info, err := file.Stat()
+	require.NoError(t, err)
+	assert.Equal(t, "key", info.Name())
+	assert.Equal(t, int64(8), info.Size())
+	assert.Equal(t, fs.FileMode(0644), info.Mode())
+	assert.True(t, info.ModTime().IsZero())
+	assert.False(t, info.IsDir())
+	assert.Nil(t, info.Sys())
+	require.NoError(t, file.Close())
+
+	entries, err := m.List("grp")
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
+	assert.Equal(t, "key", entries[0].Name())
+	assert.False(t, entries[0].IsDir())
+	assert.Equal(t, fs.FileMode(0), entries[0].Type())
+
+	entryInfo, err := entries[0].Info()
+	require.NoError(t, err)
+	assert.Equal(t, "key", entryInfo.Name())
+	assert.Equal(t, int64(8), entryInfo.Size())
 }

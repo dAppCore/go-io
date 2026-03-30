@@ -357,6 +357,23 @@ func TestNode_Walk_Options_Good(t *testing.T) {
 	})
 }
 
+func TestNode_WalkNode_Good(t *testing.T) {
+	n := New()
+	n.AddData("alpha.txt", []byte("alpha"))
+	n.AddData("nested/beta.txt", []byte("beta"))
+
+	var paths []string
+	err := n.WalkNode(".", func(p string, d fs.DirEntry, err error) error {
+		require.NoError(t, err)
+		paths = append(paths, p)
+		return nil
+	})
+	require.NoError(t, err)
+
+	sort.Strings(paths)
+	assert.Equal(t, []string{".", "alpha.txt", "nested", "nested/beta.txt"}, paths)
+}
+
 // ---------------------------------------------------------------------------
 // CopyFile
 // ---------------------------------------------------------------------------
@@ -396,6 +413,107 @@ func TestNode_CopyFile_Ugly(t *testing.T) {
 	// Attempting to copy a directory should fail.
 	err := n.CopyFile("bar", tmpfile, 0644)
 	assert.Error(t, err)
+}
+
+func TestNode_CopyTo_Good(t *testing.T) {
+	n := New()
+	n.AddData("config/app.yaml", []byte("port: 8080"))
+	n.AddData("config/env/app.env", []byte("MODE=test"))
+
+	fileTarget := coreio.NewMockMedium()
+	err := n.CopyTo(fileTarget, "config/app.yaml", "backup/app.yaml")
+	require.NoError(t, err)
+	assert.Equal(t, "port: 8080", fileTarget.Files["backup/app.yaml"])
+
+	dirTarget := coreio.NewMockMedium()
+	err = n.CopyTo(dirTarget, "config", "backup/config")
+	require.NoError(t, err)
+	assert.Equal(t, "port: 8080", dirTarget.Files["backup/config/app.yaml"])
+	assert.Equal(t, "MODE=test", dirTarget.Files["backup/config/env/app.env"])
+}
+
+func TestNode_CopyTo_Bad(t *testing.T) {
+	n := New()
+	err := n.CopyTo(coreio.NewMockMedium(), "missing", "backup/missing")
+	assert.Error(t, err)
+}
+
+func TestNode_MediumFacade_Good(t *testing.T) {
+	n := New()
+
+	require.NoError(t, n.Write("docs/readme.txt", "hello"))
+	require.NoError(t, n.WriteMode("docs/mode.txt", "mode", 0600))
+	require.NoError(t, n.FileSet("docs/guide.txt", "guide"))
+	require.NoError(t, n.EnsureDir("ignored"))
+
+	value, err := n.Read("docs/readme.txt")
+	require.NoError(t, err)
+	assert.Equal(t, "hello", value)
+
+	value, err = n.FileGet("docs/guide.txt")
+	require.NoError(t, err)
+	assert.Equal(t, "guide", value)
+
+	assert.True(t, n.IsFile("docs/readme.txt"))
+	assert.True(t, n.IsDir("docs"))
+
+	entries, err := n.List("docs")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"guide.txt", "mode.txt", "readme.txt"}, sortedNames(entries))
+
+	file, err := n.Open("docs/readme.txt")
+	require.NoError(t, err)
+	info, err := file.Stat()
+	require.NoError(t, err)
+	assert.Equal(t, "readme.txt", info.Name())
+	assert.Equal(t, fs.FileMode(0444), info.Mode())
+	assert.False(t, info.IsDir())
+	assert.Nil(t, info.Sys())
+	require.NoError(t, file.Close())
+
+	dir, err := n.Open("docs")
+	require.NoError(t, err)
+	dirInfo, err := dir.Stat()
+	require.NoError(t, err)
+	assert.Equal(t, "docs", dirInfo.Name())
+	assert.True(t, dirInfo.IsDir())
+	assert.Equal(t, fs.ModeDir|0555, dirInfo.Mode())
+	assert.Nil(t, dirInfo.Sys())
+	require.NoError(t, dir.Close())
+
+	createWriter, err := n.Create("docs/generated.txt")
+	require.NoError(t, err)
+	_, err = createWriter.Write([]byte("generated"))
+	require.NoError(t, err)
+	require.NoError(t, createWriter.Close())
+
+	appendWriter, err := n.Append("docs/generated.txt")
+	require.NoError(t, err)
+	_, err = appendWriter.Write([]byte(" content"))
+	require.NoError(t, err)
+	require.NoError(t, appendWriter.Close())
+
+	streamReader, err := n.ReadStream("docs/generated.txt")
+	require.NoError(t, err)
+	streamData, err := io.ReadAll(streamReader)
+	require.NoError(t, err)
+	assert.Equal(t, "generated content", string(streamData))
+	require.NoError(t, streamReader.Close())
+
+	writeStream, err := n.WriteStream("docs/stream.txt")
+	require.NoError(t, err)
+	_, err = writeStream.Write([]byte("stream"))
+	require.NoError(t, err)
+	require.NoError(t, writeStream.Close())
+
+	require.NoError(t, n.Rename("docs/stream.txt", "docs/stream-renamed.txt"))
+	assert.True(t, n.Exists("docs/stream-renamed.txt"))
+
+	require.NoError(t, n.Delete("docs/stream-renamed.txt"))
+	assert.False(t, n.Exists("docs/stream-renamed.txt"))
+
+	require.NoError(t, n.DeleteAll("docs"))
+	assert.False(t, n.Exists("docs"))
 }
 
 // ---------------------------------------------------------------------------
