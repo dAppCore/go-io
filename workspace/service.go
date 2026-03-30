@@ -11,7 +11,7 @@ import (
 	"dappco.re/go/core/io"
 )
 
-// Example: service, _ := workspace.New(workspace.Options{Core: core.New(), CryptProvider: cryptProvider})
+// Example: service, _ := workspace.New(workspace.Options{CryptProvider: cryptProvider})
 type Workspace interface {
 	CreateWorkspace(identifier, password string) (string, error)
 	SwitchWorkspace(workspaceID string) error
@@ -19,7 +19,7 @@ type Workspace interface {
 	WorkspaceFileSet(workspaceFilePath, content string) error
 }
 
-// CryptProvider generates the encrypted private key stored with each workspace.
+// Example: key, _ := cryptProvider.CreateKeyPair("alice", "pass123")
 type CryptProvider interface {
 	CreateKeyPair(name, passphrase string) (string, error)
 }
@@ -37,13 +37,12 @@ type WorkspaceCommand struct {
 	WorkspaceID string
 }
 
-// Example: service, _ := workspace.New(workspace.Options{Core: core.New(), CryptProvider: cryptProvider})
+// Example: service, _ := workspace.New(workspace.Options{CryptProvider: cryptProvider})
 type Options struct {
-	Core          *core.Core
 	CryptProvider CryptProvider
 }
 
-// Example: service, _ := workspace.New(workspace.Options{Core: core.New(), CryptProvider: cryptProvider})
+// Example: service, _ := workspace.New(workspace.Options{CryptProvider: cryptProvider})
 type Service struct {
 	cryptProvider     CryptProvider
 	activeWorkspaceID string
@@ -54,7 +53,7 @@ type Service struct {
 
 var _ Workspace = (*Service)(nil)
 
-// Example: service, _ := workspace.New(workspace.Options{Core: core.New(), CryptProvider: cryptProvider})
+// Example: service, _ := workspace.New(workspace.Options{CryptProvider: cryptProvider})
 // workspaceID, _ := service.CreateWorkspace("alice", "pass123")
 func New(options Options) (*Service, error) {
 	home := resolveWorkspaceHomeDirectory()
@@ -63,9 +62,6 @@ func New(options Options) (*Service, error) {
 	}
 	rootPath := core.Path(home, ".core", "workspaces")
 
-	if options.Core == nil {
-		return nil, core.E("workspace.New", "core is required", fs.ErrInvalid)
-	}
 	if options.CryptProvider == nil {
 		return nil, core.E("workspace.New", "crypt provider is required", fs.ErrInvalid)
 	}

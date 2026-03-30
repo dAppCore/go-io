@@ -26,13 +26,13 @@ func newTestService(t *testing.T) (*Service, string) {
 	tempHome := t.TempDir()
 	t.Setenv("HOME", tempHome)
 
-	svc, err := New(Options{Core: core.New(), CryptProvider: stubCryptProvider{key: "private-key"}})
+	svc, err := New(Options{CryptProvider: stubCryptProvider{key: "private-key"}})
 	require.NoError(t, err)
 	return svc, tempHome
 }
 
 func TestService_New_MissingCryptProvider_Bad(t *testing.T) {
-	_, err := New(Options{Core: core.New()})
+	_, err := New(Options{})
 	require.Error(t, err)
 }
 
