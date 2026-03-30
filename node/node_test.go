@@ -423,13 +423,19 @@ func TestNode_CopyTo_Good(t *testing.T) {
 	fileTarget := coreio.NewMemoryMedium()
 	err := n.CopyTo(fileTarget, "config/app.yaml", "backup/app.yaml")
 	require.NoError(t, err)
-	assert.Equal(t, "port: 8080", fileTarget.Files["backup/app.yaml"])
+	content, err := fileTarget.Read("backup/app.yaml")
+	require.NoError(t, err)
+	assert.Equal(t, "port: 8080", content)
 
 	dirTarget := coreio.NewMemoryMedium()
 	err = n.CopyTo(dirTarget, "config", "backup/config")
 	require.NoError(t, err)
-	assert.Equal(t, "port: 8080", dirTarget.Files["backup/config/app.yaml"])
-	assert.Equal(t, "MODE=test", dirTarget.Files["backup/config/env/app.env"])
+	content, err = dirTarget.Read("backup/config/app.yaml")
+	require.NoError(t, err)
+	assert.Equal(t, "port: 8080", content)
+	content, err = dirTarget.Read("backup/config/env/app.env")
+	require.NoError(t, err)
+	assert.Equal(t, "MODE=test", content)
 }
 
 func TestNode_CopyTo_Bad(t *testing.T) {

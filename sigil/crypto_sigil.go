@@ -1,8 +1,6 @@
-// Package sigil wraps XChaCha20-Poly1305 with deterministic pre-obfuscation.
-//
-//	cipherSigil, _ := sigil.NewChaChaPolySigil([]byte("0123456789abcdef0123456789abcdef"))
-//	ciphertext, _ := cipherSigil.In([]byte("payload"))
-//	plaintext, _ := cipherSigil.Out(ciphertext)
+// Example: cipherSigil, _ := sigil.NewChaChaPolySigil([]byte("0123456789abcdef0123456789abcdef"))
+// Example: ciphertext, _ := cipherSigil.In([]byte("payload"))
+// Example: plaintext, _ := cipherSigil.Out(ciphertext)
 package sigil
 
 import (

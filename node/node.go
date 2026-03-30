@@ -1,5 +1,3 @@
-// Package node keeps io.Medium data in memory.
-//
 // Example: nodeTree := node.New()
 // Example: nodeTree.AddData("config/app.yaml", []byte("port: 8080"))
 // Example: snapshot, _ := nodeTree.ToTar()

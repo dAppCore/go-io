@@ -1,5 +1,3 @@
-// Package sqlite stores io.Medium content in SQLite.
-//
 // Example: medium, _ := sqlite.New(sqlite.Options{Path: ":memory:"})
 // Example: _ = medium.Write("config/app.yaml", "port: 8080")
 package sqlite

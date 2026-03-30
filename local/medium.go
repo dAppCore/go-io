@@ -1,8 +1,6 @@
-// Package local provides the io.Medium implementation for the local filesystem.
-//
-//	medium, _ := local.New("/srv/app")
-//	_ = medium.Write("config/app.yaml", "port: 8080")
-//	content, _ := medium.Read("config/app.yaml")
+// Example: medium, _ := local.New("/srv/app")
+// Example: _ = medium.Write("config/app.yaml", "port: 8080")
+// Example: content, _ := medium.Read("config/app.yaml")
 package local
 
 import (

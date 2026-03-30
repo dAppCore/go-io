@@ -15,10 +15,10 @@ import (
 func TestMemoryMedium_NewMemoryMedium_Good(t *testing.T) {
 	medium := NewMemoryMedium()
 	assert.NotNil(t, medium)
-	assert.NotNil(t, medium.Files)
-	assert.NotNil(t, medium.Dirs)
-	assert.Empty(t, medium.Files)
-	assert.Empty(t, medium.Dirs)
+	assert.NotNil(t, medium.files)
+	assert.NotNil(t, medium.dirs)
+	assert.Empty(t, medium.files)
+	assert.Empty(t, medium.dirs)
 }
 
 func TestMemoryMedium_NewFileInfo_Good(t *testing.T) {
@@ -48,7 +48,7 @@ func TestMemoryMedium_NewDirEntry_Good(t *testing.T) {
 
 func TestClient_MockMedium_Read_Good(t *testing.T) {
 	m := NewMockMedium()
-	m.Files["test.txt"] = "hello world"
+	m.files["test.txt"] = "hello world"
 	content, err := m.Read("test.txt")
 	assert.NoError(t, err)
 	assert.Equal(t, "hello world", content)
@@ -64,12 +64,12 @@ func TestClient_MockMedium_Write_Good(t *testing.T) {
 	m := NewMockMedium()
 	err := m.Write("test.txt", "content")
 	assert.NoError(t, err)
-	assert.Equal(t, "content", m.Files["test.txt"])
+	assert.Equal(t, "content", m.files["test.txt"])
 
 	// Overwrite existing file
 	err = m.Write("test.txt", "new content")
 	assert.NoError(t, err)
-	assert.Equal(t, "new content", m.Files["test.txt"])
+	assert.Equal(t, "new content", m.files["test.txt"])
 }
 
 func TestClient_MockMedium_WriteMode_Good(t *testing.T) {
@@ -87,12 +87,12 @@ func TestClient_MockMedium_EnsureDir_Good(t *testing.T) {
 	m := NewMockMedium()
 	err := m.EnsureDir("/path/to/dir")
 	assert.NoError(t, err)
-	assert.True(t, m.Dirs["/path/to/dir"])
+	assert.True(t, m.dirs["/path/to/dir"])
 }
 
 func TestClient_MockMedium_IsFile_Good(t *testing.T) {
 	m := NewMockMedium()
-	m.Files["exists.txt"] = "content"
+	m.files["exists.txt"] = "content"
 
 	assert.True(t, m.IsFile("exists.txt"))
 	assert.False(t, m.IsFile("nonexistent.txt"))
@@ -100,7 +100,7 @@ func TestClient_MockMedium_IsFile_Good(t *testing.T) {
 
 func TestClient_MockMedium_FileGet_Good(t *testing.T) {
 	m := NewMockMedium()
-	m.Files["test.txt"] = "content"
+	m.files["test.txt"] = "content"
 	content, err := m.FileGet("test.txt")
 	assert.NoError(t, err)
 	assert.Equal(t, "content", content)
@@ -110,12 +110,12 @@ func TestClient_MockMedium_FileSet_Good(t *testing.T) {
 	m := NewMockMedium()
 	err := m.FileSet("test.txt", "content")
 	assert.NoError(t, err)
-	assert.Equal(t, "content", m.Files["test.txt"])
+	assert.Equal(t, "content", m.files["test.txt"])
 }
 
 func TestClient_MockMedium_Delete_Good(t *testing.T) {
 	m := NewMockMedium()
-	m.Files["test.txt"] = "content"
+	m.files["test.txt"] = "content"
 
 	err := m.Delete("test.txt")
 	assert.NoError(t, err)
@@ -130,8 +130,8 @@ func TestClient_MockMedium_Delete_NotFound_Bad(t *testing.T) {
 
 func TestClient_MockMedium_Delete_DirNotEmpty_Bad(t *testing.T) {
 	m := NewMockMedium()
-	m.Dirs["mydir"] = true
-	m.Files["mydir/file.txt"] = "content"
+	m.dirs["mydir"] = true
+	m.files["mydir/file.txt"] = "content"
 
 	err := m.Delete("mydir")
 	assert.Error(t, err)
@@ -139,46 +139,46 @@ func TestClient_MockMedium_Delete_DirNotEmpty_Bad(t *testing.T) {
 
 func TestClient_MockMedium_DeleteAll_Good(t *testing.T) {
 	m := NewMockMedium()
-	m.Dirs["mydir"] = true
-	m.Dirs["mydir/subdir"] = true
-	m.Files["mydir/file.txt"] = "content"
-	m.Files["mydir/subdir/nested.txt"] = "nested"
+	m.dirs["mydir"] = true
+	m.dirs["mydir/subdir"] = true
+	m.files["mydir/file.txt"] = "content"
+	m.files["mydir/subdir/nested.txt"] = "nested"
 
 	err := m.DeleteAll("mydir")
 	assert.NoError(t, err)
-	assert.Empty(t, m.Dirs)
-	assert.Empty(t, m.Files)
+	assert.Empty(t, m.dirs)
+	assert.Empty(t, m.files)
 }
 
 func TestClient_MockMedium_Rename_Good(t *testing.T) {
 	m := NewMockMedium()
-	m.Files["old.txt"] = "content"
+	m.files["old.txt"] = "content"
 
 	err := m.Rename("old.txt", "new.txt")
 	assert.NoError(t, err)
 	assert.False(t, m.IsFile("old.txt"))
 	assert.True(t, m.IsFile("new.txt"))
-	assert.Equal(t, "content", m.Files["new.txt"])
+	assert.Equal(t, "content", m.files["new.txt"])
 }
 
 func TestClient_MockMedium_Rename_Dir_Good(t *testing.T) {
 	m := NewMockMedium()
-	m.Dirs["olddir"] = true
-	m.Files["olddir/file.txt"] = "content"
+	m.dirs["olddir"] = true
+	m.files["olddir/file.txt"] = "content"
 
 	err := m.Rename("olddir", "newdir")
 	assert.NoError(t, err)
-	assert.False(t, m.Dirs["olddir"])
-	assert.True(t, m.Dirs["newdir"])
-	assert.Equal(t, "content", m.Files["newdir/file.txt"])
+	assert.False(t, m.dirs["olddir"])
+	assert.True(t, m.dirs["newdir"])
+	assert.Equal(t, "content", m.files["newdir/file.txt"])
 }
 
 func TestClient_MockMedium_List_Good(t *testing.T) {
 	m := NewMockMedium()
-	m.Dirs["mydir"] = true
-	m.Files["mydir/file1.txt"] = "content1"
-	m.Files["mydir/file2.txt"] = "content2"
-	m.Dirs["mydir/subdir"] = true
+	m.dirs["mydir"] = true
+	m.files["mydir/file1.txt"] = "content1"
+	m.files["mydir/file2.txt"] = "content2"
+	m.dirs["mydir/subdir"] = true
 
 	entries, err := m.List("mydir")
 	assert.NoError(t, err)
@@ -195,7 +195,7 @@ func TestClient_MockMedium_List_Good(t *testing.T) {
 
 func TestClient_MockMedium_Stat_Good(t *testing.T) {
 	m := NewMockMedium()
-	m.Files["test.txt"] = "hello world"
+	m.files["test.txt"] = "hello world"
 
 	info, err := m.Stat("test.txt")
 	assert.NoError(t, err)
@@ -206,7 +206,7 @@ func TestClient_MockMedium_Stat_Good(t *testing.T) {
 
 func TestClient_MockMedium_Stat_Dir_Good(t *testing.T) {
 	m := NewMockMedium()
-	m.Dirs["mydir"] = true
+	m.dirs["mydir"] = true
 
 	info, err := m.Stat("mydir")
 	assert.NoError(t, err)
@@ -216,8 +216,8 @@ func TestClient_MockMedium_Stat_Dir_Good(t *testing.T) {
 
 func TestClient_MockMedium_Exists_Good(t *testing.T) {
 	m := NewMockMedium()
-	m.Files["file.txt"] = "content"
-	m.Dirs["mydir"] = true
+	m.files["file.txt"] = "content"
+	m.dirs["mydir"] = true
 
 	assert.True(t, m.Exists("file.txt"))
 	assert.True(t, m.Exists("mydir"))
@@ -226,8 +226,8 @@ func TestClient_MockMedium_Exists_Good(t *testing.T) {
 
 func TestClient_MockMedium_IsDir_Good(t *testing.T) {
 	m := NewMockMedium()
-	m.Files["file.txt"] = "content"
-	m.Dirs["mydir"] = true
+	m.files["file.txt"] = "content"
+	m.dirs["mydir"] = true
 
 	assert.False(t, m.IsDir("file.txt"))
 	assert.True(t, m.IsDir("mydir"))
@@ -293,14 +293,14 @@ func TestClient_MockMedium_StreamAndFSHelpers_Good(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, writeStream.Close())
 
-	assert.Equal(t, "stream output", m.Files["streamed.txt"])
+	assert.Equal(t, "stream output", m.files["streamed.txt"])
 }
 
 // --- Wrapper Function Tests ---
 
 func TestClient_Read_Good(t *testing.T) {
 	m := NewMockMedium()
-	m.Files["test.txt"] = "hello"
+	m.files["test.txt"] = "hello"
 	content, err := Read(m, "test.txt")
 	assert.NoError(t, err)
 	assert.Equal(t, "hello", content)
@@ -310,19 +310,19 @@ func TestClient_Write_Good(t *testing.T) {
 	m := NewMockMedium()
 	err := Write(m, "test.txt", "hello")
 	assert.NoError(t, err)
-	assert.Equal(t, "hello", m.Files["test.txt"])
+	assert.Equal(t, "hello", m.files["test.txt"])
 }
 
 func TestClient_EnsureDir_Good(t *testing.T) {
 	m := NewMockMedium()
 	err := EnsureDir(m, "/my/dir")
 	assert.NoError(t, err)
-	assert.True(t, m.Dirs["/my/dir"])
+	assert.True(t, m.dirs["/my/dir"])
 }
 
 func TestClient_IsFile_Good(t *testing.T) {
 	m := NewMockMedium()
-	m.Files["exists.txt"] = "content"
+	m.files["exists.txt"] = "content"
 
 	assert.True(t, IsFile(m, "exists.txt"))
 	assert.False(t, IsFile(m, "nonexistent.txt"))
@@ -362,16 +362,16 @@ func TestClient_ReadWriteStream_Good(t *testing.T) {
 func TestClient_Copy_Good(t *testing.T) {
 	source := NewMockMedium()
 	dest := NewMockMedium()
-	source.Files["test.txt"] = "hello"
+	source.files["test.txt"] = "hello"
 	err := Copy(source, "test.txt", dest, "test.txt")
 	assert.NoError(t, err)
-	assert.Equal(t, "hello", dest.Files["test.txt"])
+	assert.Equal(t, "hello", dest.files["test.txt"])
 
 	// Copy to different path
-	source.Files["original.txt"] = "content"
+	source.files["original.txt"] = "content"
 	err = Copy(source, "original.txt", dest, "copied.txt")
 	assert.NoError(t, err)
-	assert.Equal(t, "content", dest.Files["copied.txt"])
+	assert.Equal(t, "content", dest.files["copied.txt"])
 }
 
 func TestClient_Copy_Bad(t *testing.T) {
