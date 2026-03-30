@@ -195,21 +195,34 @@ func (service *Service) HandleWorkspaceCommand(command WorkspaceCommand) core.Re
 	return core.Result{OK: true}
 }
 
-// Example: result := service.HandleIPCEvents(core.New(), map[string]any{"action": WorkspaceSwitchAction, "workspaceID": "f3f0d7"})
-// HandleIPCEvents preserves the legacy map[string]any payload and still accepts WorkspaceCommand values.
-func (service *Service) HandleIPCEvents(_ *core.Core, message core.Message) core.Result {
+// Example: result := service.HandleWorkspaceMessage(core.New(), WorkspaceCommand{Action: WorkspaceSwitchAction, WorkspaceID: "f3f0d7"})
+// Example: legacy := service.HandleWorkspaceMessage(core.New(), map[string]any{"action": WorkspaceCreateAction, "identifier": "alice", "password": "pass123"})
+func (service *Service) HandleWorkspaceMessage(_ *core.Core, message core.Message) core.Result {
+	command, ok := workspaceCommandFromMessage(message)
+	if !ok {
+		return core.Result{OK: true}
+	}
+	return service.HandleWorkspaceCommand(command)
+}
+
+// Example: result := service.HandleIPCEvents(core.New(), WorkspaceCommand{Action: WorkspaceSwitchAction, WorkspaceID: "f3f0d7"})
+func (service *Service) HandleIPCEvents(coreRuntime *core.Core, message core.Message) core.Result {
+	return service.HandleWorkspaceMessage(coreRuntime, message)
+}
+
+func workspaceCommandFromMessage(message core.Message) (WorkspaceCommand, bool) {
 	switch payload := message.(type) {
 	case WorkspaceCommand:
-		return service.HandleWorkspaceCommand(payload)
+		return payload, true
 	case map[string]any:
 		command := WorkspaceCommand{}
 		command.Action, _ = payload["action"].(string)
 		command.Identifier, _ = payload["identifier"].(string)
 		command.Password, _ = payload["password"].(string)
 		command.WorkspaceID, _ = payload["workspaceID"].(string)
-		return service.HandleWorkspaceCommand(command)
+		return command, true
 	}
-	return core.Result{OK: true}
+	return WorkspaceCommand{}, false
 }
 
 func resolveWorkspaceHomeDirectory() string {

@@ -93,10 +93,10 @@ func TestService_WorkspaceFileSet_TraversalBlocked_Bad(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestService_HandleWorkspaceCommand_Good(t *testing.T) {
+func TestService_HandleWorkspaceMessage_Good(t *testing.T) {
 	s, _ := newTestService(t)
 
-	create := s.HandleWorkspaceCommand(WorkspaceCommand{
+	create := s.HandleWorkspaceMessage(core.New(), WorkspaceCommand{
 		Action:     WorkspaceCreateAction,
 		Identifier: "ipc-user",
 		Password:   "pass123",
@@ -107,14 +107,14 @@ func TestService_HandleWorkspaceCommand_Good(t *testing.T) {
 	require.True(t, ok)
 	require.NotEmpty(t, workspaceID)
 
-	switchResult := s.HandleWorkspaceCommand(WorkspaceCommand{
+	switchResult := s.HandleWorkspaceMessage(core.New(), WorkspaceCommand{
 		Action:      WorkspaceSwitchAction,
 		WorkspaceID: workspaceID,
 	})
 	assert.True(t, switchResult.OK)
 	assert.Equal(t, workspaceID, s.activeWorkspaceID)
 
-	legacyCreate := s.HandleIPCEvents(core.New(), map[string]any{
+	legacyCreate := s.HandleWorkspaceMessage(core.New(), map[string]any{
 		"action":     WorkspaceCreateAction,
 		"identifier": "legacy-user",
 		"password":   "pass123",
@@ -125,26 +125,41 @@ func TestService_HandleWorkspaceCommand_Good(t *testing.T) {
 	require.True(t, ok)
 	require.NotEmpty(t, legacyWorkspaceID)
 
-	legacySwitch := s.HandleIPCEvents(core.New(), WorkspaceCommand{
+	legacySwitch := s.HandleWorkspaceMessage(core.New(), WorkspaceCommand{
 		Action:      WorkspaceSwitchAction,
 		WorkspaceID: legacyWorkspaceID,
 	})
 	assert.True(t, legacySwitch.OK)
 	assert.Equal(t, legacyWorkspaceID, s.activeWorkspaceID)
 
-	rejectedLegacySwitch := s.HandleIPCEvents(core.New(), map[string]any{
+	rejectedLegacySwitch := s.HandleWorkspaceMessage(core.New(), map[string]any{
 		"action": WorkspaceSwitchAction,
 		"name":   workspaceID,
 	})
 	assert.False(t, rejectedLegacySwitch.OK)
 	assert.Equal(t, legacyWorkspaceID, s.activeWorkspaceID)
 
-	failedSwitch := s.HandleIPCEvents(core.New(), map[string]any{
+	failedSwitch := s.HandleWorkspaceMessage(core.New(), map[string]any{
 		"action":      WorkspaceSwitchAction,
 		"workspaceID": "missing",
 	})
 	assert.False(t, failedSwitch.OK)
 
-	unknown := s.HandleIPCEvents(core.New(), "noop")
+	unknown := s.HandleWorkspaceMessage(core.New(), "noop")
 	assert.True(t, unknown.OK)
+}
+
+func TestService_HandleIPCEvents_Compatibility_Good(t *testing.T) {
+	s, _ := newTestService(t)
+
+	result := s.HandleIPCEvents(core.New(), WorkspaceCommand{
+		Action:     WorkspaceCreateAction,
+		Identifier: "compat-user",
+		Password:   "pass123",
+	})
+
+	assert.True(t, result.OK)
+	workspaceID, ok := result.Value.(string)
+	require.True(t, ok)
+	require.NotEmpty(t, workspaceID)
 }
