@@ -1,15 +1,14 @@
 // Package sigil provides the Sigil transformation framework for composable,
 // reversible data transformations.
 //
-// Sigils are the core abstraction - each sigil implements a specific transformation
-// (encoding, compression, hashing, encryption) with a uniform interface. Sigils can
-// be chained together to create transformation pipelines.
-//
-// Example usage:
-//
 //	hexSigil, _ := sigil.NewSigil("hex")
-//	base64Sigil, _ := sigil.NewSigil("base64")
-//	result, _ := sigil.Transmute(data, []sigil.Sigil{hexSigil, base64Sigil})
+//	gzipSigil, _ := sigil.NewSigil("gzip")
+//	encoded, _ := sigil.Transmute([]byte("payload"), []sigil.Sigil{hexSigil, gzipSigil})
+//	decoded, _ := sigil.Untransmute(encoded, []sigil.Sigil{hexSigil, gzipSigil})
+//
+// Sigils are the core abstraction - each sigil implements a specific
+// transformation (encoding, compression, hashing, encryption) with a uniform
+// interface. Sigils can be chained together to create transformation pipelines.
 package sigil
 
 import core "dappco.re/go/core"

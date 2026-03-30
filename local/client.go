@@ -1,4 +1,8 @@
-// Package local provides a local filesystem implementation of the io.Medium interface.
+// Package local provides the local filesystem implementation of io.Medium.
+//
+//	medium, _ := local.New("/srv/app")
+//	_ = medium.Write("config/app.yaml", "port: 8080")
+//	content, _ := medium.Read("config/app.yaml")
 package local
 
 import (
@@ -16,10 +20,9 @@ type Medium struct {
 
 var unrestrictedFileSystem = (&core.Fs{}).NewUnrestricted()
 
-// Use New to sandbox filesystem access under a root directory.
-// Pass "/" for full filesystem access, or a specific path to sandbox.
+// New creates a filesystem rooted at root.
 //
-// Example usage:
+// Pass "/" for full filesystem access, or a project path to sandbox.
 //
 //	medium, _ := local.New("/srv/app")
 //	_ = medium.Write("config/app.yaml", "port: 8080")

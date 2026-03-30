@@ -1,9 +1,14 @@
 // Package datanode provides an in-memory io.Medium backed by Borg's DataNode.
 //
+//	medium := datanode.New()
+//	_ = medium.Write("jobs/run.log", "started")
+//	snapshot, _ := medium.Snapshot()
+//	restored, _ := datanode.FromTar(snapshot)
+//
 // DataNode is an in-memory fs.FS that serialises to tar. Wrapping it as a
-// Medium lets any code that works with io.Medium transparently operate on
-// an in-memory filesystem that can be snapshotted, shipped as a crash report,
-// or wrapped in a TIM container for runc execution.
+// Medium lets any code that works with io.Medium transparently operate on an
+// in-memory filesystem that can be snapshotted, shipped as a crash report, or
+// wrapped in a TIM container for runc execution.
 package datanode
 
 import (
@@ -39,9 +44,7 @@ type Medium struct {
 	mu          sync.RWMutex
 }
 
-// Use New when you need an in-memory Medium that snapshots to tar.
-//
-// Example usage:
+// New creates an in-memory Medium that snapshots to tar.
 //
 //	medium := datanode.New()
 //	_ = medium.Write("jobs/run.log", "started")
@@ -52,9 +55,7 @@ func New() *Medium {
 	}
 }
 
-// Use FromTar(snapshot) to restore a Medium from tar bytes.
-//
-// Example usage:
+// FromTar restores a Medium from tar bytes.
 //
 //	sourceMedium := datanode.New()
 //	snapshot, _ := sourceMedium.Snapshot()
@@ -103,8 +104,8 @@ func (m *Medium) DataNode() *borgdatanode.DataNode {
 	return m.dataNode
 }
 
-// cleanPath normalises a path: strips leading slash, cleans traversal.
-func cleanPath(filePath string) string {
+// normaliseEntryPath normalises a path: strips the leading slash and cleans traversal.
+func normaliseEntryPath(filePath string) string {
 	filePath = core.TrimPrefix(filePath, "/")
 	filePath = path.Clean(filePath)
 	if filePath == "." {
@@ -119,7 +120,7 @@ func (m *Medium) Read(filePath string) (string, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	filePath = cleanPath(filePath)
+	filePath = normaliseEntryPath(filePath)
 	f, err := m.dataNode.Open(filePath)
 	if err != nil {
 		return "", core.E("datanode.Read", core.Concat("not found: ", filePath), fs.ErrNotExist)
@@ -145,7 +146,7 @@ func (m *Medium) Write(filePath, content string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	filePath = cleanPath(filePath)
+	filePath = normaliseEntryPath(filePath)
 	if filePath == "" {
 		return core.E("datanode.Write", "empty path", fs.ErrInvalid)
 	}
@@ -164,7 +165,7 @@ func (m *Medium) EnsureDir(filePath string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	filePath = cleanPath(filePath)
+	filePath = normaliseEntryPath(filePath)
 	if filePath == "" {
 		return nil
 	}
@@ -188,7 +189,7 @@ func (m *Medium) IsFile(filePath string) bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	filePath = cleanPath(filePath)
+	filePath = normaliseEntryPath(filePath)
 	info, err := m.dataNode.Stat(filePath)
 	return err == nil && !info.IsDir()
 }
@@ -205,7 +206,7 @@ func (m *Medium) Delete(filePath string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	filePath = cleanPath(filePath)
+	filePath = normaliseEntryPath(filePath)
 	if filePath == "" {
 		return core.E("datanode.Delete", "cannot delete root", fs.ErrPermission)
 	}
@@ -252,7 +253,7 @@ func (m *Medium) DeleteAll(filePath string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	filePath = cleanPath(filePath)
+	filePath = normaliseEntryPath(filePath)
 	if filePath == "" {
 		return core.E("datanode.DeleteAll", "cannot delete root", fs.ErrPermission)
 	}
@@ -301,8 +302,8 @@ func (m *Medium) Rename(oldPath, newPath string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	oldPath = cleanPath(oldPath)
-	newPath = cleanPath(newPath)
+	oldPath = normaliseEntryPath(oldPath)
+	newPath = normaliseEntryPath(newPath)
 
 	// Check if source is a file
 	info, err := m.dataNode.Stat(oldPath)
@@ -366,7 +367,7 @@ func (m *Medium) List(filePath string) ([]fs.DirEntry, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	filePath = cleanPath(filePath)
+	filePath = normaliseEntryPath(filePath)
 
 	entries, err := m.dataNode.ReadDir(filePath)
 	if err != nil {
@@ -413,7 +414,7 @@ func (m *Medium) Stat(filePath string) (fs.FileInfo, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	filePath = cleanPath(filePath)
+	filePath = normaliseEntryPath(filePath)
 	if filePath == "" {
 		return &fileInfo{name: ".", isDir: true, mode: fs.ModeDir | 0755}, nil
 	}
@@ -433,12 +434,12 @@ func (m *Medium) Open(filePath string) (fs.File, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	filePath = cleanPath(filePath)
+	filePath = normaliseEntryPath(filePath)
 	return m.dataNode.Open(filePath)
 }
 
 func (m *Medium) Create(filePath string) (goio.WriteCloser, error) {
-	filePath = cleanPath(filePath)
+	filePath = normaliseEntryPath(filePath)
 	if filePath == "" {
 		return nil, core.E("datanode.Create", "empty path", fs.ErrInvalid)
 	}
@@ -446,7 +447,7 @@ func (m *Medium) Create(filePath string) (goio.WriteCloser, error) {
 }
 
 func (m *Medium) Append(filePath string) (goio.WriteCloser, error) {
-	filePath = cleanPath(filePath)
+	filePath = normaliseEntryPath(filePath)
 	if filePath == "" {
 		return nil, core.E("datanode.Append", "empty path", fs.ErrInvalid)
 	}
@@ -471,7 +472,7 @@ func (m *Medium) ReadStream(filePath string) (goio.ReadCloser, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	filePath = cleanPath(filePath)
+	filePath = normaliseEntryPath(filePath)
 	f, err := m.dataNode.Open(filePath)
 	if err != nil {
 		return nil, core.E("datanode.ReadStream", core.Concat("not found: ", filePath), fs.ErrNotExist)
@@ -487,7 +488,7 @@ func (m *Medium) Exists(filePath string) bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	filePath = cleanPath(filePath)
+	filePath = normaliseEntryPath(filePath)
 	if filePath == "" {
 		return true // root always exists
 	}
@@ -502,7 +503,7 @@ func (m *Medium) IsDir(filePath string) bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	filePath = cleanPath(filePath)
+	filePath = normaliseEntryPath(filePath)
 	if filePath == "" {
 		return true
 	}

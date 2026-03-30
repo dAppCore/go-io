@@ -597,17 +597,17 @@ func TestSqlite_IsDir_Good(t *testing.T) {
 	assert.False(t, m.IsDir(""))
 }
 
-// --- cleanPath Tests ---
+// --- normaliseEntryPath Tests ---
 
-func TestSqlite_CleanPath_Good(t *testing.T) {
-	assert.Equal(t, "file.txt", cleanPath("file.txt"))
-	assert.Equal(t, "dir/file.txt", cleanPath("dir/file.txt"))
-	assert.Equal(t, "file.txt", cleanPath("/file.txt"))
-	assert.Equal(t, "file.txt", cleanPath("../file.txt"))
-	assert.Equal(t, "file.txt", cleanPath("dir/../file.txt"))
-	assert.Equal(t, "", cleanPath(""))
-	assert.Equal(t, "", cleanPath("."))
-	assert.Equal(t, "", cleanPath("/"))
+func TestSqlite_NormaliseEntryPath_Good(t *testing.T) {
+	assert.Equal(t, "file.txt", normaliseEntryPath("file.txt"))
+	assert.Equal(t, "dir/file.txt", normaliseEntryPath("dir/file.txt"))
+	assert.Equal(t, "file.txt", normaliseEntryPath("/file.txt"))
+	assert.Equal(t, "file.txt", normaliseEntryPath("../file.txt"))
+	assert.Equal(t, "file.txt", normaliseEntryPath("dir/../file.txt"))
+	assert.Equal(t, "", normaliseEntryPath(""))
+	assert.Equal(t, "", normaliseEntryPath("."))
+	assert.Equal(t, "", normaliseEntryPath("/"))
 }
 
 // --- Interface Compliance ---

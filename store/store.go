@@ -139,13 +139,13 @@ func (s *Store) Render(templateText, group string) (string, error) {
 	}
 	defer rows.Close()
 
-	vars := make(map[string]string)
+	templateValues := make(map[string]string)
 	for rows.Next() {
 		var key, value string
 		if err := rows.Scan(&key, &value); err != nil {
 			return "", core.E("store.Render", "scan", err)
 		}
-		vars[key] = value
+		templateValues[key] = value
 	}
 	if err := rows.Err(); err != nil {
 		return "", core.E("store.Render", "rows", err)
@@ -155,9 +155,9 @@ func (s *Store) Render(templateText, group string) (string, error) {
 	if err != nil {
 		return "", core.E("store.Render", "parse template", err)
 	}
-	b := core.NewBuilder()
-	if err := tmpl.Execute(b, vars); err != nil {
+	builder := core.NewBuilder()
+	if err := tmpl.Execute(builder, templateValues); err != nil {
 		return "", core.E("store.Render", "execute template", err)
 	}
-	return b.String(), nil
+	return builder.String(), nil
 }

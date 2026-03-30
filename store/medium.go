@@ -11,7 +11,7 @@ import (
 )
 
 // Medium wraps a Store to satisfy the io.Medium interface.
-// Paths are mapped as group/key — first segment is the group,
+// Paths are mapped as group/key - the first segment is the group,
 // the rest is the key. List("") returns groups as directories,
 // List("group") returns keys as files.
 type Medium struct {
@@ -20,9 +20,7 @@ type Medium struct {
 
 var _ coreio.Medium = (*Medium)(nil)
 
-// Use NewMedium to expose a Store as an io.Medium.
-//
-// Example usage:
+// NewMedium exposes a Store as an io.Medium.
 //
 //	medium, _ := store.NewMedium("config.db")
 //	_ = medium.Write("app/theme", "midnight")
@@ -49,9 +47,8 @@ func (m *Medium) Close() error {
 	return m.store.Close()
 }
 
-// splitPath splits a medium-style path into group and key.
-// First segment = group, remainder = key.
-func splitPath(entryPath string) (group, key string) {
+// splitEntryPath splits a group/key path into store components.
+func splitEntryPath(entryPath string) (group, key string) {
 	clean := path.Clean(entryPath)
 	clean = core.TrimPrefix(clean, "/")
 	if clean == "" || clean == "." {
@@ -65,7 +62,7 @@ func splitPath(entryPath string) (group, key string) {
 }
 
 func (m *Medium) Read(entryPath string) (string, error) {
-	group, key := splitPath(entryPath)
+	group, key := splitEntryPath(entryPath)
 	if key == "" {
 		return "", core.E("store.Read", "path must include group/key", fs.ErrInvalid)
 	}
@@ -73,7 +70,7 @@ func (m *Medium) Read(entryPath string) (string, error) {
 }
 
 func (m *Medium) Write(entryPath, content string) error {
-	group, key := splitPath(entryPath)
+	group, key := splitEntryPath(entryPath)
 	if key == "" {
 		return core.E("store.Write", "path must include group/key", fs.ErrInvalid)
 	}
@@ -91,7 +88,7 @@ func (m *Medium) EnsureDir(_ string) error {
 }
 
 func (m *Medium) IsFile(entryPath string) bool {
-	group, key := splitPath(entryPath)
+	group, key := splitEntryPath(entryPath)
 	if key == "" {
 		return false
 	}
@@ -108,7 +105,7 @@ func (m *Medium) FileSet(entryPath, content string) error {
 }
 
 func (m *Medium) Delete(entryPath string) error {
-	group, key := splitPath(entryPath)
+	group, key := splitEntryPath(entryPath)
 	if group == "" {
 		return core.E("store.Delete", "path is required", fs.ErrInvalid)
 	}
@@ -126,7 +123,7 @@ func (m *Medium) Delete(entryPath string) error {
 }
 
 func (m *Medium) DeleteAll(entryPath string) error {
-	group, key := splitPath(entryPath)
+	group, key := splitEntryPath(entryPath)
 	if group == "" {
 		return core.E("store.DeleteAll", "path is required", fs.ErrInvalid)
 	}
@@ -137,8 +134,8 @@ func (m *Medium) DeleteAll(entryPath string) error {
 }
 
 func (m *Medium) Rename(oldPath, newPath string) error {
-	oldGroup, oldKey := splitPath(oldPath)
-	newGroup, newKey := splitPath(newPath)
+	oldGroup, oldKey := splitEntryPath(oldPath)
+	newGroup, newKey := splitEntryPath(newPath)
 	if oldKey == "" || newKey == "" {
 		return core.E("store.Rename", "both paths must include group/key", fs.ErrInvalid)
 	}
@@ -155,7 +152,7 @@ func (m *Medium) Rename(oldPath, newPath string) error {
 // List returns directory entries. Empty path returns groups.
 // A group path returns keys in that group.
 func (m *Medium) List(entryPath string) ([]fs.DirEntry, error) {
-	group, key := splitPath(entryPath)
+	group, key := splitEntryPath(entryPath)
 
 	if group == "" {
 		rows, err := m.store.database.Query("SELECT DISTINCT grp FROM kv ORDER BY grp")
@@ -192,7 +189,7 @@ func (m *Medium) List(entryPath string) ([]fs.DirEntry, error) {
 
 // Stat returns file info for a group (dir) or key (file).
 func (m *Medium) Stat(entryPath string) (fs.FileInfo, error) {
-	group, key := splitPath(entryPath)
+	group, key := splitEntryPath(entryPath)
 	if group == "" {
 		return nil, core.E("store.Stat", "path is required", fs.ErrInvalid)
 	}
@@ -214,7 +211,7 @@ func (m *Medium) Stat(entryPath string) (fs.FileInfo, error) {
 }
 
 func (m *Medium) Open(entryPath string) (fs.File, error) {
-	group, key := splitPath(entryPath)
+	group, key := splitEntryPath(entryPath)
 	if key == "" {
 		return nil, core.E("store.Open", "path must include group/key", fs.ErrInvalid)
 	}
@@ -226,7 +223,7 @@ func (m *Medium) Open(entryPath string) (fs.File, error) {
 }
 
 func (m *Medium) Create(entryPath string) (goio.WriteCloser, error) {
-	group, key := splitPath(entryPath)
+	group, key := splitEntryPath(entryPath)
 	if key == "" {
 		return nil, core.E("store.Create", "path must include group/key", fs.ErrInvalid)
 	}
@@ -234,7 +231,7 @@ func (m *Medium) Create(entryPath string) (goio.WriteCloser, error) {
 }
 
 func (m *Medium) Append(entryPath string) (goio.WriteCloser, error) {
-	group, key := splitPath(entryPath)
+	group, key := splitEntryPath(entryPath)
 	if key == "" {
 		return nil, core.E("store.Append", "path must include group/key", fs.ErrInvalid)
 	}
@@ -243,7 +240,7 @@ func (m *Medium) Append(entryPath string) (goio.WriteCloser, error) {
 }
 
 func (m *Medium) ReadStream(entryPath string) (goio.ReadCloser, error) {
-	group, key := splitPath(entryPath)
+	group, key := splitEntryPath(entryPath)
 	if key == "" {
 		return nil, core.E("store.ReadStream", "path must include group/key", fs.ErrInvalid)
 	}
@@ -259,7 +256,7 @@ func (m *Medium) WriteStream(entryPath string) (goio.WriteCloser, error) {
 }
 
 func (m *Medium) Exists(entryPath string) bool {
-	group, key := splitPath(entryPath)
+	group, key := splitEntryPath(entryPath)
 	if group == "" {
 		return false
 	}
@@ -272,7 +269,7 @@ func (m *Medium) Exists(entryPath string) bool {
 }
 
 func (m *Medium) IsDir(entryPath string) bool {
-	group, key := splitPath(entryPath)
+	group, key := splitEntryPath(entryPath)
 	if key != "" || group == "" {
 		return false
 	}

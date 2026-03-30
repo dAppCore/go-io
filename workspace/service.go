@@ -44,14 +44,12 @@ type Service struct {
 
 var _ Workspace = (*Service)(nil)
 
-// Use New to manage encrypted user workspaces from a Core runtime.
+// New creates an encrypted workspace service from a Core runtime.
 //
-// Example usage:
-//
-//	service, _ := workspace.New(workspace.Options{Core: core.New(), Crypt: myCryptProvider})
+//	service, _ := workspace.New(workspace.Options{Core: core.New(), Crypt: cryptProvider})
 //	workspaceID, _ := service.CreateWorkspace("alice", "pass123")
 func New(options Options) (*Service, error) {
-	home := workspaceHome()
+	home := resolveWorkspaceHomeDirectory()
 	if home == "" {
 		return nil, core.E("workspace.New", "failed to determine home directory", fs.ErrNotExist)
 	}
@@ -135,14 +133,14 @@ func (s *Service) SwitchWorkspace(name string) error {
 	return nil
 }
 
-// activeFilePath returns the full path to a file in the active workspace,
-// or an error if no workspace is active.
+// activeFilePath resolves a filename inside the active workspace files root.
+// It rejects empty names and traversal outside the workspace root.
 func (s *Service) activeFilePath(operation, filename string) (string, error) {
 	if s.activeWorkspace == "" {
 		return "", core.E(operation, "no active workspace", nil)
 	}
 	filesRoot := core.Path(s.rootPath, s.activeWorkspace, "files")
-	filePath, err := joinWithinRoot(filesRoot, filename)
+	filePath, err := joinPathWithinRoot(filesRoot, filename)
 	if err != nil {
 		return "", core.E(operation, "file path escapes workspace files", fs.ErrPermission)
 	}
@@ -209,7 +207,7 @@ func (s *Service) HandleIPCEvents(_ *core.Core, message core.Message) core.Resul
 	return core.Result{OK: true}
 }
 
-func workspaceHome() string {
+func resolveWorkspaceHomeDirectory() string {
 	if home := core.Env("CORE_HOME"); home != "" {
 		return home
 	}
@@ -219,7 +217,7 @@ func workspaceHome() string {
 	return core.Env("DIR_HOME")
 }
 
-func joinWithinRoot(root string, parts ...string) (string, error) {
+func joinPathWithinRoot(root string, parts ...string) (string, error) {
 	candidate := core.Path(append([]string{root}, parts...)...)
 	sep := core.Env("DS")
 	if candidate == root || core.HasPrefix(candidate, root+sep) {
@@ -232,7 +230,7 @@ func (s *Service) workspacePath(operation, workspaceName string) (string, error)
 	if workspaceName == "" {
 		return "", core.E(operation, "workspace name is required", fs.ErrInvalid)
 	}
-	workspaceDirectory, err := joinWithinRoot(s.rootPath, workspaceName)
+	workspaceDirectory, err := joinPathWithinRoot(s.rootPath, workspaceName)
 	if err != nil {
 		return "", core.E(operation, "workspace path escapes root", err)
 	}

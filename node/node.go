@@ -1,6 +1,12 @@
-// Package node provides an in-memory filesystem implementation of io.Medium
-// ported from Borg's DataNode. It stores files in memory with implicit
-// directory structure and supports tar serialisation.
+// Package node provides an in-memory filesystem implementation of io.Medium.
+//
+//	nodeTree := node.New()
+//	nodeTree.AddData("config/app.yaml", []byte("port: 8080"))
+//	snapshot, _ := nodeTree.ToTar()
+//	restored, _ := node.FromTar(snapshot)
+//
+// It stores files in memory with implicit directory structure and supports
+// tar serialisation.
 package node
 
 import (

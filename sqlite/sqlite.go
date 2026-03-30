@@ -1,4 +1,7 @@
-// Package sqlite provides a SQLite-backed implementation of the io.Medium interface.
+// Package sqlite persists io.Medium content in a SQLite database.
+//
+//	medium, _ := sqlite.New(sqlite.Options{Path: ":memory:"})
+//	_ = medium.Write("config/app.yaml", "port: 8080")
 package sqlite
 
 import (
@@ -23,7 +26,7 @@ type Medium struct {
 
 var _ coreio.Medium = (*Medium)(nil)
 
-// Options configures a Medium.
+// Options configures a SQLite-backed Medium.
 type Options struct {
 	// Path is the SQLite database path. Use ":memory:" for tests.
 	Path string
@@ -38,10 +41,7 @@ func normaliseTableName(table string) string {
 	return table
 }
 
-// Use New to point the medium at a SQLite database path.
-// Use ":memory:" for an in-memory database.
-//
-// Example usage:
+// New opens a SQLite-backed Medium at the provided database path.
 //
 //	medium, _ := sqlite.New(sqlite.Options{Path: ":memory:", Table: "files"})
 //	_ = medium.Write("config/app.yaml", "port: 8080")
@@ -88,9 +88,9 @@ func (m *Medium) Close() error {
 	return nil
 }
 
-// cleanPath normalises a path for consistent storage.
+// normaliseEntryPath normalises a path for consistent storage.
 // Uses a leading "/" before Clean to sandbox traversal attempts.
-func cleanPath(filePath string) string {
+func normaliseEntryPath(filePath string) string {
 	clean := path.Clean("/" + filePath)
 	if clean == "/" {
 		return ""
@@ -99,7 +99,7 @@ func cleanPath(filePath string) string {
 }
 
 func (m *Medium) Read(filePath string) (string, error) {
-	key := cleanPath(filePath)
+	key := normaliseEntryPath(filePath)
 	if key == "" {
 		return "", core.E("sqlite.Read", "path is required", fs.ErrInvalid)
 	}
@@ -127,7 +127,7 @@ func (m *Medium) Write(filePath, content string) error {
 
 // WriteMode saves the given content with explicit permissions.
 func (m *Medium) WriteMode(filePath, content string, mode fs.FileMode) error {
-	key := cleanPath(filePath)
+	key := normaliseEntryPath(filePath)
 	if key == "" {
 		return core.E("sqlite.WriteMode", "path is required", fs.ErrInvalid)
 	}
@@ -145,7 +145,7 @@ func (m *Medium) WriteMode(filePath, content string, mode fs.FileMode) error {
 
 // EnsureDir makes sure a directory exists, creating it if necessary.
 func (m *Medium) EnsureDir(filePath string) error {
-	key := cleanPath(filePath)
+	key := normaliseEntryPath(filePath)
 	if key == "" {
 		// Root always "exists"
 		return nil
@@ -163,7 +163,7 @@ func (m *Medium) EnsureDir(filePath string) error {
 }
 
 func (m *Medium) IsFile(filePath string) bool {
-	key := cleanPath(filePath)
+	key := normaliseEntryPath(filePath)
 	if key == "" {
 		return false
 	}
@@ -188,7 +188,7 @@ func (m *Medium) FileSet(filePath, content string) error {
 
 // Delete removes a file or empty directory.
 func (m *Medium) Delete(filePath string) error {
-	key := cleanPath(filePath)
+	key := normaliseEntryPath(filePath)
 	if key == "" {
 		return core.E("sqlite.Delete", "path is required", fs.ErrInvalid)
 	}
@@ -233,7 +233,7 @@ func (m *Medium) Delete(filePath string) error {
 
 // DeleteAll removes a file or directory and all its contents recursively.
 func (m *Medium) DeleteAll(filePath string) error {
-	key := cleanPath(filePath)
+	key := normaliseEntryPath(filePath)
 	if key == "" {
 		return core.E("sqlite.DeleteAll", "path is required", fs.ErrInvalid)
 	}
@@ -257,8 +257,8 @@ func (m *Medium) DeleteAll(filePath string) error {
 
 // Rename moves a file or directory from oldPath to newPath.
 func (m *Medium) Rename(oldPath, newPath string) error {
-	oldKey := cleanPath(oldPath)
-	newKey := cleanPath(newPath)
+	oldKey := normaliseEntryPath(oldPath)
+	newKey := normaliseEntryPath(newPath)
 	if oldKey == "" || newKey == "" {
 		return core.E("sqlite.Rename", "both old and new paths are required", fs.ErrInvalid)
 	}
@@ -355,7 +355,7 @@ func (m *Medium) Rename(oldPath, newPath string) error {
 
 // List returns the directory entries for the given path.
 func (m *Medium) List(filePath string) ([]fs.DirEntry, error) {
-	prefix := cleanPath(filePath)
+	prefix := normaliseEntryPath(filePath)
 	if prefix != "" {
 		prefix += "/"
 	}
@@ -430,7 +430,7 @@ func (m *Medium) List(filePath string) ([]fs.DirEntry, error) {
 }
 
 func (m *Medium) Stat(filePath string) (fs.FileInfo, error) {
-	key := cleanPath(filePath)
+	key := normaliseEntryPath(filePath)
 	if key == "" {
 		return nil, core.E("sqlite.Stat", "path is required", fs.ErrInvalid)
 	}
@@ -460,7 +460,7 @@ func (m *Medium) Stat(filePath string) (fs.FileInfo, error) {
 }
 
 func (m *Medium) Open(filePath string) (fs.File, error) {
-	key := cleanPath(filePath)
+	key := normaliseEntryPath(filePath)
 	if key == "" {
 		return nil, core.E("sqlite.Open", "path is required", fs.ErrInvalid)
 	}
@@ -491,7 +491,7 @@ func (m *Medium) Open(filePath string) (fs.File, error) {
 }
 
 func (m *Medium) Create(filePath string) (goio.WriteCloser, error) {
-	key := cleanPath(filePath)
+	key := normaliseEntryPath(filePath)
 	if key == "" {
 		return nil, core.E("sqlite.Create", "path is required", fs.ErrInvalid)
 	}
@@ -502,7 +502,7 @@ func (m *Medium) Create(filePath string) (goio.WriteCloser, error) {
 }
 
 func (m *Medium) Append(filePath string) (goio.WriteCloser, error) {
-	key := cleanPath(filePath)
+	key := normaliseEntryPath(filePath)
 	if key == "" {
 		return nil, core.E("sqlite.Append", "path is required", fs.ErrInvalid)
 	}
@@ -523,7 +523,7 @@ func (m *Medium) Append(filePath string) (goio.WriteCloser, error) {
 }
 
 func (m *Medium) ReadStream(filePath string) (goio.ReadCloser, error) {
-	key := cleanPath(filePath)
+	key := normaliseEntryPath(filePath)
 	if key == "" {
 		return nil, core.E("sqlite.ReadStream", "path is required", fs.ErrInvalid)
 	}
@@ -551,7 +551,7 @@ func (m *Medium) WriteStream(filePath string) (goio.WriteCloser, error) {
 }
 
 func (m *Medium) Exists(filePath string) bool {
-	key := cleanPath(filePath)
+	key := normaliseEntryPath(filePath)
 	if key == "" {
 		// Root always exists
 		return true
@@ -568,7 +568,7 @@ func (m *Medium) Exists(filePath string) bool {
 }
 
 func (m *Medium) IsDir(filePath string) bool {
-	key := cleanPath(filePath)
+	key := normaliseEntryPath(filePath)
 	if key == "" {
 		return false
 	}
