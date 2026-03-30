@@ -88,13 +88,13 @@ func TestService_WorkspaceFileSet_TraversalBlocked_Bad(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestService_HandleIPCEvents_Good(t *testing.T) {
+func TestService_HandleWorkspaceCommand_Good(t *testing.T) {
 	s, _ := newTestService(t)
 
-	create := s.HandleIPCEvents(core.New(), map[string]any{
-		"action":     "workspace.create",
-		"identifier": "ipc-user",
-		"password":   "pass123",
+	create := s.HandleWorkspaceCommand(WorkspaceCommand{
+		Action:     WorkspaceCreateAction,
+		Identifier: "ipc-user",
+		Password:   "pass123",
 	})
 	assert.True(t, create.OK)
 
@@ -102,22 +102,40 @@ func TestService_HandleIPCEvents_Good(t *testing.T) {
 	require.True(t, ok)
 	require.NotEmpty(t, workspaceID)
 
-	switchResult := s.HandleIPCEvents(core.New(), map[string]any{
-		"action":      "workspace.switch",
-		"workspaceID": workspaceID,
+	switchResult := s.HandleWorkspaceCommand(WorkspaceCommand{
+		Action:      WorkspaceSwitchAction,
+		WorkspaceID: workspaceID,
 	})
 	assert.True(t, switchResult.OK)
 	assert.Equal(t, workspaceID, s.activeWorkspaceID)
 
+	legacyCreate := s.HandleIPCEvents(core.New(), map[string]any{
+		"action":     WorkspaceCreateAction,
+		"identifier": "legacy-user",
+		"password":   "pass123",
+	})
+	assert.True(t, legacyCreate.OK)
+
+	legacyWorkspaceID, ok := legacyCreate.Value.(string)
+	require.True(t, ok)
+	require.NotEmpty(t, legacyWorkspaceID)
+
+	legacySwitch := s.HandleIPCEvents(core.New(), WorkspaceCommand{
+		Action:      WorkspaceSwitchAction,
+		WorkspaceID: legacyWorkspaceID,
+	})
+	assert.True(t, legacySwitch.OK)
+	assert.Equal(t, legacyWorkspaceID, s.activeWorkspaceID)
+
 	rejectedLegacySwitch := s.HandleIPCEvents(core.New(), map[string]any{
-		"action": "workspace.switch",
+		"action": WorkspaceSwitchAction,
 		"name":   workspaceID,
 	})
 	assert.False(t, rejectedLegacySwitch.OK)
-	assert.Equal(t, workspaceID, s.activeWorkspaceID)
+	assert.Equal(t, legacyWorkspaceID, s.activeWorkspaceID)
 
 	failedSwitch := s.HandleIPCEvents(core.New(), map[string]any{
-		"action":      "workspace.switch",
+		"action":      WorkspaceSwitchAction,
 		"workspaceID": "missing",
 	})
 	assert.False(t, failedSwitch.OK)

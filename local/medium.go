@@ -1,4 +1,4 @@
-// Package local binds io.Medium to the local filesystem.
+// Package local provides the io.Medium implementation for the local filesystem.
 //
 //	medium, _ := local.New("/srv/app")
 //	_ = medium.Write("config/app.yaml", "port: 8080")

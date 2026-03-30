@@ -15,7 +15,7 @@ func TestClient_New_ResolvesRoot_Good(t *testing.T) {
 	root := t.TempDir()
 	m, err := New(root)
 	assert.NoError(t, err)
-	// New() resolves symlinks (macOS /var → /private/var), so compare resolved paths.
+	// Example: local.New("/srv/app") resolves macOS "/var" to "/private/var" before sandbox checks.
 	resolved, err := resolveSymlinksPath(root)
 	require.NoError(t, err)
 	assert.Equal(t, resolved, m.filesystemRoot)

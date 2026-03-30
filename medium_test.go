@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// --- MemoryMedium Compatibility Tests ---
+// --- MemoryMedium Tests ---
 
 func TestClient_NewMemoryMedium_Good(t *testing.T) {
 	medium := NewMemoryMedium()

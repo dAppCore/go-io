@@ -24,6 +24,23 @@ type CryptProvider interface {
 	CreateKeyPair(name, passphrase string) (string, error)
 }
 
+const (
+	WorkspaceCreateAction = "workspace.create"
+	WorkspaceSwitchAction = "workspace.switch"
+)
+
+// Example: command := WorkspaceCommand{
+//     Action:     WorkspaceCreateAction,
+//     Identifier: "alice",
+//     Password:   "pass123",
+// }
+type WorkspaceCommand struct {
+	Action      string
+	Identifier  string
+	Password    string
+	WorkspaceID string
+}
+
 // Example: service, _ := workspace.New(workspace.Options{Core: core.New(), Crypt: cryptProvider})
 type Options struct {
 	// Core is the Core runtime used by the service.
@@ -168,41 +185,44 @@ func (service *Service) WorkspaceFileSet(workspaceFilePath, content string) erro
 	return service.medium.Write(filePath, content)
 }
 
-// service, _ := workspace.New(workspace.Options{Core: core.New(), Crypt: myCryptProvider})
-//
-//	createResult := service.HandleIPCEvents(core.New(), map[string]any{
-//		"action":     "workspace.create",
-//		"identifier": "alice",
-//		"password":   "pass123",
-//	})
-//
-//	switchResult := service.HandleIPCEvents(core.New(), map[string]any{
-//		"action":      "workspace.switch",
-//		"workspaceID": "f3f0d7",
-//	})
-//
-// _ = createResult.OK
-// _ = switchResult.OK
+// Example: result := service.HandleWorkspaceCommand(WorkspaceCommand{
+//     Action:     WorkspaceCreateAction,
+//     Identifier: "alice",
+//     Password:   "pass123",
+// })
+func (service *Service) HandleWorkspaceCommand(command WorkspaceCommand) core.Result {
+	switch command.Action {
+	case WorkspaceCreateAction:
+		workspaceID, err := service.CreateWorkspace(command.Identifier, command.Password)
+		if err != nil {
+			return core.Result{}.New(err)
+		}
+		return core.Result{Value: workspaceID, OK: true}
+	case WorkspaceSwitchAction:
+		if err := service.SwitchWorkspace(command.WorkspaceID); err != nil {
+			return core.Result{}.New(err)
+		}
+		return core.Result{OK: true}
+	}
+	return core.Result{OK: true}
+}
+
+// Example: result := service.HandleIPCEvents(core.New(), map[string]any{
+//     "action":      WorkspaceSwitchAction,
+//     "workspaceID": "f3f0d7",
+// })
+// HandleIPCEvents preserves the legacy map[string]any payload and still accepts WorkspaceCommand values.
 func (service *Service) HandleIPCEvents(_ *core.Core, message core.Message) core.Result {
 	switch payload := message.(type) {
+	case WorkspaceCommand:
+		return service.HandleWorkspaceCommand(payload)
 	case map[string]any:
-		action, _ := payload["action"].(string)
-		switch action {
-		case "workspace.create":
-			identifier, _ := payload["identifier"].(string)
-			password, _ := payload["password"].(string)
-			workspaceID, err := service.CreateWorkspace(identifier, password)
-			if err != nil {
-				return core.Result{}.New(err)
-			}
-			return core.Result{Value: workspaceID, OK: true}
-		case "workspace.switch":
-			workspaceID, _ := payload["workspaceID"].(string)
-			if err := service.SwitchWorkspace(workspaceID); err != nil {
-				return core.Result{}.New(err)
-			}
-			return core.Result{OK: true}
-		}
+		command := WorkspaceCommand{}
+		command.Action, _ = payload["action"].(string)
+		command.Identifier, _ = payload["identifier"].(string)
+		command.Password, _ = payload["password"].(string)
+		command.WorkspaceID, _ = payload["workspaceID"].(string)
+		return service.HandleWorkspaceCommand(command)
 	}
 	return core.Result{OK: true}
 }

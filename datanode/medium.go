@@ -1,4 +1,4 @@
-// Package datanode keeps io.Medium data in Borg's DataNode.
+// Package datanode provides an io.Medium implementation backed by Borg's DataNode.
 //
 //	medium := datanode.New()
 //	_ = medium.Write("jobs/run.log", "started")

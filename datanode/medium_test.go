@@ -96,7 +96,7 @@ func TestClient_Delete_Good(t *testing.T) {
 func TestClient_Delete_Bad(t *testing.T) {
 	m := New()
 
-	// Delete non-existent
+	// Example: m.Delete("ghost.txt")
 	assert.Error(t, m.Delete("ghost.txt"))
 
 	// Delete non-empty dir
