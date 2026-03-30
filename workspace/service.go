@@ -34,12 +34,11 @@ type Options struct {
 
 // Example: service, _ := workspace.New(workspace.Options{Core: core.New(), Crypt: cryptProvider})
 type Service struct {
-	core              *core.Core
 	crypt             CryptProvider
 	activeWorkspaceID string
 	rootPath          string
 	medium            io.Medium
-	mu                sync.RWMutex
+	lock              sync.RWMutex
 }
 
 var _ Workspace = (*Service)(nil)
@@ -58,7 +57,6 @@ func New(options Options) (*Service, error) {
 	}
 
 	service := &Service{
-		core:     options.Core,
 		rootPath: rootPath,
 		medium:   io.Local,
 	}
@@ -76,8 +74,8 @@ func New(options Options) (*Service, error) {
 
 // Example: workspaceID, _ := service.CreateWorkspace("alice", "pass123")
 func (service *Service) CreateWorkspace(identifier, password string) (string, error) {
-	service.mu.Lock()
-	defer service.mu.Unlock()
+	service.lock.Lock()
+	defer service.lock.Unlock()
 
 	if service.crypt == nil {
 		return "", core.E("workspace.CreateWorkspace", "crypt service not available", nil)
@@ -114,8 +112,8 @@ func (service *Service) CreateWorkspace(identifier, password string) (string, er
 
 // Example: _ = service.SwitchWorkspace(workspaceID)
 func (service *Service) SwitchWorkspace(workspaceID string) error {
-	service.mu.Lock()
-	defer service.mu.Unlock()
+	service.lock.Lock()
+	defer service.lock.Unlock()
 
 	workspaceDirectory, err := service.resolveWorkspaceDirectory("workspace.SwitchWorkspace", workspaceID)
 	if err != nil {
@@ -148,8 +146,8 @@ func (service *Service) resolveActiveWorkspaceFilePath(operation, workspaceFileP
 
 // Example: content, _ := service.WorkspaceFileGet("notes/todo.txt")
 func (service *Service) WorkspaceFileGet(workspaceFilePath string) (string, error) {
-	service.mu.RLock()
-	defer service.mu.RUnlock()
+	service.lock.RLock()
+	defer service.lock.RUnlock()
 
 	filePath, err := service.resolveActiveWorkspaceFilePath("workspace.WorkspaceFileGet", workspaceFilePath)
 	if err != nil {
@@ -160,8 +158,8 @@ func (service *Service) WorkspaceFileGet(workspaceFilePath string) (string, erro
 
 // Example: _ = service.WorkspaceFileSet("notes/todo.txt", "ship it")
 func (service *Service) WorkspaceFileSet(workspaceFilePath, content string) error {
-	service.mu.Lock()
-	defer service.mu.Unlock()
+	service.lock.Lock()
+	defer service.lock.Unlock()
 
 	filePath, err := service.resolveActiveWorkspaceFilePath("workspace.WorkspaceFileSet", workspaceFilePath)
 	if err != nil {

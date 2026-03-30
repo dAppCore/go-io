@@ -420,12 +420,12 @@ func TestNode_CopyTo_Good(t *testing.T) {
 	n.AddData("config/app.yaml", []byte("port: 8080"))
 	n.AddData("config/env/app.env", []byte("MODE=test"))
 
-	fileTarget := coreio.NewMockMedium()
+	fileTarget := coreio.NewMemoryMedium()
 	err := n.CopyTo(fileTarget, "config/app.yaml", "backup/app.yaml")
 	require.NoError(t, err)
 	assert.Equal(t, "port: 8080", fileTarget.Files["backup/app.yaml"])
 
-	dirTarget := coreio.NewMockMedium()
+	dirTarget := coreio.NewMemoryMedium()
 	err = n.CopyTo(dirTarget, "config", "backup/config")
 	require.NoError(t, err)
 	assert.Equal(t, "port: 8080", dirTarget.Files["backup/config/app.yaml"])
@@ -434,7 +434,7 @@ func TestNode_CopyTo_Good(t *testing.T) {
 
 func TestNode_CopyTo_Bad(t *testing.T) {
 	n := New()
-	err := n.CopyTo(coreio.NewMockMedium(), "missing", "backup/missing")
+	err := n.CopyTo(coreio.NewMemoryMedium(), "missing", "backup/missing")
 	assert.Error(t, err)
 }
 

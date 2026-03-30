@@ -37,7 +37,7 @@ var (
 type Medium struct {
 	dataNode     *borgdatanode.DataNode
 	directorySet map[string]bool // explicit directories that exist without file contents
-	mu           sync.RWMutex
+	lock         sync.RWMutex
 }
 
 func New() *Medium {
@@ -63,8 +63,8 @@ func FromTar(data []byte) (*Medium, error) {
 
 // Example: snapshot, _ := medium.Snapshot()
 func (medium *Medium) Snapshot() ([]byte, error) {
-	medium.mu.RLock()
-	defer medium.mu.RUnlock()
+	medium.lock.RLock()
+	defer medium.lock.RUnlock()
 	data, err := medium.dataNode.ToTar()
 	if err != nil {
 		return nil, core.E("datanode.Snapshot", "tar failed", err)
@@ -78,8 +78,8 @@ func (medium *Medium) Restore(data []byte) error {
 	if err != nil {
 		return core.E("datanode.Restore", "tar failed", err)
 	}
-	medium.mu.Lock()
-	defer medium.mu.Unlock()
+	medium.lock.Lock()
+	defer medium.lock.Unlock()
 	medium.dataNode = dataNode
 	medium.directorySet = make(map[string]bool)
 	return nil
@@ -87,8 +87,8 @@ func (medium *Medium) Restore(data []byte) error {
 
 // Example: dataNode := medium.DataNode()
 func (medium *Medium) DataNode() *borgdatanode.DataNode {
-	medium.mu.RLock()
-	defer medium.mu.RUnlock()
+	medium.lock.RLock()
+	defer medium.lock.RUnlock()
 	return medium.dataNode
 }
 
@@ -105,8 +105,8 @@ func normaliseEntryPath(filePath string) string {
 // --- io.Medium interface ---
 
 func (medium *Medium) Read(filePath string) (string, error) {
-	medium.mu.RLock()
-	defer medium.mu.RUnlock()
+	medium.lock.RLock()
+	defer medium.lock.RUnlock()
 
 	filePath = normaliseEntryPath(filePath)
 	file, err := medium.dataNode.Open(filePath)
@@ -131,8 +131,8 @@ func (medium *Medium) Read(filePath string) (string, error) {
 }
 
 func (medium *Medium) Write(filePath, content string) error {
-	medium.mu.Lock()
-	defer medium.mu.Unlock()
+	medium.lock.Lock()
+	defer medium.lock.Unlock()
 
 	filePath = normaliseEntryPath(filePath)
 	if filePath == "" {
@@ -150,8 +150,8 @@ func (medium *Medium) WriteMode(filePath, content string, mode fs.FileMode) erro
 }
 
 func (medium *Medium) EnsureDir(filePath string) error {
-	medium.mu.Lock()
-	defer medium.mu.Unlock()
+	medium.lock.Lock()
+	defer medium.lock.Unlock()
 
 	filePath = normaliseEntryPath(filePath)
 	if filePath == "" {
@@ -162,7 +162,7 @@ func (medium *Medium) EnsureDir(filePath string) error {
 }
 
 // ensureDirsLocked marks a directory and all ancestors as existing.
-// Caller must hold medium.mu.
+// Caller must hold medium.lock.
 func (medium *Medium) ensureDirsLocked(directoryPath string) {
 	for directoryPath != "" && directoryPath != "." {
 		medium.directorySet[directoryPath] = true
@@ -174,8 +174,8 @@ func (medium *Medium) ensureDirsLocked(directoryPath string) {
 }
 
 func (medium *Medium) IsFile(filePath string) bool {
-	medium.mu.RLock()
-	defer medium.mu.RUnlock()
+	medium.lock.RLock()
+	defer medium.lock.RUnlock()
 
 	filePath = normaliseEntryPath(filePath)
 	info, err := medium.dataNode.Stat(filePath)
@@ -191,20 +191,17 @@ func (medium *Medium) FileSet(filePath, content string) error {
 }
 
 func (medium *Medium) Delete(filePath string) error {
-	medium.mu.Lock()
-	defer medium.mu.Unlock()
+	medium.lock.Lock()
+	defer medium.lock.Unlock()
 
 	filePath = normaliseEntryPath(filePath)
 	if filePath == "" {
 		return core.E("datanode.Delete", "cannot delete root", fs.ErrPermission)
 	}
 
-	// Check if it's a file in the DataNode
 	info, err := medium.dataNode.Stat(filePath)
 	if err != nil {
-		// Check explicit directories
 		if medium.directorySet[filePath] {
-			// Check if dir is empty
 			hasChildren, err := medium.hasPrefixLocked(filePath + "/")
 			if err != nil {
 				return core.E("datanode.Delete", core.Concat("failed to inspect directory: ", filePath), err)
@@ -238,8 +235,8 @@ func (medium *Medium) Delete(filePath string) error {
 }
 
 func (medium *Medium) DeleteAll(filePath string) error {
-	medium.mu.Lock()
-	defer medium.mu.Unlock()
+	medium.lock.Lock()
+	defer medium.lock.Unlock()
 
 	filePath = normaliseEntryPath(filePath)
 	if filePath == "" {
@@ -249,7 +246,6 @@ func (medium *Medium) DeleteAll(filePath string) error {
 	prefix := filePath + "/"
 	found := false
 
-	// Check if filePath itself is a file
 	info, err := medium.dataNode.Stat(filePath)
 	if err == nil && !info.IsDir() {
 		if err := medium.removeFileLocked(filePath); err != nil {
@@ -287,20 +283,18 @@ func (medium *Medium) DeleteAll(filePath string) error {
 }
 
 func (medium *Medium) Rename(oldPath, newPath string) error {
-	medium.mu.Lock()
-	defer medium.mu.Unlock()
+	medium.lock.Lock()
+	defer medium.lock.Unlock()
 
 	oldPath = normaliseEntryPath(oldPath)
 	newPath = normaliseEntryPath(newPath)
 
-	// Check if source is a file
 	info, err := medium.dataNode.Stat(oldPath)
 	if err != nil {
 		return core.E("datanode.Rename", core.Concat("not found: ", oldPath), fs.ErrNotExist)
 	}
 
 	if !info.IsDir() {
-		// Read old, write new, delete old
 		data, err := medium.readFileLocked(oldPath)
 		if err != nil {
 			return core.E("datanode.Rename", core.Concat("failed to read source file: ", oldPath), err)
@@ -313,7 +307,6 @@ func (medium *Medium) Rename(oldPath, newPath string) error {
 		return nil
 	}
 
-	// Directory rename: move all files under oldPath to newPath
 	oldPrefix := oldPath + "/"
 	newPrefix := newPath + "/"
 
@@ -335,7 +328,6 @@ func (medium *Medium) Rename(oldPath, newPath string) error {
 		}
 	}
 
-	// Move explicit directories
 	dirsToMove := make(map[string]string)
 	for directoryPath := range medium.directorySet {
 		if directoryPath == oldPath || core.HasPrefix(directoryPath, oldPrefix) {
@@ -352,14 +344,13 @@ func (medium *Medium) Rename(oldPath, newPath string) error {
 }
 
 func (medium *Medium) List(filePath string) ([]fs.DirEntry, error) {
-	medium.mu.RLock()
-	defer medium.mu.RUnlock()
+	medium.lock.RLock()
+	defer medium.lock.RUnlock()
 
 	filePath = normaliseEntryPath(filePath)
 
 	entries, err := medium.dataNode.ReadDir(filePath)
 	if err != nil {
-		// Check explicit directories
 		if filePath == "" || medium.directorySet[filePath] {
 			return []fs.DirEntry{}, nil
 		}
@@ -399,8 +390,8 @@ func (medium *Medium) List(filePath string) ([]fs.DirEntry, error) {
 }
 
 func (medium *Medium) Stat(filePath string) (fs.FileInfo, error) {
-	medium.mu.RLock()
-	defer medium.mu.RUnlock()
+	medium.lock.RLock()
+	defer medium.lock.RUnlock()
 
 	filePath = normaliseEntryPath(filePath)
 	if filePath == "" {
@@ -419,8 +410,8 @@ func (medium *Medium) Stat(filePath string) (fs.FileInfo, error) {
 }
 
 func (medium *Medium) Open(filePath string) (fs.File, error) {
-	medium.mu.RLock()
-	defer medium.mu.RUnlock()
+	medium.lock.RLock()
+	defer medium.lock.RUnlock()
 
 	filePath = normaliseEntryPath(filePath)
 	return medium.dataNode.Open(filePath)
@@ -440,25 +431,24 @@ func (medium *Medium) Append(filePath string) (goio.WriteCloser, error) {
 		return nil, core.E("datanode.Append", "empty path", fs.ErrInvalid)
 	}
 
-	// Read existing content
 	var existing []byte
-	medium.mu.RLock()
+	medium.lock.RLock()
 	if medium.IsFile(filePath) {
 		data, err := medium.readFileLocked(filePath)
 		if err != nil {
-			medium.mu.RUnlock()
+			medium.lock.RUnlock()
 			return nil, core.E("datanode.Append", core.Concat("failed to read existing content: ", filePath), err)
 		}
 		existing = data
 	}
-	medium.mu.RUnlock()
+	medium.lock.RUnlock()
 
 	return &writeCloser{medium: medium, path: filePath, buf: existing}, nil
 }
 
 func (medium *Medium) ReadStream(filePath string) (goio.ReadCloser, error) {
-	medium.mu.RLock()
-	defer medium.mu.RUnlock()
+	medium.lock.RLock()
+	defer medium.lock.RUnlock()
 
 	filePath = normaliseEntryPath(filePath)
 	file, err := medium.dataNode.Open(filePath)
@@ -473,8 +463,8 @@ func (medium *Medium) WriteStream(filePath string) (goio.WriteCloser, error) {
 }
 
 func (medium *Medium) Exists(filePath string) bool {
-	medium.mu.RLock()
-	defer medium.mu.RUnlock()
+	medium.lock.RLock()
+	defer medium.lock.RUnlock()
 
 	filePath = normaliseEntryPath(filePath)
 	if filePath == "" {
@@ -488,8 +478,8 @@ func (medium *Medium) Exists(filePath string) bool {
 }
 
 func (medium *Medium) IsDir(filePath string) bool {
-	medium.mu.RLock()
-	defer medium.mu.RUnlock()
+	medium.lock.RLock()
+	defer medium.lock.RUnlock()
 
 	filePath = normaliseEntryPath(filePath)
 	if filePath == "" {
@@ -556,7 +546,7 @@ func (medium *Medium) readFileLocked(filePath string) ([]byte, error) {
 
 // removeFileLocked removes a single file by rebuilding the DataNode.
 // This is necessary because Borg's DataNode doesn't expose a Remove method.
-// Caller must hold medium.mu write lock.
+// Caller must hold medium.lock write lock.
 func (medium *Medium) removeFileLocked(target string) error {
 	entries, err := medium.collectAllLocked()
 	if err != nil {
@@ -591,8 +581,8 @@ func (writer *writeCloser) Write(data []byte) (int, error) {
 }
 
 func (writer *writeCloser) Close() error {
-	writer.medium.mu.Lock()
-	defer writer.medium.mu.Unlock()
+	writer.medium.lock.Lock()
+	defer writer.medium.lock.Unlock()
 
 	writer.medium.dataNode.AddData(writer.path, writer.buf)
 	writer.medium.ensureDirsLocked(path.Dir(writer.path))

@@ -9,15 +9,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// --- MockMedium Tests ---
+// --- MemoryMedium Compatibility Tests ---
 
-func TestClient_NewMockMedium_Good(t *testing.T) {
-	m := NewMockMedium()
-	assert.NotNil(t, m)
-	assert.NotNil(t, m.Files)
-	assert.NotNil(t, m.Dirs)
-	assert.Empty(t, m.Files)
-	assert.Empty(t, m.Dirs)
+func TestClient_NewMemoryMedium_Good(t *testing.T) {
+	medium := NewMemoryMedium()
+	assert.NotNil(t, medium)
+	assert.NotNil(t, medium.Files)
+	assert.NotNil(t, medium.Dirs)
+	assert.Empty(t, medium.Files)
+	assert.Empty(t, medium.Dirs)
 }
 
 func TestClient_MockMedium_Read_Good(t *testing.T) {

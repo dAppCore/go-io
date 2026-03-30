@@ -209,7 +209,7 @@ func (node *Node) CopyFile(sourcePath, destinationPath string, perm fs.FileMode)
 	return coreio.Local.WriteMode(destinationPath, string(file.content), perm)
 }
 
-// Example: _ = nodeTree.CopyTo(io.NewMockMedium(), "config", "backup/config")
+// Example: _ = nodeTree.CopyTo(io.NewMemoryMedium(), "config", "backup/config")
 func (node *Node) CopyTo(target coreio.Medium, sourcePath, destPath string) error {
 	sourcePath = core.TrimPrefix(sourcePath, "/")
 	info, err := node.Stat(sourcePath)
