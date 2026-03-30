@@ -140,17 +140,17 @@ func (s *Service) SwitchWorkspace(name string) error {
 
 // activeFilePath returns the full path to a file in the active workspace,
 // or an error if no workspace is active.
-func (s *Service) activeFilePath(op, filename string) (string, error) {
+func (s *Service) activeFilePath(operation, filename string) (string, error) {
 	if s.activeWorkspace == "" {
-		return "", core.E(op, "no active workspace", nil)
+		return "", core.E(operation, "no active workspace", nil)
 	}
 	filesRoot := core.Path(s.rootPath, s.activeWorkspace, "files")
 	filePath, err := joinWithinRoot(filesRoot, filename)
 	if err != nil {
-		return "", core.E(op, "file path escapes workspace files", fs.ErrPermission)
+		return "", core.E(operation, "file path escapes workspace files", fs.ErrPermission)
 	}
 	if filePath == filesRoot {
-		return "", core.E(op, "filename is required", fs.ErrInvalid)
+		return "", core.E(operation, "filename is required", fs.ErrInvalid)
 	}
 	return filePath, nil
 }
@@ -192,21 +192,21 @@ func (s *Service) WorkspaceFileSet(filename, content string) error {
 //		"password":   "pass123",
 //	})
 //	_ = result.OK
-func (s *Service) HandleIPCEvents(_ *core.Core, msg core.Message) core.Result {
-	switch message := msg.(type) {
+func (s *Service) HandleIPCEvents(_ *core.Core, message core.Message) core.Result {
+	switch payload := message.(type) {
 	case map[string]any:
-		action, _ := message["action"].(string)
+		action, _ := payload["action"].(string)
 		switch action {
 		case "workspace.create":
-			identifier, _ := message["identifier"].(string)
-			password, _ := message["password"].(string)
+			identifier, _ := payload["identifier"].(string)
+			password, _ := payload["password"].(string)
 			workspaceID, err := s.CreateWorkspace(identifier, password)
 			if err != nil {
 				return core.Result{}.New(err)
 			}
 			return core.Result{Value: workspaceID, OK: true}
 		case "workspace.switch":
-			name, _ := message["name"].(string)
+			name, _ := payload["name"].(string)
 			if err := s.SwitchWorkspace(name); err != nil {
 				return core.Result{}.New(err)
 			}
@@ -235,16 +235,16 @@ func joinWithinRoot(root string, parts ...string) (string, error) {
 	return "", fs.ErrPermission
 }
 
-func (s *Service) workspacePath(op, name string) (string, error) {
-	if name == "" {
-		return "", core.E(op, "workspace name is required", fs.ErrInvalid)
+func (s *Service) workspacePath(operation, workspaceName string) (string, error) {
+	if workspaceName == "" {
+		return "", core.E(operation, "workspace name is required", fs.ErrInvalid)
 	}
-	workspaceDirectory, err := joinWithinRoot(s.rootPath, name)
+	workspaceDirectory, err := joinWithinRoot(s.rootPath, workspaceName)
 	if err != nil {
-		return "", core.E(op, "workspace path escapes root", err)
+		return "", core.E(operation, "workspace path escapes root", err)
 	}
 	if core.PathDir(workspaceDirectory) != s.rootPath {
-		return "", core.E(op, core.Concat("invalid workspace name: ", name), fs.ErrPermission)
+		return "", core.E(operation, core.Concat("invalid workspace name: ", workspaceName), fs.ErrPermission)
 	}
 	return workspaceDirectory, nil
 }

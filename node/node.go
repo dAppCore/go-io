@@ -149,7 +149,7 @@ type WalkOptions struct {
 	MaxDepth int
 	// Filter, if set, is called for each entry. Return true to include the
 	// entry (and descend into it if it is a directory).
-	Filter func(path string, d fs.DirEntry) bool
+	Filter func(entryPath string, entry fs.DirEntry) bool
 	// SkipErrors suppresses errors (e.g. nonexistent root) instead of
 	// propagating them through the callback.
 	SkipErrors bool
@@ -171,10 +171,10 @@ func (n *Node) Walk(root string, fn fs.WalkDirFunc, opts ...WalkOptions) error {
 		}
 	}
 
-	return fs.WalkDir(n, root, func(p string, d fs.DirEntry, err error) error {
+	return fs.WalkDir(n, root, func(entryPath string, entry fs.DirEntry, err error) error {
 		if opt.Filter != nil && err == nil {
-			if !opt.Filter(p, d) {
-				if d != nil && d.IsDir() {
+			if !opt.Filter(entryPath, entry) {
+				if entry != nil && entry.IsDir() {
 					return fs.SkipDir
 				}
 				return nil
@@ -182,11 +182,11 @@ func (n *Node) Walk(root string, fn fs.WalkDirFunc, opts ...WalkOptions) error {
 		}
 
 		// Call the user's function first so the entry is visited.
-		result := fn(p, d, err)
+		result := fn(entryPath, entry, err)
 
 		// After visiting a directory at MaxDepth, prevent descending further.
-		if result == nil && opt.MaxDepth > 0 && d != nil && d.IsDir() && p != root {
-			rel := core.TrimPrefix(p, root)
+		if result == nil && opt.MaxDepth > 0 && entry != nil && entry.IsDir() && entryPath != root {
+			rel := core.TrimPrefix(entryPath, root)
 			rel = core.TrimPrefix(rel, "/")
 			depth := len(core.Split(rel, "/"))
 			if depth >= opt.MaxDepth {
@@ -217,25 +217,25 @@ func (n *Node) ReadFile(name string) ([]byte, error) {
 // CopyFile copies a file from the in-memory tree to the local filesystem.
 //
 //	result := n.CopyFile(...)
-func (n *Node) CopyFile(src, dst string, perm fs.FileMode) error {
-	src = core.TrimPrefix(src, "/")
-	f, ok := n.files[src]
+func (n *Node) CopyFile(sourcePath, destinationPath string, perm fs.FileMode) error {
+	sourcePath = core.TrimPrefix(sourcePath, "/")
+	f, ok := n.files[sourcePath]
 	if !ok {
 		// Check if it's a directory — can't copy directories this way.
-		info, err := n.Stat(src)
+		info, err := n.Stat(sourcePath)
 		if err != nil {
-			return core.E("node.CopyFile", core.Concat("source not found: ", src), fs.ErrNotExist)
+			return core.E("node.CopyFile", core.Concat("source not found: ", sourcePath), fs.ErrNotExist)
 		}
 		if info.IsDir() {
-			return core.E("node.CopyFile", core.Concat("source is a directory: ", src), fs.ErrInvalid)
+			return core.E("node.CopyFile", core.Concat("source is a directory: ", sourcePath), fs.ErrInvalid)
 		}
-		return core.E("node.CopyFile", core.Concat("source not found: ", src), fs.ErrNotExist)
+		return core.E("node.CopyFile", core.Concat("source not found: ", sourcePath), fs.ErrNotExist)
 	}
-	parent := core.PathDir(dst)
-	if parent != "." && parent != "" && parent != dst && !coreio.Local.IsDir(parent) {
-		return &fs.PathError{Op: "copyfile", Path: dst, Err: fs.ErrNotExist}
+	parent := core.PathDir(destinationPath)
+	if parent != "." && parent != "" && parent != destinationPath && !coreio.Local.IsDir(parent) {
+		return &fs.PathError{Op: "copyfile", Path: destinationPath, Err: fs.ErrNotExist}
 	}
-	return coreio.Local.WriteMode(dst, string(f.content), perm)
+	return coreio.Local.WriteMode(destinationPath, string(f.content), perm)
 }
 
 // CopyTo copies a file (or directory tree) from the node to any Medium.
@@ -266,11 +266,11 @@ func (n *Node) CopyTo(target coreio.Medium, sourcePath, destPath string) error {
 		prefix += "/"
 	}
 
-	for p, f := range n.files {
-		if !core.HasPrefix(p, prefix) && p != sourcePath {
+	for filePath, f := range n.files {
+		if !core.HasPrefix(filePath, prefix) && filePath != sourcePath {
 			continue
 		}
-		rel := core.TrimPrefix(p, prefix)
+		rel := core.TrimPrefix(filePath, prefix)
 		dest := destPath
 		if rel != "" {
 			dest = core.Concat(destPath, "/", rel)
@@ -297,8 +297,8 @@ func (n *Node) Open(name string) (fs.File, error) {
 	if name == "." || name == "" {
 		prefix = ""
 	}
-	for p := range n.files {
-		if core.HasPrefix(p, prefix) {
+	for filePath := range n.files {
+		if core.HasPrefix(filePath, prefix) {
 			return &dirFile{path: name, modTime: time.Now()}, nil
 		}
 	}
@@ -318,8 +318,8 @@ func (n *Node) Stat(name string) (fs.FileInfo, error) {
 	if name == "." || name == "" {
 		prefix = ""
 	}
-	for p := range n.files {
-		if core.HasPrefix(p, prefix) {
+	for filePath := range n.files {
+		if core.HasPrefix(filePath, prefix) {
 			return &dirInfo{name: path.Base(name), modTime: time.Now()}, nil
 		}
 	}
@@ -348,12 +348,12 @@ func (n *Node) ReadDir(name string) ([]fs.DirEntry, error) {
 		prefix = name + "/"
 	}
 
-	for p := range n.files {
-		if !core.HasPrefix(p, prefix) {
+	for filePath := range n.files {
+		if !core.HasPrefix(filePath, prefix) {
 			continue
 		}
 
-		relPath := core.TrimPrefix(p, prefix)
+		relPath := core.TrimPrefix(filePath, prefix)
 		firstComponent := core.SplitN(relPath, "/", 2)[0]
 
 		if seen[firstComponent] {
@@ -365,7 +365,7 @@ func (n *Node) ReadDir(name string) ([]fs.DirEntry, error) {
 			dir := &dirInfo{name: firstComponent, modTime: time.Now()}
 			entries = append(entries, fs.FileInfoToDirEntry(dir))
 		} else {
-			file := n.files[p]
+			file := n.files[filePath]
 			info, _ := file.Stat()
 			entries = append(entries, fs.FileInfoToDirEntry(info))
 		}
@@ -383,11 +383,11 @@ func (n *Node) ReadDir(name string) ([]fs.DirEntry, error) {
 // Read retrieves the content of a file as a string.
 //
 //	result := n.Read(...)
-func (n *Node) Read(p string) (string, error) {
-	p = core.TrimPrefix(p, "/")
-	f, ok := n.files[p]
+func (n *Node) Read(filePath string) (string, error) {
+	filePath = core.TrimPrefix(filePath, "/")
+	f, ok := n.files[filePath]
 	if !ok {
-		return "", core.E("node.Read", core.Concat("path not found: ", p), fs.ErrNotExist)
+		return "", core.E("node.Read", core.Concat("path not found: ", filePath), fs.ErrNotExist)
 	}
 	return string(f.content), nil
 }
@@ -395,30 +395,24 @@ func (n *Node) Read(p string) (string, error) {
 // Write saves the given content to a file, overwriting it if it exists.
 //
 //	result := n.Write(...)
-func (n *Node) Write(p, content string) error {
-	n.AddData(p, []byte(content))
+func (n *Node) Write(filePath, content string) error {
+	n.AddData(filePath, []byte(content))
 	return nil
 }
 
 // WriteMode saves content with explicit permissions (no-op for in-memory node).
 //
 //	result := n.WriteMode(...)
-func (n *Node) WriteMode(p, content string, mode fs.FileMode) error {
-	return n.Write(p, content)
+func (n *Node) WriteMode(filePath, content string, mode fs.FileMode) error {
+	return n.Write(filePath, content)
 }
 
-// FileGet is an alias for Read.
-//
-//	result := n.FileGet(...)
-func (n *Node) FileGet(p string) (string, error) {
-	return n.Read(p)
+func (n *Node) FileGet(filePath string) (string, error) {
+	return n.Read(filePath)
 }
 
-// FileSet is an alias for Write.
-//
-//	result := n.FileSet(...)
-func (n *Node) FileSet(p, content string) error {
-	return n.Write(p, content)
+func (n *Node) FileSet(filePath, content string) error {
+	return n.Write(filePath, content)
 }
 
 // EnsureDir is a no-op because directories are implicit in Node.
@@ -433,25 +427,25 @@ func (n *Node) EnsureDir(_ string) error {
 // Exists checks if a path exists (file or directory).
 //
 //	result := n.Exists(...)
-func (n *Node) Exists(p string) bool {
-	_, err := n.Stat(p)
+func (n *Node) Exists(filePath string) bool {
+	_, err := n.Stat(filePath)
 	return err == nil
 }
 
 // IsFile checks if a path exists and is a regular file.
 //
 //	result := n.IsFile(...)
-func (n *Node) IsFile(p string) bool {
-	p = core.TrimPrefix(p, "/")
-	_, ok := n.files[p]
+func (n *Node) IsFile(filePath string) bool {
+	filePath = core.TrimPrefix(filePath, "/")
+	_, ok := n.files[filePath]
 	return ok
 }
 
 // IsDir checks if a path exists and is a directory.
 //
 //	result := n.IsDir(...)
-func (n *Node) IsDir(p string) bool {
-	info, err := n.Stat(p)
+func (n *Node) IsDir(filePath string) bool {
+	info, err := n.Stat(filePath)
 	if err != nil {
 		return false
 	}
@@ -463,37 +457,37 @@ func (n *Node) IsDir(p string) bool {
 // Delete removes a single file.
 //
 //	result := n.Delete(...)
-func (n *Node) Delete(p string) error {
-	p = core.TrimPrefix(p, "/")
-	if _, ok := n.files[p]; ok {
-		delete(n.files, p)
+func (n *Node) Delete(filePath string) error {
+	filePath = core.TrimPrefix(filePath, "/")
+	if _, ok := n.files[filePath]; ok {
+		delete(n.files, filePath)
 		return nil
 	}
-	return core.E("node.Delete", core.Concat("path not found: ", p), fs.ErrNotExist)
+	return core.E("node.Delete", core.Concat("path not found: ", filePath), fs.ErrNotExist)
 }
 
 // DeleteAll removes a file or directory and all children.
 //
 //	result := n.DeleteAll(...)
-func (n *Node) DeleteAll(p string) error {
-	p = core.TrimPrefix(p, "/")
+func (n *Node) DeleteAll(filePath string) error {
+	filePath = core.TrimPrefix(filePath, "/")
 
 	found := false
-	if _, ok := n.files[p]; ok {
-		delete(n.files, p)
+	if _, ok := n.files[filePath]; ok {
+		delete(n.files, filePath)
 		found = true
 	}
 
-	prefix := p + "/"
-	for k := range n.files {
-		if core.HasPrefix(k, prefix) {
-			delete(n.files, k)
+	prefix := filePath + "/"
+	for entryPath := range n.files {
+		if core.HasPrefix(entryPath, prefix) {
+			delete(n.files, entryPath)
 			found = true
 		}
 	}
 
 	if !found {
-		return core.E("node.DeleteAll", core.Concat("path not found: ", p), fs.ErrNotExist)
+		return core.E("node.DeleteAll", core.Concat("path not found: ", filePath), fs.ErrNotExist)
 	}
 	return nil
 }
@@ -519,12 +513,12 @@ func (n *Node) Rename(oldPath, newPath string) error {
 // List returns directory entries for the given path.
 //
 //	result := n.List(...)
-func (n *Node) List(p string) ([]fs.DirEntry, error) {
-	p = core.TrimPrefix(p, "/")
-	if p == "" || p == "." {
+func (n *Node) List(filePath string) ([]fs.DirEntry, error) {
+	filePath = core.TrimPrefix(filePath, "/")
+	if filePath == "" || filePath == "." {
 		return n.ReadDir(".")
 	}
-	return n.ReadDir(p)
+	return n.ReadDir(filePath)
 }
 
 // ---------- Medium interface: streams ----------
@@ -533,30 +527,30 @@ func (n *Node) List(p string) ([]fs.DirEntry, error) {
 // Content is committed to the Node on Close.
 //
 //	result := n.Create(...)
-func (n *Node) Create(p string) (goio.WriteCloser, error) {
-	p = core.TrimPrefix(p, "/")
-	return &nodeWriter{node: n, path: p}, nil
+func (n *Node) Create(filePath string) (goio.WriteCloser, error) {
+	filePath = core.TrimPrefix(filePath, "/")
+	return &nodeWriter{node: n, path: filePath}, nil
 }
 
 // Append opens the named file for appending, creating it if needed.
 // Content is committed to the Node on Close.
 //
 //	result := n.Append(...)
-func (n *Node) Append(p string) (goio.WriteCloser, error) {
-	p = core.TrimPrefix(p, "/")
+func (n *Node) Append(filePath string) (goio.WriteCloser, error) {
+	filePath = core.TrimPrefix(filePath, "/")
 	var existing []byte
-	if f, ok := n.files[p]; ok {
+	if f, ok := n.files[filePath]; ok {
 		existing = make([]byte, len(f.content))
 		copy(existing, f.content)
 	}
-	return &nodeWriter{node: n, path: p, buf: existing}, nil
+	return &nodeWriter{node: n, path: filePath, buf: existing}, nil
 }
 
 // ReadStream returns a ReadCloser for the file content.
 //
 //	result := n.ReadStream(...)
-func (n *Node) ReadStream(p string) (goio.ReadCloser, error) {
-	f, err := n.Open(p)
+func (n *Node) ReadStream(filePath string) (goio.ReadCloser, error) {
+	f, err := n.Open(filePath)
 	if err != nil {
 		return nil, err
 	}
@@ -566,8 +560,8 @@ func (n *Node) ReadStream(p string) (goio.ReadCloser, error) {
 // WriteStream returns a WriteCloser for the file content.
 //
 //	result := n.WriteStream(...)
-func (n *Node) WriteStream(p string) (goio.WriteCloser, error) {
-	return n.Create(p)
+func (n *Node) WriteStream(filePath string) (goio.WriteCloser, error) {
+	return n.Create(filePath)
 }
 
 // ---------- Internal types ----------
@@ -579,17 +573,11 @@ type nodeWriter struct {
 	buf  []byte
 }
 
-// Write documents the Write operation.
-//
-//	result := w.Write(...)
 func (w *nodeWriter) Write(p []byte) (int, error) {
 	w.buf = append(w.buf, p...)
 	return len(p), nil
 }
 
-// Close documents the Close operation.
-//
-//	result := w.Close(...)
 func (w *nodeWriter) Close() error {
 	w.node.files[w.path] = &dataFile{
 		name:    w.path,
@@ -606,52 +594,25 @@ type dataFile struct {
 	modTime time.Time
 }
 
-// Stat documents the Stat operation.
-//
-//	result := d.Stat(...)
 func (d *dataFile) Stat() (fs.FileInfo, error) { return &dataFileInfo{file: d}, nil }
 
-// Read documents the Read operation.
-//
-//	result := d.Read(...)
 func (d *dataFile) Read(_ []byte) (int, error) { return 0, goio.EOF }
 
-// Close documents the Close operation.
-//
-//	result := d.Close(...)
 func (d *dataFile) Close() error { return nil }
 
 // dataFileInfo implements fs.FileInfo for a dataFile.
 type dataFileInfo struct{ file *dataFile }
 
-// Name documents the Name operation.
-//
-//	result := d.Name(...)
 func (d *dataFileInfo) Name() string { return path.Base(d.file.name) }
 
-// Size documents the Size operation.
-//
-//	result := d.Size(...)
 func (d *dataFileInfo) Size() int64 { return int64(len(d.file.content)) }
 
-// Mode documents the Mode operation.
-//
-//	result := d.Mode(...)
 func (d *dataFileInfo) Mode() fs.FileMode { return 0444 }
 
-// ModTime documents the ModTime operation.
-//
-//	result := d.ModTime(...)
 func (d *dataFileInfo) ModTime() time.Time { return d.file.modTime }
 
-// IsDir documents the IsDir operation.
-//
-//	result := d.IsDir(...)
 func (d *dataFileInfo) IsDir() bool { return false }
 
-// Sys documents the Sys operation.
-//
-//	result := d.Sys(...)
 func (d *dataFileInfo) Sys() any { return nil }
 
 // dataFileReader implements fs.File for reading a dataFile.
@@ -660,14 +621,8 @@ type dataFileReader struct {
 	reader *bytes.Reader
 }
 
-// Stat documents the Stat operation.
-//
-//	result := d.Stat(...)
 func (d *dataFileReader) Stat() (fs.FileInfo, error) { return d.file.Stat() }
 
-// Read documents the Read operation.
-//
-//	result := d.Read(...)
 func (d *dataFileReader) Read(p []byte) (int, error) {
 	if d.reader == nil {
 		d.reader = bytes.NewReader(d.file.content)
@@ -675,9 +630,6 @@ func (d *dataFileReader) Read(p []byte) (int, error) {
 	return d.reader.Read(p)
 }
 
-// Close documents the Close operation.
-//
-//	result := d.Close(...)
 func (d *dataFileReader) Close() error { return nil }
 
 // dirInfo implements fs.FileInfo for an implicit directory.
@@ -686,34 +638,16 @@ type dirInfo struct {
 	modTime time.Time
 }
 
-// Name documents the Name operation.
-//
-//	result := d.Name(...)
 func (d *dirInfo) Name() string { return d.name }
 
-// Size documents the Size operation.
-//
-//	result := d.Size(...)
 func (d *dirInfo) Size() int64 { return 0 }
 
-// Mode documents the Mode operation.
-//
-//	result := d.Mode(...)
 func (d *dirInfo) Mode() fs.FileMode { return fs.ModeDir | 0555 }
 
-// ModTime documents the ModTime operation.
-//
-//	result := d.ModTime(...)
 func (d *dirInfo) ModTime() time.Time { return d.modTime }
 
-// IsDir documents the IsDir operation.
-//
-//	result := d.IsDir(...)
 func (d *dirInfo) IsDir() bool { return true }
 
-// Sys documents the Sys operation.
-//
-//	result := d.Sys(...)
 func (d *dirInfo) Sys() any { return nil }
 
 // dirFile implements fs.File for a directory.
@@ -722,23 +656,14 @@ type dirFile struct {
 	modTime time.Time
 }
 
-// Stat documents the Stat operation.
-//
-//	result := d.Stat(...)
 func (d *dirFile) Stat() (fs.FileInfo, error) {
 	return &dirInfo{name: path.Base(d.path), modTime: d.modTime}, nil
 }
 
-// Read documents the Read operation.
-//
-//	result := d.Read(...)
 func (d *dirFile) Read([]byte) (int, error) {
 	return 0, core.E("node.dirFile.Read", core.Concat("cannot read directory: ", d.path), &fs.PathError{Op: "read", Path: d.path, Err: fs.ErrInvalid})
 }
 
-// Close documents the Close operation.
-//
-//	result := d.Close(...)
 func (d *dirFile) Close() error { return nil }
 
 // Ensure Node implements fs.FS so WalkDir works.

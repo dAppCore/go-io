@@ -85,34 +85,16 @@ type FileInfo struct {
 	isDir   bool
 }
 
-// Name documents the Name operation.
-//
-//	result := fi.Name(...)
 func (fi FileInfo) Name() string { return fi.name }
 
-// Size documents the Size operation.
-//
-//	result := fi.Size(...)
 func (fi FileInfo) Size() int64 { return fi.size }
 
-// Mode documents the Mode operation.
-//
-//	result := fi.Mode(...)
 func (fi FileInfo) Mode() fs.FileMode { return fi.mode }
 
-// ModTime documents the ModTime operation.
-//
-//	result := fi.ModTime(...)
 func (fi FileInfo) ModTime() time.Time { return fi.modTime }
 
-// IsDir documents the IsDir operation.
-//
-//	result := fi.IsDir(...)
 func (fi FileInfo) IsDir() bool { return fi.isDir }
 
-// Sys documents the Sys operation.
-//
-//	result := fi.Sys(...)
 func (fi FileInfo) Sys() any { return nil }
 
 // DirEntry provides a simple implementation of fs.DirEntry for mock testing.
@@ -123,24 +105,12 @@ type DirEntry struct {
 	info  fs.FileInfo
 }
 
-// Name documents the Name operation.
-//
-//	result := de.Name(...)
 func (de DirEntry) Name() string { return de.name }
 
-// IsDir documents the IsDir operation.
-//
-//	result := de.IsDir(...)
 func (de DirEntry) IsDir() bool { return de.isDir }
 
-// Type documents the Type operation.
-//
-//	result := de.Type(...)
 func (de DirEntry) Type() fs.FileMode { return de.mode.Type() }
 
-// Info documents the Info operation.
-//
-//	result := de.Info(...)
 func (de DirEntry) Info() (fs.FileInfo, error) { return de.info, nil }
 
 // Local is a pre-initialised medium for the local filesystem.
@@ -217,13 +187,13 @@ func IsFile(m Medium, path string) bool {
 // Copy copies a file from one medium to another.
 //
 //	result := io.Copy(...)
-func Copy(src Medium, srcPath string, dst Medium, dstPath string) error {
-	content, err := src.Read(srcPath)
+func Copy(source Medium, sourcePath string, destination Medium, destinationPath string) error {
+	content, err := source.Read(sourcePath)
 	if err != nil {
-		return core.E("io.Copy", core.Concat("read failed: ", srcPath), err)
+		return core.E("io.Copy", core.Concat("read failed: ", sourcePath), err)
 	}
-	if err := dst.Write(dstPath, content); err != nil {
-		return core.E("io.Copy", core.Concat("write failed: ", dstPath), err)
+	if err := destination.Write(destinationPath, content); err != nil {
+		return core.E("io.Copy", core.Concat("write failed: ", destinationPath), err)
 	}
 	return nil
 }
@@ -270,9 +240,6 @@ func (m *MockMedium) Write(path, content string) error {
 	return nil
 }
 
-// WriteMode documents the WriteMode operation.
-//
-//	result := m.WriteMode(...)
 func (m *MockMedium) WriteMode(path, content string, mode fs.FileMode) error {
 	return m.Write(path, content)
 }
@@ -493,9 +460,6 @@ type MockFile struct {
 	offset  int64
 }
 
-// Stat documents the Stat operation.
-//
-//	result := f.Stat(...)
 func (f *MockFile) Stat() (fs.FileInfo, error) {
 	return FileInfo{
 		name: f.name,
@@ -503,9 +467,6 @@ func (f *MockFile) Stat() (fs.FileInfo, error) {
 	}, nil
 }
 
-// Read documents the Read operation.
-//
-//	result := f.Read(...)
 func (f *MockFile) Read(b []byte) (int, error) {
 	if f.offset >= int64(len(f.content)) {
 		return 0, goio.EOF
@@ -515,9 +476,6 @@ func (f *MockFile) Read(b []byte) (int, error) {
 	return n, nil
 }
 
-// Close documents the Close operation.
-//
-//	result := f.Close(...)
 func (f *MockFile) Close() error {
 	return nil
 }
@@ -529,17 +487,11 @@ type MockWriteCloser struct {
 	data   []byte
 }
 
-// Write documents the Write operation.
-//
-//	result := w.Write(...)
 func (w *MockWriteCloser) Write(p []byte) (int, error) {
 	w.data = append(w.data, p...)
 	return len(p), nil
 }
 
-// Close documents the Close operation.
-//
-//	result := w.Close(...)
 func (w *MockWriteCloser) Close() error {
 	w.medium.Files[w.path] = string(w.data)
 	w.medium.ModTimes[w.path] = time.Now()

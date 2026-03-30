@@ -95,12 +95,12 @@ func (s *Store) Delete(group, key string) error {
 //
 //	result := s.Count(...)
 func (s *Store) Count(group string) (int, error) {
-	var n int
-	err := s.database.QueryRow("SELECT COUNT(*) FROM kv WHERE grp = ?", group).Scan(&n)
+	var count int
+	err := s.database.QueryRow("SELECT COUNT(*) FROM kv WHERE grp = ?", group).Scan(&count)
 	if err != nil {
 		return 0, core.E("store.Count", "query", err)
 	}
-	return n, nil
+	return count, nil
 }
 
 // DeleteGroup removes all keys in a group.
@@ -126,11 +126,11 @@ func (s *Store) GetAll(group string) (map[string]string, error) {
 
 	result := make(map[string]string)
 	for rows.Next() {
-		var k, v string
-		if err := rows.Scan(&k, &v); err != nil {
+		var key, value string
+		if err := rows.Scan(&key, &value); err != nil {
 			return nil, core.E("store.GetAll", "scan", err)
 		}
-		result[k] = v
+		result[key] = value
 	}
 	if err := rows.Err(); err != nil {
 		return nil, core.E("store.GetAll", "rows", err)
@@ -145,7 +145,7 @@ func (s *Store) GetAll(group string) (map[string]string, error) {
 //	kvStore, _ := store.New(":memory:")
 //	_ = kvStore.Set("user", "name", "alice")
 //	out, _ := kvStore.Render("hello {{ .name }}", "user")
-func (s *Store) Render(tmplStr, group string) (string, error) {
+func (s *Store) Render(templateText, group string) (string, error) {
 	rows, err := s.database.Query("SELECT key, value FROM kv WHERE grp = ?", group)
 	if err != nil {
 		return "", core.E("store.Render", "query", err)
@@ -154,17 +154,17 @@ func (s *Store) Render(tmplStr, group string) (string, error) {
 
 	vars := make(map[string]string)
 	for rows.Next() {
-		var k, v string
-		if err := rows.Scan(&k, &v); err != nil {
+		var key, value string
+		if err := rows.Scan(&key, &value); err != nil {
 			return "", core.E("store.Render", "scan", err)
 		}
-		vars[k] = v
+		vars[key] = value
 	}
 	if err := rows.Err(); err != nil {
 		return "", core.E("store.Render", "rows", err)
 	}
 
-	tmpl, err := template.New("render").Parse(tmplStr)
+	tmpl, err := template.New("render").Parse(templateText)
 	if err != nil {
 		return "", core.E("store.Render", "parse template", err)
 	}

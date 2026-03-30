@@ -110,194 +110,167 @@ func (m *Medium) DataNode() *borgdatanode.DataNode {
 }
 
 // cleanPath normalises a path: strips leading slash, cleans traversal.
-func cleanPath(p string) string {
-	p = core.TrimPrefix(p, "/")
-	p = path.Clean(p)
-	if p == "." {
+func cleanPath(filePath string) string {
+	filePath = core.TrimPrefix(filePath, "/")
+	filePath = path.Clean(filePath)
+	if filePath == "." {
 		return ""
 	}
-	return p
+	return filePath
 }
 
 // --- io.Medium interface ---
 
-// Read documents the Read operation.
-//
-//	result := m.Read(...)
-func (m *Medium) Read(p string) (string, error) {
+func (m *Medium) Read(filePath string) (string, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	p = cleanPath(p)
-	f, err := m.dataNode.Open(p)
+	filePath = cleanPath(filePath)
+	f, err := m.dataNode.Open(filePath)
 	if err != nil {
-		return "", core.E("datanode.Read", core.Concat("not found: ", p), fs.ErrNotExist)
+		return "", core.E("datanode.Read", core.Concat("not found: ", filePath), fs.ErrNotExist)
 	}
 	defer f.Close()
 
 	info, err := f.Stat()
 	if err != nil {
-		return "", core.E("datanode.Read", core.Concat("stat failed: ", p), err)
+		return "", core.E("datanode.Read", core.Concat("stat failed: ", filePath), err)
 	}
 	if info.IsDir() {
-		return "", core.E("datanode.Read", core.Concat("is a directory: ", p), fs.ErrInvalid)
+		return "", core.E("datanode.Read", core.Concat("is a directory: ", filePath), fs.ErrInvalid)
 	}
 
 	data, err := goio.ReadAll(f)
 	if err != nil {
-		return "", core.E("datanode.Read", core.Concat("read failed: ", p), err)
+		return "", core.E("datanode.Read", core.Concat("read failed: ", filePath), err)
 	}
 	return string(data), nil
 }
 
-// Write documents the Write operation.
-//
-//	result := m.Write(...)
-func (m *Medium) Write(p, content string) error {
+func (m *Medium) Write(filePath, content string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	p = cleanPath(p)
-	if p == "" {
+	filePath = cleanPath(filePath)
+	if filePath == "" {
 		return core.E("datanode.Write", "empty path", fs.ErrInvalid)
 	}
-	m.dataNode.AddData(p, []byte(content))
+	m.dataNode.AddData(filePath, []byte(content))
 
 	// ensure parent directories are tracked
-	m.ensureDirsLocked(path.Dir(p))
+	m.ensureDirsLocked(path.Dir(filePath))
 	return nil
 }
 
-// WriteMode documents the WriteMode operation.
-//
-//	result := m.WriteMode(...)
-func (m *Medium) WriteMode(p, content string, mode fs.FileMode) error {
-	return m.Write(p, content)
+func (m *Medium) WriteMode(filePath, content string, mode fs.FileMode) error {
+	return m.Write(filePath, content)
 }
 
-// EnsureDir documents the EnsureDir operation.
-//
-//	result := m.EnsureDir(...)
-func (m *Medium) EnsureDir(p string) error {
+func (m *Medium) EnsureDir(filePath string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	p = cleanPath(p)
-	if p == "" {
+	filePath = cleanPath(filePath)
+	if filePath == "" {
 		return nil
 	}
-	m.ensureDirsLocked(p)
+	m.ensureDirsLocked(filePath)
 	return nil
 }
 
 // ensureDirsLocked marks a directory and all ancestors as existing.
 // Caller must hold m.mu.
-func (m *Medium) ensureDirsLocked(p string) {
-	for p != "" && p != "." {
-		m.directories[p] = true
-		p = path.Dir(p)
-		if p == "." {
+func (m *Medium) ensureDirsLocked(directoryPath string) {
+	for directoryPath != "" && directoryPath != "." {
+		m.directories[directoryPath] = true
+		directoryPath = path.Dir(directoryPath)
+		if directoryPath == "." {
 			break
 		}
 	}
 }
 
-// IsFile documents the IsFile operation.
-//
-//	result := m.IsFile(...)
-func (m *Medium) IsFile(p string) bool {
+func (m *Medium) IsFile(filePath string) bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	p = cleanPath(p)
-	info, err := m.dataNode.Stat(p)
+	filePath = cleanPath(filePath)
+	info, err := m.dataNode.Stat(filePath)
 	return err == nil && !info.IsDir()
 }
 
-// FileGet documents the FileGet operation.
-//
-//	result := m.FileGet(...)
-func (m *Medium) FileGet(p string) (string, error) {
-	return m.Read(p)
+func (m *Medium) FileGet(filePath string) (string, error) {
+	return m.Read(filePath)
 }
 
-// FileSet documents the FileSet operation.
-//
-//	result := m.FileSet(...)
-func (m *Medium) FileSet(p, content string) error {
-	return m.Write(p, content)
+func (m *Medium) FileSet(filePath, content string) error {
+	return m.Write(filePath, content)
 }
 
-// Delete documents the Delete operation.
-//
-//	result := m.Delete(...)
-func (m *Medium) Delete(p string) error {
+func (m *Medium) Delete(filePath string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	p = cleanPath(p)
-	if p == "" {
+	filePath = cleanPath(filePath)
+	if filePath == "" {
 		return core.E("datanode.Delete", "cannot delete root", fs.ErrPermission)
 	}
 
 	// Check if it's a file in the DataNode
-	info, err := m.dataNode.Stat(p)
+	info, err := m.dataNode.Stat(filePath)
 	if err != nil {
 		// Check explicit directories
-		if m.directories[p] {
+		if m.directories[filePath] {
 			// Check if dir is empty
-			hasChildren, err := m.hasPrefixLocked(p + "/")
+			hasChildren, err := m.hasPrefixLocked(filePath + "/")
 			if err != nil {
-				return core.E("datanode.Delete", core.Concat("failed to inspect directory: ", p), err)
+				return core.E("datanode.Delete", core.Concat("failed to inspect directory: ", filePath), err)
 			}
 			if hasChildren {
-				return core.E("datanode.Delete", core.Concat("directory not empty: ", p), fs.ErrExist)
+				return core.E("datanode.Delete", core.Concat("directory not empty: ", filePath), fs.ErrExist)
 			}
-			delete(m.directories, p)
+			delete(m.directories, filePath)
 			return nil
 		}
-		return core.E("datanode.Delete", core.Concat("not found: ", p), fs.ErrNotExist)
+		return core.E("datanode.Delete", core.Concat("not found: ", filePath), fs.ErrNotExist)
 	}
 
 	if info.IsDir() {
-		hasChildren, err := m.hasPrefixLocked(p + "/")
+		hasChildren, err := m.hasPrefixLocked(filePath + "/")
 		if err != nil {
-			return core.E("datanode.Delete", core.Concat("failed to inspect directory: ", p), err)
+			return core.E("datanode.Delete", core.Concat("failed to inspect directory: ", filePath), err)
 		}
 		if hasChildren {
-			return core.E("datanode.Delete", core.Concat("directory not empty: ", p), fs.ErrExist)
+			return core.E("datanode.Delete", core.Concat("directory not empty: ", filePath), fs.ErrExist)
 		}
-		delete(m.directories, p)
+		delete(m.directories, filePath)
 		return nil
 	}
 
 	// Remove the file by creating a new DataNode without it
-	if err := m.removeFileLocked(p); err != nil {
-		return core.E("datanode.Delete", core.Concat("failed to delete file: ", p), err)
+	if err := m.removeFileLocked(filePath); err != nil {
+		return core.E("datanode.Delete", core.Concat("failed to delete file: ", filePath), err)
 	}
 	return nil
 }
 
-// DeleteAll documents the DeleteAll operation.
-//
-//	result := m.DeleteAll(...)
-func (m *Medium) DeleteAll(p string) error {
+func (m *Medium) DeleteAll(filePath string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	p = cleanPath(p)
-	if p == "" {
+	filePath = cleanPath(filePath)
+	if filePath == "" {
 		return core.E("datanode.DeleteAll", "cannot delete root", fs.ErrPermission)
 	}
 
-	prefix := p + "/"
+	prefix := filePath + "/"
 	found := false
 
-	// Check if p itself is a file
-	info, err := m.dataNode.Stat(p)
+	// Check if filePath itself is a file
+	info, err := m.dataNode.Stat(filePath)
 	if err == nil && !info.IsDir() {
-		if err := m.removeFileLocked(p); err != nil {
-			return core.E("datanode.DeleteAll", core.Concat("failed to delete file: ", p), err)
+		if err := m.removeFileLocked(filePath); err != nil {
+			return core.E("datanode.DeleteAll", core.Concat("failed to delete file: ", filePath), err)
 		}
 		found = true
 	}
@@ -305,10 +278,10 @@ func (m *Medium) DeleteAll(p string) error {
 	// Remove all files under prefix
 	entries, err := m.collectAllLocked()
 	if err != nil {
-		return core.E("datanode.DeleteAll", core.Concat("failed to inspect tree: ", p), err)
+		return core.E("datanode.DeleteAll", core.Concat("failed to inspect tree: ", filePath), err)
 	}
 	for _, name := range entries {
-		if name == p || core.HasPrefix(name, prefix) {
+		if name == filePath || core.HasPrefix(name, prefix) {
 			if err := m.removeFileLocked(name); err != nil {
 				return core.E("datanode.DeleteAll", core.Concat("failed to delete file: ", name), err)
 			}
@@ -317,22 +290,19 @@ func (m *Medium) DeleteAll(p string) error {
 	}
 
 	// Remove explicit directories under prefix
-	for d := range m.directories {
-		if d == p || core.HasPrefix(d, prefix) {
-			delete(m.directories, d)
+	for directoryPath := range m.directories {
+		if directoryPath == filePath || core.HasPrefix(directoryPath, prefix) {
+			delete(m.directories, directoryPath)
 			found = true
 		}
 	}
 
 	if !found {
-		return core.E("datanode.DeleteAll", core.Concat("not found: ", p), fs.ErrNotExist)
+		return core.E("datanode.DeleteAll", core.Concat("not found: ", filePath), fs.ErrNotExist)
 	}
 	return nil
 }
 
-// Rename documents the Rename operation.
-//
-//	result := m.Rename(...)
 func (m *Medium) Rename(oldPath, newPath string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -398,26 +368,23 @@ func (m *Medium) Rename(oldPath, newPath string) error {
 	return nil
 }
 
-// List documents the List operation.
-//
-//	result := m.List(...)
-func (m *Medium) List(p string) ([]fs.DirEntry, error) {
+func (m *Medium) List(filePath string) ([]fs.DirEntry, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	p = cleanPath(p)
+	filePath = cleanPath(filePath)
 
-	entries, err := m.dataNode.ReadDir(p)
+	entries, err := m.dataNode.ReadDir(filePath)
 	if err != nil {
 		// Check explicit directories
-		if p == "" || m.directories[p] {
+		if filePath == "" || m.directories[filePath] {
 			return []fs.DirEntry{}, nil
 		}
-		return nil, core.E("datanode.List", core.Concat("not found: ", p), fs.ErrNotExist)
+		return nil, core.E("datanode.List", core.Concat("not found: ", filePath), fs.ErrNotExist)
 	}
 
 	// Also include explicit subdirectories not discovered via files
-	prefix := p
+	prefix := filePath
 	if prefix != "" {
 		prefix += "/"
 	}
@@ -448,132 +415,108 @@ func (m *Medium) List(p string) ([]fs.DirEntry, error) {
 	return entries, nil
 }
 
-// Stat documents the Stat operation.
-//
-//	result := m.Stat(...)
-func (m *Medium) Stat(p string) (fs.FileInfo, error) {
+func (m *Medium) Stat(filePath string) (fs.FileInfo, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	p = cleanPath(p)
-	if p == "" {
+	filePath = cleanPath(filePath)
+	if filePath == "" {
 		return &fileInfo{name: ".", isDir: true, mode: fs.ModeDir | 0755}, nil
 	}
 
-	info, err := m.dataNode.Stat(p)
+	info, err := m.dataNode.Stat(filePath)
 	if err == nil {
 		return info, nil
 	}
 
-	if m.directories[p] {
-		return &fileInfo{name: path.Base(p), isDir: true, mode: fs.ModeDir | 0755}, nil
+	if m.directories[filePath] {
+		return &fileInfo{name: path.Base(filePath), isDir: true, mode: fs.ModeDir | 0755}, nil
 	}
-	return nil, core.E("datanode.Stat", core.Concat("not found: ", p), fs.ErrNotExist)
+	return nil, core.E("datanode.Stat", core.Concat("not found: ", filePath), fs.ErrNotExist)
 }
 
-// Open documents the Open operation.
-//
-//	result := m.Open(...)
-func (m *Medium) Open(p string) (fs.File, error) {
+func (m *Medium) Open(filePath string) (fs.File, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	p = cleanPath(p)
-	return m.dataNode.Open(p)
+	filePath = cleanPath(filePath)
+	return m.dataNode.Open(filePath)
 }
 
-// Create documents the Create operation.
-//
-//	result := m.Create(...)
-func (m *Medium) Create(p string) (goio.WriteCloser, error) {
-	p = cleanPath(p)
-	if p == "" {
+func (m *Medium) Create(filePath string) (goio.WriteCloser, error) {
+	filePath = cleanPath(filePath)
+	if filePath == "" {
 		return nil, core.E("datanode.Create", "empty path", fs.ErrInvalid)
 	}
-	return &writeCloser{medium: m, path: p}, nil
+	return &writeCloser{medium: m, path: filePath}, nil
 }
 
-// Append documents the Append operation.
-//
-//	result := m.Append(...)
-func (m *Medium) Append(p string) (goio.WriteCloser, error) {
-	p = cleanPath(p)
-	if p == "" {
+func (m *Medium) Append(filePath string) (goio.WriteCloser, error) {
+	filePath = cleanPath(filePath)
+	if filePath == "" {
 		return nil, core.E("datanode.Append", "empty path", fs.ErrInvalid)
 	}
 
 	// Read existing content
 	var existing []byte
 	m.mu.RLock()
-	if m.IsFile(p) {
-		data, err := m.readFileLocked(p)
+	if m.IsFile(filePath) {
+		data, err := m.readFileLocked(filePath)
 		if err != nil {
 			m.mu.RUnlock()
-			return nil, core.E("datanode.Append", core.Concat("failed to read existing content: ", p), err)
+			return nil, core.E("datanode.Append", core.Concat("failed to read existing content: ", filePath), err)
 		}
 		existing = data
 	}
 	m.mu.RUnlock()
 
-	return &writeCloser{medium: m, path: p, buf: existing}, nil
+	return &writeCloser{medium: m, path: filePath, buf: existing}, nil
 }
 
-// ReadStream documents the ReadStream operation.
-//
-//	result := m.ReadStream(...)
-func (m *Medium) ReadStream(p string) (goio.ReadCloser, error) {
+func (m *Medium) ReadStream(filePath string) (goio.ReadCloser, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	p = cleanPath(p)
-	f, err := m.dataNode.Open(p)
+	filePath = cleanPath(filePath)
+	f, err := m.dataNode.Open(filePath)
 	if err != nil {
-		return nil, core.E("datanode.ReadStream", core.Concat("not found: ", p), fs.ErrNotExist)
+		return nil, core.E("datanode.ReadStream", core.Concat("not found: ", filePath), fs.ErrNotExist)
 	}
 	return f.(goio.ReadCloser), nil
 }
 
-// WriteStream documents the WriteStream operation.
-//
-//	result := m.WriteStream(...)
-func (m *Medium) WriteStream(p string) (goio.WriteCloser, error) {
-	return m.Create(p)
+func (m *Medium) WriteStream(filePath string) (goio.WriteCloser, error) {
+	return m.Create(filePath)
 }
 
-// Exists documents the Exists operation.
-//
-//	result := m.Exists(...)
-func (m *Medium) Exists(p string) bool {
+func (m *Medium) Exists(filePath string) bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	p = cleanPath(p)
-	if p == "" {
+	filePath = cleanPath(filePath)
+	if filePath == "" {
 		return true // root always exists
 	}
-	_, err := m.dataNode.Stat(p)
+	_, err := m.dataNode.Stat(filePath)
 	if err == nil {
 		return true
 	}
-	return m.directories[p]
+	return m.directories[filePath]
 }
 
-// IsDir documents the IsDir operation.
-//
-//	result := m.IsDir(...)
-func (m *Medium) IsDir(p string) bool {
+func (m *Medium) IsDir(filePath string) bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	p = cleanPath(p)
-	if p == "" {
+	filePath = cleanPath(filePath)
+	if filePath == "" {
 		return true
 	}
-	info, err := m.dataNode.Stat(p)
+	info, err := m.dataNode.Stat(filePath)
 	if err == nil {
 		return info.IsDir()
 	}
-	return m.directories[p]
+	return m.directories[filePath]
 }
 
 // --- internal helpers ---
@@ -600,12 +543,12 @@ func (m *Medium) hasPrefixLocked(prefix string) (bool, error) {
 // collectAllLocked returns all file paths in the DataNode. Caller holds lock.
 func (m *Medium) collectAllLocked() ([]string, error) {
 	var names []string
-	err := dataNodeWalkDir(m.dataNode, ".", func(p string, d fs.DirEntry, err error) error {
+	err := dataNodeWalkDir(m.dataNode, ".", func(filePath string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		if !d.IsDir() {
-			names = append(names, p)
+		if !entry.IsDir() {
+			names = append(names, filePath)
 		}
 		return nil
 	})
@@ -659,17 +602,11 @@ type writeCloser struct {
 	buf    []byte
 }
 
-// Write documents the Write operation.
-//
-//	result := w.Write(...)
 func (w *writeCloser) Write(p []byte) (int, error) {
 	w.buf = append(w.buf, p...)
 	return len(p), nil
 }
 
-// Close documents the Close operation.
-//
-//	result := w.Close(...)
 func (w *writeCloser) Close() error {
 	w.medium.mu.Lock()
 	defer w.medium.mu.Unlock()
@@ -685,24 +622,12 @@ type dirEntry struct {
 	name string
 }
 
-// Name documents the Name operation.
-//
-//	result := d.Name(...)
 func (d *dirEntry) Name() string { return d.name }
 
-// IsDir documents the IsDir operation.
-//
-//	result := d.IsDir(...)
 func (d *dirEntry) IsDir() bool { return true }
 
-// Type documents the Type operation.
-//
-//	result := d.Type(...)
 func (d *dirEntry) Type() fs.FileMode { return fs.ModeDir }
 
-// Info documents the Info operation.
-//
-//	result := d.Info(...)
 func (d *dirEntry) Info() (fs.FileInfo, error) {
 	return &fileInfo{name: d.name, isDir: true, mode: fs.ModeDir | 0755}, nil
 }
@@ -715,32 +640,14 @@ type fileInfo struct {
 	isDir   bool
 }
 
-// Name documents the Name operation.
-//
-//	result := fi.Name(...)
 func (fi *fileInfo) Name() string { return fi.name }
 
-// Size documents the Size operation.
-//
-//	result := fi.Size(...)
 func (fi *fileInfo) Size() int64 { return fi.size }
 
-// Mode documents the Mode operation.
-//
-//	result := fi.Mode(...)
 func (fi *fileInfo) Mode() fs.FileMode { return fi.mode }
 
-// ModTime documents the ModTime operation.
-//
-//	result := fi.ModTime(...)
 func (fi *fileInfo) ModTime() time.Time { return fi.modTime }
 
-// IsDir documents the IsDir operation.
-//
-//	result := fi.IsDir(...)
 func (fi *fileInfo) IsDir() bool { return fi.isDir }
 
-// Sys documents the Sys operation.
-//
-//	result := fi.Sys(...)
 func (fi *fileInfo) Sys() any { return nil }

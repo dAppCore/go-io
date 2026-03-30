@@ -42,12 +42,12 @@ func dirSeparator() string {
 	return "/"
 }
 
-func normalisePath(p string) string {
+func normalisePath(path string) string {
 	sep := dirSeparator()
 	if sep == "/" {
-		return core.Replace(p, "\\", sep)
+		return core.Replace(path, "\\", sep)
 	}
-	return core.Replace(p, "/", sep)
+	return core.Replace(path, "/", sep)
 }
 
 func currentWorkingDir() string {
@@ -57,20 +57,20 @@ func currentWorkingDir() string {
 	return "."
 }
 
-func absolutePath(p string) string {
-	p = normalisePath(p)
-	if core.PathIsAbs(p) {
-		return core.Path(p)
+func absolutePath(path string) string {
+	path = normalisePath(path)
+	if core.PathIsAbs(path) {
+		return core.Path(path)
 	}
-	return core.Path(currentWorkingDir(), p)
+	return core.Path(currentWorkingDir(), path)
 }
 
-func cleanSandboxPath(p string) string {
-	return core.Path(dirSeparator() + normalisePath(p))
+func cleanSandboxPath(path string) string {
+	return core.Path(dirSeparator() + normalisePath(path))
 }
 
-func splitPathParts(p string) []string {
-	trimmed := core.TrimPrefix(p, dirSeparator())
+func splitPathParts(path string) []string {
+	trimmed := core.TrimPrefix(path, dirSeparator())
 	if trimmed == "" {
 		return nil
 	}
@@ -84,18 +84,18 @@ func splitPathParts(p string) []string {
 	return parts
 }
 
-func resolveSymlinksPath(p string) (string, error) {
-	return resolveSymlinksRecursive(absolutePath(p), map[string]struct{}{})
+func resolveSymlinksPath(path string) (string, error) {
+	return resolveSymlinksRecursive(absolutePath(path), map[string]struct{}{})
 }
 
-func resolveSymlinksRecursive(p string, seen map[string]struct{}) (string, error) {
-	p = core.Path(p)
-	if p == dirSeparator() {
-		return p, nil
+func resolveSymlinksRecursive(path string, seen map[string]struct{}) (string, error) {
+	path = core.Path(path)
+	if path == dirSeparator() {
+		return path, nil
 	}
 
 	current := dirSeparator()
-	for _, part := range splitPathParts(p) {
+	for _, part := range splitPathParts(path) {
 		next := core.Path(current, part)
 		info, err := lstat(next)
 		if err != nil {
@@ -144,14 +144,14 @@ func isWithinRoot(root, target string) bool {
 	return target == root || core.HasPrefix(target, root+dirSeparator())
 }
 
-func canonicalPath(p string) string {
-	if p == "" {
+func canonicalPath(path string) string {
+	if path == "" {
 		return ""
 	}
-	if resolved, err := resolveSymlinksPath(p); err == nil {
+	if resolved, err := resolveSymlinksPath(path); err == nil {
 		return resolved
 	}
-	return absolutePath(p)
+	return absolutePath(path)
 }
 
 func isProtectedPath(fullPath string) bool {
@@ -179,21 +179,21 @@ func logSandboxEscape(root, path, attempted string) {
 
 // sandboxedPath sanitises and returns the full filesystem path.
 // Absolute paths are sandboxed under root (unless root is "/").
-func (m *Medium) sandboxedPath(p string) string {
-	if p == "" {
+func (m *Medium) sandboxedPath(path string) string {
+	if path == "" {
 		return m.filesystemRoot
 	}
 
 	// If the path is relative and the medium is rooted at "/",
 	// treat it as relative to the current working directory.
 	// This makes io.Local behave more like the standard 'os' package.
-	if m.filesystemRoot == dirSeparator() && !core.PathIsAbs(normalisePath(p)) {
-		return core.Path(currentWorkingDir(), normalisePath(p))
+	if m.filesystemRoot == dirSeparator() && !core.PathIsAbs(normalisePath(path)) {
+		return core.Path(currentWorkingDir(), normalisePath(path))
 	}
 
 	// Use a cleaned absolute path to resolve all .. and . internally
 	// before joining with the root. This is a standard way to sandbox paths.
-	clean := cleanSandboxPath(p)
+	clean := cleanSandboxPath(path)
 
 	// If root is "/", allow absolute paths through
 	if m.filesystemRoot == dirSeparator() {
@@ -205,13 +205,13 @@ func (m *Medium) sandboxedPath(p string) string {
 }
 
 // validatePath ensures the path is within the sandbox, following symlinks if they exist.
-func (m *Medium) validatePath(p string) (string, error) {
+func (m *Medium) validatePath(path string) (string, error) {
 	if m.filesystemRoot == dirSeparator() {
-		return m.sandboxedPath(p), nil
+		return m.sandboxedPath(path), nil
 	}
 
 	// Split the cleaned path into components
-	parts := splitPathParts(cleanSandboxPath(p))
+	parts := splitPathParts(cleanSandboxPath(path))
 	current := m.filesystemRoot
 
 	for _, part := range parts {
@@ -231,7 +231,7 @@ func (m *Medium) validatePath(p string) (string, error) {
 		// Verify the resolved part is still within the root
 		if !isWithinRoot(m.filesystemRoot, realNext) {
 			// Security event: sandbox escape attempt
-			logSandboxEscape(m.filesystemRoot, p, realNext)
+			logSandboxEscape(m.filesystemRoot, path, realNext)
 			return "", fs.ErrPermission
 		}
 		current = realNext
@@ -243,12 +243,12 @@ func (m *Medium) validatePath(p string) (string, error) {
 // Read returns file contents as string.
 //
 //	result := m.Read(...)
-func (m *Medium) Read(p string) (string, error) {
-	resolvedPath, err := m.validatePath(p)
+func (m *Medium) Read(path string) (string, error) {
+	resolvedPath, err := m.validatePath(path)
 	if err != nil {
 		return "", err
 	}
-	return resultString("local.Read", core.Concat("read failed: ", p), unrestrictedFileSystem.Read(resolvedPath))
+	return resultString("local.Read", core.Concat("read failed: ", path), unrestrictedFileSystem.Read(resolvedPath))
 }
 
 // Write saves content to file, creating parent directories as needed.
@@ -256,41 +256,41 @@ func (m *Medium) Read(p string) (string, error) {
 // use WriteMode with 0600.
 //
 //	result := m.Write(...)
-func (m *Medium) Write(p, content string) error {
-	return m.WriteMode(p, content, 0644)
+func (m *Medium) Write(path, content string) error {
+	return m.WriteMode(path, content, 0644)
 }
 
 // WriteMode saves content to file with explicit permissions.
 // Use 0600 for sensitive files (encryption output, private keys, auth hashes).
 //
 //	result := m.WriteMode(...)
-func (m *Medium) WriteMode(p, content string, mode fs.FileMode) error {
-	resolvedPath, err := m.validatePath(p)
+func (m *Medium) WriteMode(path, content string, mode fs.FileMode) error {
+	resolvedPath, err := m.validatePath(path)
 	if err != nil {
 		return err
 	}
-	return resultErr("local.WriteMode", core.Concat("write failed: ", p), unrestrictedFileSystem.WriteMode(resolvedPath, content, mode))
+	return resultErr("local.WriteMode", core.Concat("write failed: ", path), unrestrictedFileSystem.WriteMode(resolvedPath, content, mode))
 }
 
 // EnsureDir creates directory if it doesn't exist.
 //
 //	result := m.EnsureDir(...)
-func (m *Medium) EnsureDir(p string) error {
-	resolvedPath, err := m.validatePath(p)
+func (m *Medium) EnsureDir(path string) error {
+	resolvedPath, err := m.validatePath(path)
 	if err != nil {
 		return err
 	}
-	return resultErr("local.EnsureDir", core.Concat("ensure dir failed: ", p), unrestrictedFileSystem.EnsureDir(resolvedPath))
+	return resultErr("local.EnsureDir", core.Concat("ensure dir failed: ", path), unrestrictedFileSystem.EnsureDir(resolvedPath))
 }
 
 // IsDir returns true if path is a directory.
 //
 //	result := m.IsDir(...)
-func (m *Medium) IsDir(p string) bool {
-	if p == "" {
+func (m *Medium) IsDir(path string) bool {
+	if path == "" {
 		return false
 	}
-	resolvedPath, err := m.validatePath(p)
+	resolvedPath, err := m.validatePath(path)
 	if err != nil {
 		return false
 	}
@@ -300,11 +300,11 @@ func (m *Medium) IsDir(p string) bool {
 // IsFile returns true if path is a regular file.
 //
 //	result := m.IsFile(...)
-func (m *Medium) IsFile(p string) bool {
-	if p == "" {
+func (m *Medium) IsFile(path string) bool {
+	if path == "" {
 		return false
 	}
-	resolvedPath, err := m.validatePath(p)
+	resolvedPath, err := m.validatePath(path)
 	if err != nil {
 		return false
 	}
@@ -314,8 +314,8 @@ func (m *Medium) IsFile(p string) bool {
 // Exists returns true if path exists.
 //
 //	result := m.Exists(...)
-func (m *Medium) Exists(p string) bool {
-	resolvedPath, err := m.validatePath(p)
+func (m *Medium) Exists(path string) bool {
+	resolvedPath, err := m.validatePath(path)
 	if err != nil {
 		return false
 	}
@@ -325,56 +325,56 @@ func (m *Medium) Exists(p string) bool {
 // List returns directory entries.
 //
 //	result := m.List(...)
-func (m *Medium) List(p string) ([]fs.DirEntry, error) {
-	resolvedPath, err := m.validatePath(p)
+func (m *Medium) List(path string) ([]fs.DirEntry, error) {
+	resolvedPath, err := m.validatePath(path)
 	if err != nil {
 		return nil, err
 	}
-	return resultDirEntries("local.List", core.Concat("list failed: ", p), unrestrictedFileSystem.List(resolvedPath))
+	return resultDirEntries("local.List", core.Concat("list failed: ", path), unrestrictedFileSystem.List(resolvedPath))
 }
 
 // Stat returns file info.
 //
 //	result := m.Stat(...)
-func (m *Medium) Stat(p string) (fs.FileInfo, error) {
-	resolvedPath, err := m.validatePath(p)
+func (m *Medium) Stat(path string) (fs.FileInfo, error) {
+	resolvedPath, err := m.validatePath(path)
 	if err != nil {
 		return nil, err
 	}
-	return resultFileInfo("local.Stat", core.Concat("stat failed: ", p), unrestrictedFileSystem.Stat(resolvedPath))
+	return resultFileInfo("local.Stat", core.Concat("stat failed: ", path), unrestrictedFileSystem.Stat(resolvedPath))
 }
 
 // Open opens the named file for reading.
 //
 //	result := m.Open(...)
-func (m *Medium) Open(p string) (fs.File, error) {
-	resolvedPath, err := m.validatePath(p)
+func (m *Medium) Open(path string) (fs.File, error) {
+	resolvedPath, err := m.validatePath(path)
 	if err != nil {
 		return nil, err
 	}
-	return resultFile("local.Open", core.Concat("open failed: ", p), unrestrictedFileSystem.Open(resolvedPath))
+	return resultFile("local.Open", core.Concat("open failed: ", path), unrestrictedFileSystem.Open(resolvedPath))
 }
 
 // Create creates or truncates the named file.
 //
 //	result := m.Create(...)
-func (m *Medium) Create(p string) (goio.WriteCloser, error) {
-	resolvedPath, err := m.validatePath(p)
+func (m *Medium) Create(path string) (goio.WriteCloser, error) {
+	resolvedPath, err := m.validatePath(path)
 	if err != nil {
 		return nil, err
 	}
-	return resultWriteCloser("local.Create", core.Concat("create failed: ", p), unrestrictedFileSystem.Create(resolvedPath))
+	return resultWriteCloser("local.Create", core.Concat("create failed: ", path), unrestrictedFileSystem.Create(resolvedPath))
 }
 
 // Append opens the named file for appending, creating it if it doesn't exist.
 //
 //	result := m.Append(...)
-func (m *Medium) Append(p string) (goio.WriteCloser, error) {
-	resolvedPath, err := m.validatePath(p)
+func (m *Medium) Append(path string) (goio.WriteCloser, error) {
+	resolvedPath, err := m.validatePath(path)
 	if err != nil {
 		return nil, err
 	}
-	return resultWriteCloser("local.Append", core.Concat("append failed: ", p), unrestrictedFileSystem.Append(resolvedPath))
+	return resultWriteCloser("local.Append", core.Concat("append failed: ", path), unrestrictedFileSystem.Append(resolvedPath))
 }
 
 // ReadStream returns a reader for the file content.
@@ -404,29 +404,29 @@ func (m *Medium) WriteStream(path string) (goio.WriteCloser, error) {
 // Delete removes a file or empty directory.
 //
 //	result := m.Delete(...)
-func (m *Medium) Delete(p string) error {
-	resolvedPath, err := m.validatePath(p)
+func (m *Medium) Delete(path string) error {
+	resolvedPath, err := m.validatePath(path)
 	if err != nil {
 		return err
 	}
 	if isProtectedPath(resolvedPath) {
 		return core.E("local.Delete", core.Concat("refusing to delete protected path: ", resolvedPath), nil)
 	}
-	return resultErr("local.Delete", core.Concat("delete failed: ", p), unrestrictedFileSystem.Delete(resolvedPath))
+	return resultErr("local.Delete", core.Concat("delete failed: ", path), unrestrictedFileSystem.Delete(resolvedPath))
 }
 
 // DeleteAll removes a file or directory recursively.
 //
 //	result := m.DeleteAll(...)
-func (m *Medium) DeleteAll(p string) error {
-	resolvedPath, err := m.validatePath(p)
+func (m *Medium) DeleteAll(path string) error {
+	resolvedPath, err := m.validatePath(path)
 	if err != nil {
 		return err
 	}
 	if isProtectedPath(resolvedPath) {
 		return core.E("local.DeleteAll", core.Concat("refusing to delete protected path: ", resolvedPath), nil)
 	}
-	return resultErr("local.DeleteAll", core.Concat("delete all failed: ", p), unrestrictedFileSystem.DeleteAll(resolvedPath))
+	return resultErr("local.DeleteAll", core.Concat("delete all failed: ", path), unrestrictedFileSystem.DeleteAll(resolvedPath))
 }
 
 // Rename moves a file or directory.
@@ -444,18 +444,12 @@ func (m *Medium) Rename(oldPath, newPath string) error {
 	return resultErr("local.Rename", core.Concat("rename failed: ", oldPath), unrestrictedFileSystem.Rename(oldResolvedPath, newResolvedPath))
 }
 
-// FileGet is an alias for Read.
-//
-//	result := m.FileGet(...)
-func (m *Medium) FileGet(p string) (string, error) {
-	return m.Read(p)
+func (m *Medium) FileGet(path string) (string, error) {
+	return m.Read(path)
 }
 
-// FileSet is an alias for Write.
-//
-//	result := m.FileSet(...)
-func (m *Medium) FileSet(p, content string) error {
-	return m.Write(p, content)
+func (m *Medium) FileSet(path, content string) error {
+	return m.Write(path, content)
 }
 
 func lstat(path string) (*syscall.Stat_t, error) {
@@ -485,67 +479,67 @@ func readlink(path string) (string, error) {
 	}
 }
 
-func resultErr(op, msg string, result core.Result) error {
+func resultErr(operation, message string, result core.Result) error {
 	if result.OK {
 		return nil
 	}
 	if err, ok := result.Value.(error); ok {
-		return core.E(op, msg, err)
+		return core.E(operation, message, err)
 	}
-	return core.E(op, msg, nil)
+	return core.E(operation, message, nil)
 }
 
-func resultString(op, msg string, result core.Result) (string, error) {
+func resultString(operation, message string, result core.Result) (string, error) {
 	if !result.OK {
-		return "", resultErr(op, msg, result)
+		return "", resultErr(operation, message, result)
 	}
 	value, ok := result.Value.(string)
 	if !ok {
-		return "", core.E(op, "unexpected result type", nil)
+		return "", core.E(operation, "unexpected result type", nil)
 	}
 	return value, nil
 }
 
-func resultDirEntries(op, msg string, result core.Result) ([]fs.DirEntry, error) {
+func resultDirEntries(operation, message string, result core.Result) ([]fs.DirEntry, error) {
 	if !result.OK {
-		return nil, resultErr(op, msg, result)
+		return nil, resultErr(operation, message, result)
 	}
 	entries, ok := result.Value.([]fs.DirEntry)
 	if !ok {
-		return nil, core.E(op, "unexpected result type", nil)
+		return nil, core.E(operation, "unexpected result type", nil)
 	}
 	return entries, nil
 }
 
-func resultFileInfo(op, msg string, result core.Result) (fs.FileInfo, error) {
+func resultFileInfo(operation, message string, result core.Result) (fs.FileInfo, error) {
 	if !result.OK {
-		return nil, resultErr(op, msg, result)
+		return nil, resultErr(operation, message, result)
 	}
 	fileInfo, ok := result.Value.(fs.FileInfo)
 	if !ok {
-		return nil, core.E(op, "unexpected result type", nil)
+		return nil, core.E(operation, "unexpected result type", nil)
 	}
 	return fileInfo, nil
 }
 
-func resultFile(op, msg string, result core.Result) (fs.File, error) {
+func resultFile(operation, message string, result core.Result) (fs.File, error) {
 	if !result.OK {
-		return nil, resultErr(op, msg, result)
+		return nil, resultErr(operation, message, result)
 	}
 	file, ok := result.Value.(fs.File)
 	if !ok {
-		return nil, core.E(op, "unexpected result type", nil)
+		return nil, core.E(operation, "unexpected result type", nil)
 	}
 	return file, nil
 }
 
-func resultWriteCloser(op, msg string, result core.Result) (goio.WriteCloser, error) {
+func resultWriteCloser(operation, message string, result core.Result) (goio.WriteCloser, error) {
 	if !result.OK {
-		return nil, resultErr(op, msg, result)
+		return nil, resultErr(operation, message, result)
 	}
 	writer, ok := result.Value.(goio.WriteCloser)
 	if !ok {
-		return nil, core.E(op, "unexpected result type", nil)
+		return nil, core.E(operation, "unexpected result type", nil)
 	}
 	return writer, nil
 }

@@ -56,14 +56,14 @@ func deleteObjectsError(prefix string, errs []types.Error) error {
 	for _, item := range errs {
 		key := aws.ToString(item.Key)
 		code := aws.ToString(item.Code)
-		msg := aws.ToString(item.Message)
+		message := aws.ToString(item.Message)
 		switch {
-		case code != "" && msg != "":
-			details = append(details, core.Concat(key, ": ", code, " ", msg))
+		case code != "" && message != "":
+			details = append(details, core.Concat(key, ": ", code, " ", message))
 		case code != "":
 			details = append(details, core.Concat(key, ": ", code))
-		case msg != "":
-			details = append(details, core.Concat(key, ": ", msg))
+		case message != "":
+			details = append(details, core.Concat(key, ": ", message))
 		default:
 			details = append(details, key)
 		}
@@ -109,10 +109,10 @@ func New(options Options) (*Medium, error) {
 }
 
 // key returns the full S3 object key for a given path.
-func (m *Medium) key(p string) string {
+func (m *Medium) key(filePath string) string {
 	// Clean the path using a leading "/" to sandbox traversal attempts,
 	// then strip the "/" prefix. This ensures ".." can't escape.
-	clean := path.Clean("/" + p)
+	clean := path.Clean("/" + filePath)
 	if clean == "/" {
 		clean = ""
 	}
@@ -130,8 +130,8 @@ func (m *Medium) key(p string) string {
 // Read retrieves the content of a file as a string.
 //
 //	result := m.Read(...)
-func (m *Medium) Read(p string) (string, error) {
-	key := m.key(p)
+func (m *Medium) Read(filePath string) (string, error) {
+	key := m.key(filePath)
 	if key == "" {
 		return "", core.E("s3.Read", "path is required", fs.ErrInvalid)
 	}
@@ -155,8 +155,8 @@ func (m *Medium) Read(p string) (string, error) {
 // Write saves the given content to a file, overwriting it if it exists.
 //
 //	result := m.Write(...)
-func (m *Medium) Write(p, content string) error {
-	key := m.key(p)
+func (m *Medium) Write(filePath, content string) error {
+	key := m.key(filePath)
 	if key == "" {
 		return core.E("s3.Write", "path is required", fs.ErrInvalid)
 	}
@@ -175,8 +175,8 @@ func (m *Medium) Write(p, content string) error {
 // WriteMode ignores the requested mode because S3 objects do not store POSIX permissions.
 //
 //	result := m.WriteMode(...)
-func (m *Medium) WriteMode(p, content string, _ fs.FileMode) error {
-	return m.Write(p, content)
+func (m *Medium) WriteMode(filePath, content string, _ fs.FileMode) error {
+	return m.Write(filePath, content)
 }
 
 // EnsureDir is a no-op for S3 (S3 has no real directories).
@@ -189,8 +189,8 @@ func (m *Medium) EnsureDir(_ string) error {
 // IsFile checks if a path exists and is a regular file (not a "directory" prefix).
 //
 //	result := m.IsFile(...)
-func (m *Medium) IsFile(p string) bool {
-	key := m.key(p)
+func (m *Medium) IsFile(filePath string) bool {
+	key := m.key(filePath)
 	if key == "" {
 		return false
 	}
@@ -208,22 +208,22 @@ func (m *Medium) IsFile(p string) bool {
 // FileGet is a convenience function that reads a file from the medium.
 //
 //	result := m.FileGet(...)
-func (m *Medium) FileGet(p string) (string, error) {
-	return m.Read(p)
+func (m *Medium) FileGet(filePath string) (string, error) {
+	return m.Read(filePath)
 }
 
 // FileSet is a convenience function that writes a file to the medium.
 //
 //	result := m.FileSet(...)
-func (m *Medium) FileSet(p, content string) error {
-	return m.Write(p, content)
+func (m *Medium) FileSet(filePath, content string) error {
+	return m.Write(filePath, content)
 }
 
 // Delete removes a single object.
 //
 //	result := m.Delete(...)
-func (m *Medium) Delete(p string) error {
-	key := m.key(p)
+func (m *Medium) Delete(filePath string) error {
+	key := m.key(filePath)
 	if key == "" {
 		return core.E("s3.Delete", "path is required", fs.ErrInvalid)
 	}
@@ -241,8 +241,8 @@ func (m *Medium) Delete(p string) error {
 // DeleteAll removes all objects under the given prefix.
 //
 //	result := m.DeleteAll(...)
-func (m *Medium) DeleteAll(p string) error {
-	key := m.key(p)
+func (m *Medium) DeleteAll(filePath string) error {
+	key := m.key(filePath)
 	if key == "" {
 		return core.E("s3.DeleteAll", "path is required", fs.ErrInvalid)
 	}
@@ -340,8 +340,8 @@ func (m *Medium) Rename(oldPath, newPath string) error {
 // List returns directory entries for the given path using ListObjectsV2 with delimiter.
 //
 //	result := m.List(...)
-func (m *Medium) List(p string) ([]fs.DirEntry, error) {
-	prefix := m.key(p)
+func (m *Medium) List(filePath string) ([]fs.DirEntry, error) {
+	prefix := m.key(filePath)
 	if prefix != "" && !core.HasSuffix(prefix, "/") {
 		prefix += "/"
 	}
@@ -415,8 +415,8 @@ func (m *Medium) List(p string) ([]fs.DirEntry, error) {
 // Stat returns file information for the given path using HeadObject.
 //
 //	result := m.Stat(...)
-func (m *Medium) Stat(p string) (fs.FileInfo, error) {
-	key := m.key(p)
+func (m *Medium) Stat(filePath string) (fs.FileInfo, error) {
+	key := m.key(filePath)
 	if key == "" {
 		return nil, core.E("s3.Stat", "path is required", fs.ErrInvalid)
 	}
@@ -450,8 +450,8 @@ func (m *Medium) Stat(p string) (fs.FileInfo, error) {
 // Open opens the named file for reading.
 //
 //	result := m.Open(...)
-func (m *Medium) Open(p string) (fs.File, error) {
-	key := m.key(p)
+func (m *Medium) Open(filePath string) (fs.File, error) {
+	key := m.key(filePath)
 	if key == "" {
 		return nil, core.E("s3.Open", "path is required", fs.ErrInvalid)
 	}
@@ -491,8 +491,8 @@ func (m *Medium) Open(p string) (fs.File, error) {
 // uploads the content on Close.
 //
 //	result := m.Create(...)
-func (m *Medium) Create(p string) (goio.WriteCloser, error) {
-	key := m.key(p)
+func (m *Medium) Create(filePath string) (goio.WriteCloser, error) {
+	key := m.key(filePath)
 	if key == "" {
 		return nil, core.E("s3.Create", "path is required", fs.ErrInvalid)
 	}
@@ -506,8 +506,8 @@ func (m *Medium) Create(p string) (goio.WriteCloser, error) {
 // content (if any) and re-uploads the combined content on Close.
 //
 //	result := m.Append(...)
-func (m *Medium) Append(p string) (goio.WriteCloser, error) {
-	key := m.key(p)
+func (m *Medium) Append(filePath string) (goio.WriteCloser, error) {
+	key := m.key(filePath)
 	if key == "" {
 		return nil, core.E("s3.Append", "path is required", fs.ErrInvalid)
 	}
@@ -532,8 +532,8 @@ func (m *Medium) Append(p string) (goio.WriteCloser, error) {
 // ReadStream returns a reader for the file content.
 //
 //	result := m.ReadStream(...)
-func (m *Medium) ReadStream(p string) (goio.ReadCloser, error) {
-	key := m.key(p)
+func (m *Medium) ReadStream(filePath string) (goio.ReadCloser, error) {
+	key := m.key(filePath)
 	if key == "" {
 		return nil, core.E("s3.ReadStream", "path is required", fs.ErrInvalid)
 	}
@@ -551,15 +551,15 @@ func (m *Medium) ReadStream(p string) (goio.ReadCloser, error) {
 // WriteStream returns a writer for the file content. Content is uploaded on Close.
 //
 //	result := m.WriteStream(...)
-func (m *Medium) WriteStream(p string) (goio.WriteCloser, error) {
-	return m.Create(p)
+func (m *Medium) WriteStream(filePath string) (goio.WriteCloser, error) {
+	return m.Create(filePath)
 }
 
 // Exists checks if a path exists (file or directory prefix).
 //
 //	result := m.Exists(...)
-func (m *Medium) Exists(p string) bool {
-	key := m.key(p)
+func (m *Medium) Exists(filePath string) bool {
+	key := m.key(filePath)
 	if key == "" {
 		return false
 	}
@@ -592,8 +592,8 @@ func (m *Medium) Exists(p string) bool {
 // IsDir checks if a path exists and is a directory (has objects under it as a prefix).
 //
 //	result := m.IsDir(...)
-func (m *Medium) IsDir(p string) bool {
-	key := m.key(p)
+func (m *Medium) IsDir(filePath string) bool {
+	key := m.key(filePath)
 	if key == "" {
 		return false
 	}
@@ -625,34 +625,16 @@ type fileInfo struct {
 	isDir   bool
 }
 
-// Name documents the Name operation.
-//
-//	result := fi.Name(...)
 func (fi *fileInfo) Name() string { return fi.name }
 
-// Size documents the Size operation.
-//
-//	result := fi.Size(...)
 func (fi *fileInfo) Size() int64 { return fi.size }
 
-// Mode documents the Mode operation.
-//
-//	result := fi.Mode(...)
 func (fi *fileInfo) Mode() fs.FileMode { return fi.mode }
 
-// ModTime documents the ModTime operation.
-//
-//	result := fi.ModTime(...)
 func (fi *fileInfo) ModTime() time.Time { return fi.modTime }
 
-// IsDir documents the IsDir operation.
-//
-//	result := fi.IsDir(...)
 func (fi *fileInfo) IsDir() bool { return fi.isDir }
 
-// Sys documents the Sys operation.
-//
-//	result := fi.Sys(...)
 func (fi *fileInfo) Sys() any { return nil }
 
 // dirEntry implements fs.DirEntry for S3 listings.
@@ -663,24 +645,12 @@ type dirEntry struct {
 	info  fs.FileInfo
 }
 
-// Name documents the Name operation.
-//
-//	result := de.Name(...)
 func (de *dirEntry) Name() string { return de.name }
 
-// IsDir documents the IsDir operation.
-//
-//	result := de.IsDir(...)
 func (de *dirEntry) IsDir() bool { return de.isDir }
 
-// Type documents the Type operation.
-//
-//	result := de.Type(...)
 func (de *dirEntry) Type() fs.FileMode { return de.mode.Type() }
 
-// Info documents the Info operation.
-//
-//	result := de.Info(...)
 func (de *dirEntry) Info() (fs.FileInfo, error) { return de.info, nil }
 
 // s3File implements fs.File for S3 objects.
@@ -692,9 +662,6 @@ type s3File struct {
 	modTime time.Time
 }
 
-// Stat documents the Stat operation.
-//
-//	result := f.Stat(...)
 func (f *s3File) Stat() (fs.FileInfo, error) {
 	return &fileInfo{
 		name:    f.name,
@@ -704,9 +671,6 @@ func (f *s3File) Stat() (fs.FileInfo, error) {
 	}, nil
 }
 
-// Read documents the Read operation.
-//
-//	result := f.Read(...)
 func (f *s3File) Read(b []byte) (int, error) {
 	if f.offset >= int64(len(f.content)) {
 		return 0, goio.EOF
@@ -716,9 +680,6 @@ func (f *s3File) Read(b []byte) (int, error) {
 	return n, nil
 }
 
-// Close documents the Close operation.
-//
-//	result := f.Close(...)
 func (f *s3File) Close() error {
 	return nil
 }
@@ -730,17 +691,11 @@ type s3WriteCloser struct {
 	data   []byte
 }
 
-// Write documents the Write operation.
-//
-//	result := w.Write(...)
 func (w *s3WriteCloser) Write(p []byte) (int, error) {
 	w.data = append(w.data, p...)
 	return len(p), nil
 }
 
-// Close documents the Close operation.
-//
-//	result := w.Close(...)
 func (w *s3WriteCloser) Close() error {
 	_, err := w.medium.client.PutObject(context.Background(), &awss3.PutObjectInput{
 		Bucket: aws.String(w.medium.bucket),
