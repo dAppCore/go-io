@@ -329,7 +329,6 @@ func (medium *Medium) List(filePath string) ([]fs.DirEntry, error) {
 		return nil, core.E("s3.List", core.Concat("failed to list objects: ", prefix), err)
 	}
 
-	// Common prefixes are "directories"
 	for _, commonPrefix := range listOutput.CommonPrefixes {
 		if commonPrefix.Prefix == nil {
 			continue
@@ -351,7 +350,6 @@ func (medium *Medium) List(filePath string) ([]fs.DirEntry, error) {
 		})
 	}
 
-	// Contents are "files" (excluding the prefix itself)
 	for _, object := range listOutput.Contents {
 		if object.Key == nil {
 			continue
@@ -517,7 +515,6 @@ func (medium *Medium) Exists(filePath string) bool {
 		return false
 	}
 
-	// Check as an exact object
 	_, err := medium.client.HeadObject(context.Background(), &awss3.HeadObjectInput{
 		Bucket: aws.String(medium.bucket),
 		Key:    aws.String(key),
@@ -526,7 +523,6 @@ func (medium *Medium) Exists(filePath string) bool {
 		return true
 	}
 
-	// Check as a "directory" prefix
 	prefix := key
 	if !core.HasSuffix(prefix, "/") {
 		prefix += "/"

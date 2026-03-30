@@ -116,7 +116,6 @@ func TestSqlite_EnsureDir_Good(t *testing.T) {
 
 func TestSqlite_EnsureDir_EmptyPath_Good(t *testing.T) {
 	m := newTestMedium(t)
-	// Root always exists, no-op
 	err := m.EnsureDir("")
 	assert.NoError(t, err)
 }
@@ -579,7 +578,6 @@ func TestSqlite_Exists_Good(t *testing.T) {
 
 func TestSqlite_Exists_EmptyPath_Good(t *testing.T) {
 	m := newTestMedium(t)
-	// Root always exists
 	assert.True(t, m.Exists(""))
 }
 

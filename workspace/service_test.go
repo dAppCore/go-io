@@ -13,11 +13,11 @@ type stubCryptProvider struct {
 	err error
 }
 
-func (s stubCryptProvider) CreateKeyPair(_, _ string) (string, error) {
-	if s.err != nil {
-		return "", s.err
+func (provider stubCryptProvider) CreateKeyPair(_, _ string) (string, error) {
+	if provider.err != nil {
+		return "", provider.err
 	}
-	return s.key, nil
+	return provider.key, nil
 }
 
 func newTestService(t *testing.T) (*Service, string) {
@@ -26,9 +26,9 @@ func newTestService(t *testing.T) (*Service, string) {
 	tempHome := t.TempDir()
 	t.Setenv("HOME", tempHome)
 
-	svc, err := New(Options{CryptProvider: stubCryptProvider{key: "private-key"}})
+	service, err := New(Options{CryptProvider: stubCryptProvider{key: "private-key"}})
 	require.NoError(t, err)
-	return svc, tempHome
+	return service, tempHome
 }
 
 func TestService_New_MissingCryptProvider_Bad(t *testing.T) {
@@ -37,9 +37,9 @@ func TestService_New_MissingCryptProvider_Bad(t *testing.T) {
 }
 
 func TestService_Workspace_RoundTrip_Good(t *testing.T) {
-	s, tempHome := newTestService(t)
+	service, tempHome := newTestService(t)
 
-	workspaceID, err := s.CreateWorkspace("test-user", "pass123")
+	workspaceID, err := service.CreateWorkspace("test-user", "pass123")
 	require.NoError(t, err)
 	assert.NotEmpty(t, workspaceID)
 
@@ -48,55 +48,55 @@ func TestService_Workspace_RoundTrip_Good(t *testing.T) {
 	assert.DirExists(t, core.Path(workspacePath, "keys"))
 	assert.FileExists(t, core.Path(workspacePath, "keys", "private.key"))
 
-	err = s.SwitchWorkspace(workspaceID)
+	err = service.SwitchWorkspace(workspaceID)
 	require.NoError(t, err)
-	assert.Equal(t, workspaceID, s.activeWorkspaceID)
+	assert.Equal(t, workspaceID, service.activeWorkspaceID)
 
-	err = s.WorkspaceFileSet("secret.txt", "top secret info")
+	err = service.WorkspaceFileSet("secret.txt", "top secret info")
 	require.NoError(t, err)
 
-	got, err := s.WorkspaceFileGet("secret.txt")
+	got, err := service.WorkspaceFileGet("secret.txt")
 	require.NoError(t, err)
 	assert.Equal(t, "top secret info", got)
 }
 
 func TestService_SwitchWorkspace_TraversalBlocked_Bad(t *testing.T) {
-	s, tempHome := newTestService(t)
+	service, tempHome := newTestService(t)
 
 	outside := core.Path(tempHome, ".core", "escaped")
-	require.NoError(t, s.medium.EnsureDir(outside))
+	require.NoError(t, service.medium.EnsureDir(outside))
 
-	err := s.SwitchWorkspace("../escaped")
+	err := service.SwitchWorkspace("../escaped")
 	require.Error(t, err)
-	assert.Empty(t, s.activeWorkspaceID)
+	assert.Empty(t, service.activeWorkspaceID)
 }
 
 func TestService_WorkspaceFileSet_TraversalBlocked_Bad(t *testing.T) {
-	s, tempHome := newTestService(t)
+	service, tempHome := newTestService(t)
 
-	workspaceID, err := s.CreateWorkspace("test-user", "pass123")
+	workspaceID, err := service.CreateWorkspace("test-user", "pass123")
 	require.NoError(t, err)
-	require.NoError(t, s.SwitchWorkspace(workspaceID))
+	require.NoError(t, service.SwitchWorkspace(workspaceID))
 
 	keyPath := core.Path(tempHome, ".core", "workspaces", workspaceID, "keys", "private.key")
-	before, err := s.medium.Read(keyPath)
+	before, err := service.medium.Read(keyPath)
 	require.NoError(t, err)
 
-	err = s.WorkspaceFileSet("../keys/private.key", "hijack")
+	err = service.WorkspaceFileSet("../keys/private.key", "hijack")
 	require.Error(t, err)
 
-	after, err := s.medium.Read(keyPath)
+	after, err := service.medium.Read(keyPath)
 	require.NoError(t, err)
 	assert.Equal(t, before, after)
 
-	_, err = s.WorkspaceFileGet("../keys/private.key")
+	_, err = service.WorkspaceFileGet("../keys/private.key")
 	require.Error(t, err)
 }
 
 func TestService_HandleWorkspaceMessage_Good(t *testing.T) {
-	s, _ := newTestService(t)
+	service, _ := newTestService(t)
 
-	create := s.HandleWorkspaceMessage(core.New(), WorkspaceCommand{
+	create := service.HandleWorkspaceMessage(core.New(), WorkspaceCommand{
 		Action:     WorkspaceCreateAction,
 		Identifier: "ipc-user",
 		Password:   "pass123",
@@ -107,14 +107,14 @@ func TestService_HandleWorkspaceMessage_Good(t *testing.T) {
 	require.True(t, ok)
 	require.NotEmpty(t, workspaceID)
 
-	switchResult := s.HandleWorkspaceMessage(core.New(), WorkspaceCommand{
+	switchResult := service.HandleWorkspaceMessage(core.New(), WorkspaceCommand{
 		Action:      WorkspaceSwitchAction,
 		WorkspaceID: workspaceID,
 	})
 	assert.True(t, switchResult.OK)
-	assert.Equal(t, workspaceID, s.activeWorkspaceID)
+	assert.Equal(t, workspaceID, service.activeWorkspaceID)
 
-	legacyCreate := s.HandleWorkspaceMessage(core.New(), map[string]any{
+	legacyCreate := service.HandleWorkspaceMessage(core.New(), map[string]any{
 		"action":     WorkspaceCreateAction,
 		"identifier": "legacy-user",
 		"password":   "pass123",
@@ -125,34 +125,34 @@ func TestService_HandleWorkspaceMessage_Good(t *testing.T) {
 	require.True(t, ok)
 	require.NotEmpty(t, legacyWorkspaceID)
 
-	legacySwitch := s.HandleWorkspaceMessage(core.New(), WorkspaceCommand{
+	legacySwitch := service.HandleWorkspaceMessage(core.New(), WorkspaceCommand{
 		Action:      WorkspaceSwitchAction,
 		WorkspaceID: legacyWorkspaceID,
 	})
 	assert.True(t, legacySwitch.OK)
-	assert.Equal(t, legacyWorkspaceID, s.activeWorkspaceID)
+	assert.Equal(t, legacyWorkspaceID, service.activeWorkspaceID)
 
-	rejectedLegacySwitch := s.HandleWorkspaceMessage(core.New(), map[string]any{
+	rejectedLegacySwitch := service.HandleWorkspaceMessage(core.New(), map[string]any{
 		"action": WorkspaceSwitchAction,
 		"name":   workspaceID,
 	})
 	assert.False(t, rejectedLegacySwitch.OK)
-	assert.Equal(t, legacyWorkspaceID, s.activeWorkspaceID)
+	assert.Equal(t, legacyWorkspaceID, service.activeWorkspaceID)
 
-	failedSwitch := s.HandleWorkspaceMessage(core.New(), map[string]any{
+	failedSwitch := service.HandleWorkspaceMessage(core.New(), map[string]any{
 		"action":      WorkspaceSwitchAction,
 		"workspaceID": "missing",
 	})
 	assert.False(t, failedSwitch.OK)
 
-	unknown := s.HandleWorkspaceMessage(core.New(), "noop")
+	unknown := service.HandleWorkspaceMessage(core.New(), "noop")
 	assert.True(t, unknown.OK)
 }
 
 func TestService_HandleIPCEvents_Compatibility_Good(t *testing.T) {
-	s, _ := newTestService(t)
+	service, _ := newTestService(t)
 
-	result := s.HandleIPCEvents(core.New(), WorkspaceCommand{
+	result := service.HandleIPCEvents(core.New(), WorkspaceCommand{
 		Action:     WorkspaceCreateAction,
 		Identifier: "compat-user",
 		Password:   "pass123",

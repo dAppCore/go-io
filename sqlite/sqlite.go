@@ -53,13 +53,11 @@ func New(options Options) (*Medium, error) {
 		return nil, core.E("sqlite.New", "failed to open database", err)
 	}
 
-	// Enable WAL mode for better concurrency
 	if _, err := database.Exec("PRAGMA journal_mode=WAL"); err != nil {
 		database.Close()
 		return nil, core.E("sqlite.New", "failed to set WAL mode", err)
 	}
 
-	// Create the schema
 	createSQL := `CREATE TABLE IF NOT EXISTS ` + medium.table + ` (
 		path    TEXT PRIMARY KEY,
 		content BLOB NOT NULL,
@@ -141,7 +139,6 @@ func (medium *Medium) WriteMode(filePath, content string, mode fs.FileMode) erro
 func (medium *Medium) EnsureDir(filePath string) error {
 	key := normaliseEntryPath(filePath)
 	if key == "" {
-		// Root always "exists"
 		return nil
 	}
 
@@ -187,7 +184,6 @@ func (medium *Medium) Delete(filePath string) error {
 		return core.E("sqlite.Delete", "path is required", fs.ErrInvalid)
 	}
 
-	// Check if it's a directory with children
 	var isDir bool
 	err := medium.database.QueryRow(
 		`SELECT is_dir FROM `+medium.table+` WHERE path = ?`, key,
@@ -200,7 +196,6 @@ func (medium *Medium) Delete(filePath string) error {
 	}
 
 	if isDir {
-		// Check for children
 		prefix := key + "/"
 		var count int
 		err := medium.database.QueryRow(
@@ -234,7 +229,6 @@ func (medium *Medium) DeleteAll(filePath string) error {
 
 	prefix := key + "/"
 
-	// Delete the exact path and all children
 	res, err := medium.database.Exec(
 		`DELETE FROM `+medium.table+` WHERE path = ? OR path LIKE ?`,
 		key, prefix+"%",
@@ -263,7 +257,6 @@ func (medium *Medium) Rename(oldPath, newPath string) error {
 	}
 	defer tx.Rollback()
 
-	// Check if source exists
 	var content []byte
 	var mode int
 	var isDir bool
@@ -278,7 +271,6 @@ func (medium *Medium) Rename(oldPath, newPath string) error {
 		return core.E("sqlite.Rename", core.Concat("query failed: ", oldKey), err)
 	}
 
-	// Insert or replace at new path
 	_, err = tx.Exec(
 		`INSERT INTO `+medium.table+` (path, content, mode, is_dir, mtime) VALUES (?, ?, ?, ?, ?)
 		 ON CONFLICT(path) DO UPDATE SET content = excluded.content, mode = excluded.mode, is_dir = excluded.is_dir, mtime = excluded.mtime`,
@@ -288,13 +280,11 @@ func (medium *Medium) Rename(oldPath, newPath string) error {
 		return core.E("sqlite.Rename", core.Concat("insert at new path failed: ", newKey), err)
 	}
 
-	// Delete old path
 	_, err = tx.Exec(`DELETE FROM `+medium.table+` WHERE path = ?`, oldKey)
 	if err != nil {
 		return core.E("sqlite.Rename", core.Concat("delete old path failed: ", oldKey), err)
 	}
 
-	// If it's a directory, move all children
 	if isDir {
 		oldPrefix := oldKey + "/"
 		newPrefix := newKey + "/"
@@ -337,7 +327,6 @@ func (medium *Medium) Rename(oldPath, newPath string) error {
 			}
 		}
 
-		// Delete old children
 		_, err = tx.Exec(`DELETE FROM `+medium.table+` WHERE path LIKE ?`, oldPrefix+"%")
 		if err != nil {
 			return core.E("sqlite.Rename", "delete old children failed", err)
@@ -354,7 +343,6 @@ func (medium *Medium) List(filePath string) ([]fs.DirEntry, error) {
 		prefix += "/"
 	}
 
-	// Query all paths under the prefix
 	rows, err := medium.database.Query(
 		`SELECT path, content, mode, is_dir, mtime FROM `+medium.table+` WHERE path LIKE ? OR path LIKE ?`,
 		prefix+"%", prefix+"%",
@@ -382,10 +370,8 @@ func (medium *Medium) List(filePath string) ([]fs.DirEntry, error) {
 			continue
 		}
 
-		// Check if this is a direct child or nested
 		parts := core.SplitN(rest, "/", 2)
 		if len(parts) == 2 {
-			// Nested - register as a directory
 			dirName := parts[0]
 			if !seen[dirName] {
 				seen[dirName] = true
@@ -401,7 +387,6 @@ func (medium *Medium) List(filePath string) ([]fs.DirEntry, error) {
 				})
 			}
 		} else {
-			// Direct child
 			if !seen[rest] {
 				seen[rest] = true
 				entries = append(entries, &dirEntry{
@@ -550,7 +535,6 @@ func (medium *Medium) WriteStream(filePath string) (goio.WriteCloser, error) {
 func (medium *Medium) Exists(filePath string) bool {
 	key := normaliseEntryPath(filePath)
 	if key == "" {
-		// Root always exists
 		return true
 	}
 

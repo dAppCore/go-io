@@ -99,9 +99,9 @@ func (service *Service) CreateWorkspace(identifier, password string) (string, er
 		return "", core.E("workspace.CreateWorkspace", "workspace already exists", nil)
 	}
 
-	for _, d := range []string{"config", "log", "data", "files", "keys"} {
-		if err := service.medium.EnsureDir(core.Path(workspaceDirectory, d)); err != nil {
-			return "", core.E("workspace.CreateWorkspace", core.Concat("failed to create directory: ", d), err)
+	for _, directoryName := range []string{"config", "log", "data", "files", "keys"} {
+		if err := service.medium.EnsureDir(core.Path(workspaceDirectory, directoryName)); err != nil {
+			return "", core.E("workspace.CreateWorkspace", core.Concat("failed to create directory: ", directoryName), err)
 		}
 	}
 

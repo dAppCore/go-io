@@ -177,9 +177,6 @@ func (medium *Medium) sandboxedPath(path string) string {
 		return medium.filesystemRoot
 	}
 
-	// If the path is relative and the medium is rooted at "/",
-	// treat it as relative to the current working directory.
-	// This makes io.Local behave more like the standard 'os' package.
 	if medium.filesystemRoot == dirSeparator() && !core.PathIsAbs(normalisePath(path)) {
 		return core.Path(currentWorkingDir(), normalisePath(path))
 	}
@@ -222,7 +219,6 @@ func (medium *Medium) validatePath(path string) (string, error) {
 
 		// Verify the resolved part is still within the root
 		if !isWithinRoot(medium.filesystemRoot, realNext) {
-			// Security event: sandbox escape attempt
 			logSandboxEscape(medium.filesystemRoot, path, realNext)
 			return "", fs.ErrPermission
 		}

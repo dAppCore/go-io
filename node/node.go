@@ -41,7 +41,6 @@ func (node *Node) AddData(name string, content []byte) {
 	if name == "" {
 		return
 	}
-	// Directories are implicit, so we don't store them.
 	if core.HasSuffix(name, "/") {
 		return
 	}
@@ -159,7 +158,6 @@ func (node *Node) WalkWithOptions(root string, fn fs.WalkDirFunc, options WalkOp
 			}
 		}
 
-		// Call the user's function first so the entry is visited.
 		result := fn(entryPath, entry, err)
 
 		// After visiting a directory at MaxDepth, prevent descending further.
@@ -194,7 +192,6 @@ func (node *Node) CopyFile(sourcePath, destinationPath string, perm fs.FileMode)
 	sourcePath = core.TrimPrefix(sourcePath, "/")
 	file, ok := node.files[sourcePath]
 	if !ok {
-		// Check if it's a directory — can't copy directories this way.
 		info, err := node.Stat(sourcePath)
 		if err != nil {
 			return core.E("node.CopyFile", core.Concat("source not found: ", sourcePath), fs.ErrNotExist)
@@ -257,7 +254,6 @@ func (node *Node) Open(name string) (fs.File, error) {
 	if dataFile, ok := node.files[name]; ok {
 		return &dataFileReader{file: dataFile}, nil
 	}
-	// Check if it's a directory
 	prefix := name + "/"
 	if name == "." || name == "" {
 		prefix = ""
@@ -275,7 +271,6 @@ func (node *Node) Stat(name string) (fs.FileInfo, error) {
 	if dataFile, ok := node.files[name]; ok {
 		return dataFile.Stat()
 	}
-	// Check if it's a directory
 	prefix := name + "/"
 	if name == "." || name == "" {
 		prefix = ""

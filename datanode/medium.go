@@ -356,7 +356,6 @@ func (medium *Medium) List(filePath string) ([]fs.DirEntry, error) {
 		return nil, core.E("datanode.List", core.Concat("not found: ", filePath), fs.ErrNotExist)
 	}
 
-	// Also include explicit subdirectories not discovered via files
 	prefix := filePath
 	if prefix != "" {
 		prefix += "/"
