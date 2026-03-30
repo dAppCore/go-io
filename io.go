@@ -128,9 +128,9 @@ func init() {
 	}
 }
 
-// NewSandboxed creates a new Medium sandboxed to the given root directory.
-// All file operations are restricted to paths within the root.
-// The root directory will be created if it doesn't exist.
+// Use NewSandboxed to confine file operations to a root directory.
+// All file operations are restricted to paths within the root, and the root
+// directory will be created if it does not exist.
 //
 // Example usage:
 //
@@ -195,9 +195,10 @@ type MockMedium struct {
 
 var _ Medium = (*MockMedium)(nil)
 
-// NewMockMedium creates a new MockMedium instance.
+// Use NewMockMedium when tests need an in-memory Medium.
 //
 //	medium := io.NewMockMedium()
+//	_ = medium.Write("config/app.yaml", "port: 8080")
 func NewMockMedium() *MockMedium {
 	return &MockMedium{
 		Files:    make(map[string]string),

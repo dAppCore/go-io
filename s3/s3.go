@@ -86,13 +86,14 @@ func normalisePrefix(prefix string) string {
 	return clean
 }
 
-// New creates a new S3 Medium for the given bucket.
+// Use New to scope writes to a bucket and optional prefix.
 //
 // Example usage:
 //
 //	config := aws.Config{}
 //	awsClient := awss3.NewFromConfig(config)
 //	medium, _ := s3.New(s3.Options{Bucket: "backups", Client: awsClient, Prefix: "daily/"})
+//	_ = medium.Write("reports/daily.txt", "done")
 func New(options Options) (*Medium, error) {
 	if options.Bucket == "" {
 		return nil, core.E("s3.New", "bucket name is required", nil)

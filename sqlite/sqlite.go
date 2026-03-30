@@ -38,7 +38,7 @@ func normaliseTableName(table string) string {
 	return table
 }
 
-// New creates a new SQLite Medium at the given database path.
+// Use New to point the medium at a SQLite database path.
 // Use ":memory:" for an in-memory database.
 //
 // Example usage:

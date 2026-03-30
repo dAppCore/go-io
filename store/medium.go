@@ -20,7 +20,7 @@ type Medium struct {
 
 var _ coreio.Medium = (*Medium)(nil)
 
-// NewMedium creates an io.Medium backed by a KV store at the given SQLite path.
+// Use NewMedium to expose a Store as an io.Medium.
 //
 // Example usage:
 //

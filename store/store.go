@@ -16,7 +16,8 @@ type Store struct {
 	database *sql.DB
 }
 
-// New creates a Store at the given SQLite path. Use ":memory:" for tests.
+// Use New to open a SQLite-backed key-value store.
+// Use ":memory:" for tests.
 //
 // Example usage:
 //

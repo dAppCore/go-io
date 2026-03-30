@@ -39,7 +39,7 @@ type Medium struct {
 	mu          sync.RWMutex
 }
 
-// New creates a new empty DataNode Medium.
+// Use New when you need an in-memory Medium that snapshots to tar.
 //
 // Example usage:
 //
@@ -52,7 +52,7 @@ func New() *Medium {
 	}
 }
 
-// FromTar creates a Medium from a tarball, restoring all files.
+// Use FromTar(snapshot) to restore a Medium from tar bytes.
 //
 // Example usage:
 //

@@ -170,10 +170,10 @@ type HashSigil struct {
 	Hash crypto.Hash
 }
 
-// NewHashSigil creates a new HashSigil.
+// Use NewHashSigil to hash payloads with a specific crypto.Hash.
 //
 //	hashSigil := sigil.NewHashSigil(crypto.SHA256)
-//	_ = hashSigil
+//	digest, _ := hashSigil.In([]byte("payload"))
 func NewHashSigil(h crypto.Hash) *HashSigil {
 	return &HashSigil{Hash: h}
 }
@@ -232,8 +232,11 @@ func (s *HashSigil) Out(data []byte) ([]byte, error) {
 	return data, nil
 }
 
-// NewSigil is a factory function that returns a Sigil based on a string name.
-// It is the primary way to create Sigil instances.
+// Use NewSigil("hex") or NewSigil("gzip") to construct a sigil by name.
+//
+//	hexSigil, _ := sigil.NewSigil("hex")
+//	gzipSigil, _ := sigil.NewSigil("gzip")
+//	transformed, _ := sigil.Transmute([]byte("payload"), []sigil.Sigil{hexSigil, gzipSigil})
 func NewSigil(name string) (Sigil, error) {
 	switch name {
 	case "reverse":

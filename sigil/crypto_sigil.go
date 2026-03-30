@@ -242,13 +242,15 @@ type ChaChaPolySigil struct {
 	randReader io.Reader // for testing injection
 }
 
-// NewChaChaPolySigil creates a new encryption sigil with the given key.
+// Use NewChaChaPolySigil with a 32-byte key to encrypt payloads.
 // The key must be exactly 32 bytes.
 //
 // Example usage:
 //
 //	key := []byte("0123456789abcdef0123456789abcdef")
 //	cipherSigil, _ := sigil.NewChaChaPolySigil(key)
+//	ciphertext, _ := cipherSigil.In([]byte("payload"))
+//	plaintext, _ := cipherSigil.Out(ciphertext)
 func NewChaChaPolySigil(key []byte) (*ChaChaPolySigil, error) {
 	if len(key) != 32 {
 		return nil, ErrInvalidKey
@@ -264,12 +266,14 @@ func NewChaChaPolySigil(key []byte) (*ChaChaPolySigil, error) {
 	}, nil
 }
 
-// NewChaChaPolySigilWithObfuscator creates a new encryption sigil with custom obfuscator.
+// Use NewChaChaPolySigilWithObfuscator when you want a custom pre-obfuscator.
 //
 // Example usage:
 //
 //	key := []byte("0123456789abcdef0123456789abcdef")
 //	cipherSigil, _ := sigil.NewChaChaPolySigilWithObfuscator(key, &sigil.ShuffleMaskObfuscator{})
+//	ciphertext, _ := cipherSigil.In([]byte("payload"))
+//	plaintext, _ := cipherSigil.Out(ciphertext)
 func NewChaChaPolySigilWithObfuscator(key []byte, obfuscator PreObfuscator) (*ChaChaPolySigil, error) {
 	sigil, err := NewChaChaPolySigil(key)
 	if err != nil {

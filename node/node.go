@@ -17,9 +17,8 @@ import (
 	coreio "dappco.re/go/core/io"
 )
 
-// Node is an in-memory filesystem that implements coreio.Node (and therefore
-// coreio.Medium). Directories are implicit -- they exist whenever a file path
-// contains a "/".
+// Node is an in-memory filesystem that satisfies coreio.Medium and fs.FS.
+// Directories are implicit: they exist whenever a file path contains a "/".
 type Node struct {
 	files map[string]*dataFile
 }
@@ -28,11 +27,9 @@ type Node struct {
 var _ coreio.Medium = (*Node)(nil)
 var _ fs.ReadFileFS = (*Node)(nil)
 
-// New creates a new, empty Node.
+// Use New when you need an in-memory filesystem that can be snapshotted.
 //
-// Example usage:
-//
-//	nodeTree := node.New()
+//	nodeTree := New()
 //	nodeTree.AddData("config/app.yaml", []byte("port: 8080"))
 func New() *Node {
 	return &Node{files: make(map[string]*dataFile)}
@@ -84,7 +81,7 @@ func (n *Node) ToTar() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// FromTar creates a new Node from a tar archive.
+// Use FromTar(data) to restore an in-memory tree from tar bytes.
 func FromTar(data []byte) (*Node, error) {
 	n := New()
 	if err := n.LoadTar(data); err != nil {
@@ -133,7 +130,7 @@ func (n *Node) WalkNode(root string, fn fs.WalkDirFunc) error {
 	return fs.WalkDir(n, root, fn)
 }
 
-// WalkOptions configures the behaviour of Walk.
+// WalkOptions configures WalkWithOptions.
 type WalkOptions struct {
 	// MaxDepth limits how many directory levels to descend. 0 means unlimited.
 	MaxDepth int
@@ -145,14 +142,13 @@ type WalkOptions struct {
 	SkipErrors bool
 }
 
-// Walk walks the in-memory tree with optional WalkOptions.
-func (n *Node) Walk(root string, fn fs.WalkDirFunc, opts ...WalkOptions) error {
-	var opt WalkOptions
-	if len(opts) > 0 {
-		opt = opts[0]
-	}
-
-	if opt.SkipErrors {
+// WalkWithOptions walks the in-memory tree with an explicit configuration.
+//
+//	nodeTree := New()
+//	options := WalkOptions{MaxDepth: 1, SkipErrors: true}
+//	_ = nodeTree.WalkWithOptions(".", func(path string, entry fs.DirEntry, err error) error { return nil }, options)
+func (n *Node) WalkWithOptions(root string, fn fs.WalkDirFunc, options WalkOptions) error {
+	if options.SkipErrors {
 		// If root doesn't exist, silently return nil.
 		if _, err := n.Stat(root); err != nil {
 			return nil
@@ -160,8 +156,8 @@ func (n *Node) Walk(root string, fn fs.WalkDirFunc, opts ...WalkOptions) error {
 	}
 
 	return fs.WalkDir(n, root, func(entryPath string, entry fs.DirEntry, err error) error {
-		if opt.Filter != nil && err == nil {
-			if !opt.Filter(entryPath, entry) {
+		if options.Filter != nil && err == nil {
+			if !options.Filter(entryPath, entry) {
 				if entry != nil && entry.IsDir() {
 					return fs.SkipDir
 				}
@@ -173,17 +169,28 @@ func (n *Node) Walk(root string, fn fs.WalkDirFunc, opts ...WalkOptions) error {
 		result := fn(entryPath, entry, err)
 
 		// After visiting a directory at MaxDepth, prevent descending further.
-		if result == nil && opt.MaxDepth > 0 && entry != nil && entry.IsDir() && entryPath != root {
+		if result == nil && options.MaxDepth > 0 && entry != nil && entry.IsDir() && entryPath != root {
 			rel := core.TrimPrefix(entryPath, root)
 			rel = core.TrimPrefix(rel, "/")
 			depth := len(core.Split(rel, "/"))
-			if depth >= opt.MaxDepth {
+			if depth >= options.MaxDepth {
 				return fs.SkipDir
 			}
 		}
 
 		return result
 	})
+}
+
+// Walk preserves the historic varargs call shape for compatibility.
+//
+// For new code, prefer WalkWithOptions so the configuration stays explicit.
+func (n *Node) Walk(root string, fn fs.WalkDirFunc, opts ...WalkOptions) error {
+	var opt WalkOptions
+	if len(opts) > 0 {
+		opt = opts[0]
+	}
+	return n.WalkWithOptions(root, fn, opt)
 }
 
 // ReadFile returns the content of the named file as a byte slice.

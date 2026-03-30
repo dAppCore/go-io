@@ -16,7 +16,7 @@ type Medium struct {
 
 var unrestrictedFileSystem = (&core.Fs{}).NewUnrestricted()
 
-// New creates a new local Medium rooted at the given directory.
+// Use New to sandbox filesystem access under a root directory.
 // Pass "/" for full filesystem access, or a specific path to sandbox.
 //
 // Example usage:

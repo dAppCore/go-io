@@ -44,11 +44,12 @@ type Service struct {
 
 var _ Workspace = (*Service)(nil)
 
-// New creates a new Workspace service instance.
+// Use New to manage encrypted user workspaces from a Core runtime.
 //
 // Example usage:
 //
 //	service, _ := workspace.New(workspace.Options{Core: core.New(), Crypt: myCryptProvider})
+//	workspaceID, _ := service.CreateWorkspace("alice", "pass123")
 func New(options Options) (*Service, error) {
 	home := workspaceHome()
 	if home == "" {
