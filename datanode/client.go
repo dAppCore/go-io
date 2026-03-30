@@ -36,7 +36,10 @@ var (
 	}
 )
 
-// Medium is an in-memory storage backend backed by a Borg DataNode.
+// Example: medium := datanode.New()
+// _ = medium.Write("jobs/run.log", "started")
+// snapshot, _ := medium.Snapshot()
+//
 // All paths are relative (no leading slash). Thread-safe via RWMutex.
 type Medium struct {
 	dataNode     *borgdatanode.DataNode
@@ -44,10 +47,8 @@ type Medium struct {
 	mu           sync.RWMutex
 }
 
-// New creates an in-memory Medium that snapshots to tar.
-//
-//	medium := datanode.New()
-//	_ = medium.Write("jobs/run.log", "started")
+// Example: medium := datanode.New()
+// _ = medium.Write("jobs/run.log", "started")
 func New() *Medium {
 	return &Medium{
 		dataNode:     borgdatanode.New(),

@@ -11,7 +11,9 @@ import (
 	"dappco.re/go/core/io"
 )
 
-// Workspace is the interface returned by New.
+// Workspace is the workspace service interface returned by New.
+//
+//	service, _ := workspace.New(workspace.Options{Core: core.New(), Crypt: cryptProvider})
 type Workspace interface {
 	CreateWorkspace(identifier, password string) (string, error)
 	SwitchWorkspace(workspaceID string) error
@@ -24,7 +26,7 @@ type CryptProvider interface {
 	CreateKeyPair(name, passphrase string) (string, error)
 }
 
-// Options configures New.
+// Example: service, _ := workspace.New(workspace.Options{Core: core.New(), Crypt: cryptProvider})
 type Options struct {
 	// Core is the Core runtime used by the service.
 	Core *core.Core
@@ -32,7 +34,7 @@ type Options struct {
 	Crypt CryptProvider
 }
 
-// Service is the concrete Workspace implementation.
+// Service is the Workspace implementation returned by New.
 type Service struct {
 	core              *core.Core
 	crypt             CryptProvider
@@ -44,10 +46,8 @@ type Service struct {
 
 var _ Workspace = (*Service)(nil)
 
-// New creates an encrypted workspace service.
-//
-//	service, _ := workspace.New(workspace.Options{Core: core.New(), Crypt: cryptProvider})
-//	workspaceID, _ := service.CreateWorkspace("alice", "pass123")
+// Example: service, _ := workspace.New(workspace.Options{Core: core.New(), Crypt: cryptProvider})
+// workspaceID, _ := service.CreateWorkspace("alice", "pass123")
 func New(options Options) (*Service, error) {
 	home := resolveWorkspaceHomeDirectory()
 	if home == "" {

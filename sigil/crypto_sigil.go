@@ -207,8 +207,8 @@ func (s *ShuffleMaskObfuscator) deriveMask(entropy []byte, length int) []byte {
 	return mask
 }
 
-// ChaChaPolySigil is returned by NewChaChaPolySigil and
-// NewChaChaPolySigilWithObfuscator.
+// Example: cipherSigil, _ := sigil.NewChaChaPolySigil(key)
+// Example: cipherSigil, _ := sigil.NewChaChaPolySigilWithObfuscator(key, &sigil.ShuffleMaskObfuscator{})
 type ChaChaPolySigil struct {
 	Key          []byte
 	Obfuscator   PreObfuscator

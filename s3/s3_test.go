@@ -295,7 +295,7 @@ func TestS3_ReadWrite_Prefix_Good(t *testing.T) {
 
 func TestS3_EnsureDir_Good(t *testing.T) {
 	m, _ := newTestMedium(t)
-	// EnsureDir is a no-op for S3
+	// Example: err := m.EnsureDir("any/path")
 	err := m.EnsureDir("any/path")
 	assert.NoError(t, err)
 }

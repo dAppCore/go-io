@@ -33,7 +33,10 @@ type Client interface {
 	CopyObject(ctx context.Context, params *awss3.CopyObjectInput, optFns ...func(*awss3.Options)) (*awss3.CopyObjectOutput, error)
 }
 
-// Medium is the concrete io.Medium returned by New.
+// Medium is the S3-backed io.Medium returned by New.
+//
+//	medium, _ := s3.New(s3.Options{Bucket: "backups", Client: client, Prefix: "daily/"})
+//	_ = medium.Write("reports/daily.txt", "done")
 type Medium struct {
 	client Client
 	bucket string
@@ -42,7 +45,7 @@ type Medium struct {
 
 var _ coreio.Medium = (*Medium)(nil)
 
-// Options configures New.
+// Example: medium, _ := s3.New(s3.Options{Bucket: "backups", Client: client, Prefix: "daily/"})
 type Options struct {
 	// Bucket is the target S3 bucket name.
 	Bucket string
@@ -90,10 +93,8 @@ func normalisePrefix(prefix string) string {
 	return clean
 }
 
-// New opens an S3-backed medium for one bucket and optional prefix.
-//
-//	medium, _ := s3.New(s3.Options{Bucket: "backups", Client: client, Prefix: "daily/"})
-//	_ = medium.Write("reports/daily.txt", "done")
+// Example: medium, _ := s3.New(s3.Options{Bucket: "backups", Client: client, Prefix: "daily/"})
+// _ = medium.Write("reports/daily.txt", "done")
 func New(options Options) (*Medium, error) {
 	if options.Bucket == "" {
 		return nil, core.E("s3.New", "bucket name is required", nil)
@@ -167,17 +168,17 @@ func (m *Medium) Write(filePath, content string) error {
 	return nil
 }
 
-// WriteMode ignores the requested mode because S3 objects do not store POSIX permissions.
+// Example: _ = medium.WriteMode("keys/private.key", key, 0600)
 func (m *Medium) WriteMode(filePath, content string, _ fs.FileMode) error {
 	return m.Write(filePath, content)
 }
 
-// EnsureDir is a no-op for S3 (S3 has no real directories).
+// Example: _ = medium.EnsureDir("reports/2026")
 func (m *Medium) EnsureDir(_ string) error {
 	return nil
 }
 
-// IsFile checks if a path exists and is a regular file (not a "directory" prefix).
+// Example: ok := medium.IsFile("reports/daily.txt")
 func (m *Medium) IsFile(filePath string) bool {
 	key := m.objectKey(filePath)
 	if key == "" {
@@ -218,7 +219,7 @@ func (m *Medium) Delete(filePath string) error {
 	return nil
 }
 
-// DeleteAll removes all objects under the given prefix.
+// Example: _ = medium.DeleteAll("reports/2026")
 func (m *Medium) DeleteAll(filePath string) error {
 	key := m.objectKey(filePath)
 	if key == "" {
@@ -283,7 +284,7 @@ func (m *Medium) DeleteAll(filePath string) error {
 	return nil
 }
 
-// Rename moves an object by copying then deleting the original.
+// Example: _ = medium.Rename("drafts/todo.txt", "archive/todo.txt")
 func (m *Medium) Rename(oldPath, newPath string) error {
 	oldKey := m.objectKey(oldPath)
 	newKey := m.objectKey(newPath)
@@ -313,7 +314,7 @@ func (m *Medium) Rename(oldPath, newPath string) error {
 	return nil
 }
 
-// List returns directory entries for the given path using ListObjectsV2 with delimiter.
+// Example: entries, _ := medium.List("reports")
 func (m *Medium) List(filePath string) ([]fs.DirEntry, error) {
 	prefix := m.objectKey(filePath)
 	if prefix != "" && !core.HasSuffix(prefix, "/") {
@@ -386,7 +387,7 @@ func (m *Medium) List(filePath string) ([]fs.DirEntry, error) {
 	return entries, nil
 }
 
-// Stat returns file information for the given path using HeadObject.
+// Example: info, _ := medium.Stat("reports/daily.txt")
 func (m *Medium) Stat(filePath string) (fs.FileInfo, error) {
 	key := m.objectKey(filePath)
 	if key == "" {
@@ -456,8 +457,7 @@ func (m *Medium) Open(filePath string) (fs.File, error) {
 	}, nil
 }
 
-// Create creates or truncates the named file. Returns a writer that
-// uploads the content on Close.
+// Example: writer, _ := medium.Create("reports/daily.txt")
 func (m *Medium) Create(filePath string) (goio.WriteCloser, error) {
 	key := m.objectKey(filePath)
 	if key == "" {
@@ -469,8 +469,7 @@ func (m *Medium) Create(filePath string) (goio.WriteCloser, error) {
 	}, nil
 }
 
-// Append opens the named file for appending. It downloads the existing
-// content (if any) and re-uploads the combined content on Close.
+// Example: writer, _ := medium.Append("reports/daily.txt")
 func (m *Medium) Append(filePath string) (goio.WriteCloser, error) {
 	key := m.objectKey(filePath)
 	if key == "" {
@@ -514,7 +513,7 @@ func (m *Medium) WriteStream(filePath string) (goio.WriteCloser, error) {
 	return m.Create(filePath)
 }
 
-// Exists checks if a path exists (file or directory prefix).
+// Example: ok := medium.Exists("reports/daily.txt")
 func (m *Medium) Exists(filePath string) bool {
 	key := m.objectKey(filePath)
 	if key == "" {
@@ -546,7 +545,7 @@ func (m *Medium) Exists(filePath string) bool {
 	return len(listOut.Contents) > 0 || len(listOut.CommonPrefixes) > 0
 }
 
-// IsDir checks if a path exists and is a directory (has objects under it as a prefix).
+// Example: ok := medium.IsDir("reports")
 func (m *Medium) IsDir(filePath string) bool {
 	key := m.objectKey(filePath)
 	if key == "" {

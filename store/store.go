@@ -13,21 +13,21 @@ import (
 // NotFoundError is returned when a key does not exist in the store.
 var NotFoundError = errors.New("key not found")
 
-// Store is returned by New for grouped key/value access.
+// Store is the grouped key/value database returned by New.
+//
+//	keyValueStore, _ := store.New(store.Options{Path: ":memory:"})
 type Store struct {
 	database *sql.DB
 }
 
-// Options configures New.
+// Example: keyValueStore, _ := store.New(store.Options{Path: ":memory:"})
 type Options struct {
 	// Path is the SQLite database path. Use ":memory:" for tests.
 	Path string
 }
 
-// New opens a SQLite-backed key/value store.
-//
-//	keyValueStore, _ := store.New(store.Options{Path: ":memory:"})
-//	_ = keyValueStore.Set("app", "theme", "midnight")
+// Example: keyValueStore, _ := store.New(store.Options{Path: ":memory:"})
+// _ = keyValueStore.Set("app", "theme", "midnight")
 func New(options Options) (*Store, error) {
 	if options.Path == "" {
 		return nil, core.E("store.New", "database path is required", fs.ErrInvalid)

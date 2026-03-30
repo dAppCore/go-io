@@ -10,16 +10,18 @@ import (
 	"dappco.re/go/core/io/local"
 )
 
-// Medium defines the standard interface for a storage backend.
-// This allows for different implementations (e.g., local disk, S3, SFTP)
-// to be used interchangeably.
+// Medium is the storage boundary used across CoreGO.
+//
+//	medium, _ := io.NewSandboxed("/srv/app")
+//	_ = medium.Write("config/app.yaml", "port: 8080")
+//	backup, _ := io.NewSandboxed("/srv/backup")
+//	_ = io.Copy(medium, "data/report.json", backup, "daily/report.json")
 type Medium interface {
 	Read(path string) (string, error)
 
 	Write(path, content string) error
 
-	// WriteMode saves content with explicit file permissions.
-	// Use 0600 for sensitive files (keys, secrets, encrypted output).
+	// Example: _ = medium.WriteMode("keys/private.key", key, 0600)
 	WriteMode(path, content string, mode fs.FileMode) error
 
 	EnsureDir(path string) error
@@ -46,18 +48,16 @@ type Medium interface {
 
 	Append(path string) (goio.WriteCloser, error)
 
-	// ReadStream returns a reader for the file content.
-	// Use this for large files to avoid loading the entire content into memory.
+	// Example: reader, _ := medium.ReadStream("logs/app.log")
 	ReadStream(path string) (goio.ReadCloser, error)
 
-	// WriteStream returns a writer for the file content.
-	// Use this for large files to avoid loading the entire content into memory.
+	// Example: writer, _ := medium.WriteStream("logs/app.log")
 	WriteStream(path string) (goio.WriteCloser, error)
 
-	// Exists checks if a path exists (file or directory).
+	// Example: ok := medium.Exists("config/app.yaml")
 	Exists(path string) bool
 
-	// IsDir checks if a path exists and is a directory.
+	// Example: ok := medium.IsDir("config")
 	IsDir(path string) bool
 }
 
@@ -98,9 +98,9 @@ func (de DirEntry) Type() fs.FileMode { return de.mode.Type() }
 
 func (de DirEntry) Info() (fs.FileInfo, error) { return de.info, nil }
 
-// Local is a pre-initialised medium for the local filesystem.
-// It uses "/" as root, providing unsandboxed access to the filesystem.
-// For sandboxed access, use NewSandboxed with a specific root path.
+// Local is the unsandboxed filesystem medium rooted at "/".
+//
+//	io.Local.Read("/etc/hostname")
 var Local Medium
 
 var _ Medium = (*local.Medium)(nil)
@@ -171,7 +171,10 @@ func Copy(source Medium, sourcePath string, destination Medium, destinationPath 
 
 // --- MockMedium ---
 
-// MockMedium is an in-memory implementation of Medium for testing.
+// MockMedium is an in-memory Medium for tests.
+//
+//	medium := io.NewMockMedium()
+//	_ = medium.Write("config/app.yaml", "port: 8080")
 type MockMedium struct {
 	Files    map[string]string
 	Dirs     map[string]bool

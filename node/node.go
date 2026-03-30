@@ -23,7 +23,11 @@ import (
 	coreio "dappco.re/go/core/io"
 )
 
-// Node is an in-memory filesystem that satisfies coreio.Medium and fs.FS.
+// Example: nodeTree := node.New()
+// nodeTree.AddData("config/app.yaml", []byte("port: 8080"))
+// snapshot, _ := nodeTree.ToTar()
+// restored, _ := node.FromTar(snapshot)
+//
 // Directories are implicit: they exist whenever a file path contains a "/".
 type Node struct {
 	files map[string]*dataFile
@@ -33,10 +37,8 @@ type Node struct {
 var _ coreio.Medium = (*Node)(nil)
 var _ fs.ReadFileFS = (*Node)(nil)
 
-// Use New when you need an in-memory filesystem that can be snapshotted.
-//
-//	nodeTree := New()
-//	nodeTree.AddData("config/app.yaml", []byte("port: 8080"))
+// Example: nodeTree := node.New()
+// nodeTree.AddData("config/app.yaml", []byte("port: 8080"))
 func New() *Node {
 	return &Node{files: make(map[string]*dataFile)}
 }
@@ -135,7 +137,7 @@ func (n *Node) WalkNode(root string, fn fs.WalkDirFunc) error {
 	return fs.WalkDir(n, root, fn)
 }
 
-// WalkOptions configures WalkWithOptions.
+// Example: options := node.WalkOptions{MaxDepth: 1, SkipErrors: true}
 type WalkOptions struct {
 	// MaxDepth limits how many directory levels to descend. 0 means unlimited.
 	MaxDepth int
@@ -380,7 +382,7 @@ func (n *Node) FileSet(filePath, content string) error {
 	return n.Write(filePath, content)
 }
 
-// EnsureDir is a no-op because directories are implicit in Node.
+// Example: _ = nodeTree.EnsureDir("config")
 func (n *Node) EnsureDir(_ string) error {
 	return nil
 }

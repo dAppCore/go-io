@@ -18,7 +18,10 @@ import (
 	_ "modernc.org/sqlite" // Pure Go SQLite driver
 )
 
-// Medium is a SQLite-backed storage backend implementing the io.Medium interface.
+// Medium stores filesystem-shaped content in SQLite.
+//
+//	medium, _ := sqlite.New(sqlite.Options{Path: ":memory:"})
+//	_ = medium.Write("config/app.yaml", "port: 8080")
 type Medium struct {
 	database *sql.DB
 	table    string
@@ -26,7 +29,7 @@ type Medium struct {
 
 var _ coreio.Medium = (*Medium)(nil)
 
-// Options configures a SQLite-backed Medium.
+// Example: medium, _ := sqlite.New(sqlite.Options{Path: ":memory:", Table: "files"})
 type Options struct {
 	// Path is the SQLite database path. Use ":memory:" for tests.
 	Path string
@@ -41,10 +44,8 @@ func normaliseTableName(table string) string {
 	return table
 }
 
-// New opens a SQLite-backed Medium at the provided database path.
-//
-//	medium, _ := sqlite.New(sqlite.Options{Path: ":memory:", Table: "files"})
-//	_ = medium.Write("config/app.yaml", "port: 8080")
+// Example: medium, _ := sqlite.New(sqlite.Options{Path: ":memory:", Table: "files"})
+// _ = medium.Write("config/app.yaml", "port: 8080")
 func New(options Options) (*Medium, error) {
 	if options.Path == "" {
 		return nil, core.E("sqlite.New", "database path is required", nil)
@@ -125,7 +126,7 @@ func (m *Medium) Write(filePath, content string) error {
 	return m.WriteMode(filePath, content, 0644)
 }
 
-// WriteMode saves the given content with explicit permissions.
+// Example: _ = medium.WriteMode("keys/private.key", key, 0600)
 func (m *Medium) WriteMode(filePath, content string, mode fs.FileMode) error {
 	key := normaliseEntryPath(filePath)
 	if key == "" {
@@ -143,7 +144,7 @@ func (m *Medium) WriteMode(filePath, content string, mode fs.FileMode) error {
 	return nil
 }
 
-// EnsureDir makes sure a directory exists, creating it if necessary.
+// Example: _ = medium.EnsureDir("config")
 func (m *Medium) EnsureDir(filePath string) error {
 	key := normaliseEntryPath(filePath)
 	if key == "" {
@@ -186,7 +187,7 @@ func (m *Medium) FileSet(filePath, content string) error {
 	return m.Write(filePath, content)
 }
 
-// Delete removes a file or empty directory.
+// Example: _ = medium.Delete("config/app.yaml")
 func (m *Medium) Delete(filePath string) error {
 	key := normaliseEntryPath(filePath)
 	if key == "" {
@@ -231,7 +232,7 @@ func (m *Medium) Delete(filePath string) error {
 	return nil
 }
 
-// DeleteAll removes a file or directory and all its contents recursively.
+// Example: _ = medium.DeleteAll("config")
 func (m *Medium) DeleteAll(filePath string) error {
 	key := normaliseEntryPath(filePath)
 	if key == "" {
@@ -255,7 +256,7 @@ func (m *Medium) DeleteAll(filePath string) error {
 	return nil
 }
 
-// Rename moves a file or directory from oldPath to newPath.
+// Example: _ = medium.Rename("drafts/todo.txt", "archive/todo.txt")
 func (m *Medium) Rename(oldPath, newPath string) error {
 	oldKey := normaliseEntryPath(oldPath)
 	newKey := normaliseEntryPath(newPath)
@@ -353,7 +354,7 @@ func (m *Medium) Rename(oldPath, newPath string) error {
 	return tx.Commit()
 }
 
-// List returns the directory entries for the given path.
+// Example: entries, _ := medium.List("config")
 func (m *Medium) List(filePath string) ([]fs.DirEntry, error) {
 	prefix := normaliseEntryPath(filePath)
 	if prefix != "" {

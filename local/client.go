@@ -13,16 +13,15 @@ import (
 	core "dappco.re/go/core"
 )
 
-// Medium is a local filesystem storage backend.
+// Medium is the local filesystem backend returned by New.
 type Medium struct {
 	filesystemRoot string
 }
 
 var unrestrictedFileSystem = (&core.Fs{}).NewUnrestricted()
 
-// New creates a filesystem rooted at root.
-//
-// Pass "/" for full filesystem access, or a project path to sandbox.
+// local.New("/") exposes the full filesystem.
+// local.New("/srv/app") confines access to a project root.
 //
 //	medium, _ := local.New("/srv/app")
 //	_ = medium.Write("config/app.yaml", "port: 8080")

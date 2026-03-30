@@ -10,7 +10,10 @@ import (
 	coreio "dappco.re/go/core/io"
 )
 
-// Medium wraps a Store to satisfy the io.Medium interface.
+// Example: medium, _ := store.NewMedium(store.Options{Path: "config.db"})
+// _ = medium.Write("app/theme", "midnight")
+// entries, _ := medium.List("app")
+//
 // Paths are mapped as group/key - the first segment is the group,
 // the rest is the key. List("") returns groups as directories,
 // List("group") returns keys as files.
@@ -20,10 +23,8 @@ type Medium struct {
 
 var _ coreio.Medium = (*Medium)(nil)
 
-// NewMedium exposes a Store as an io.Medium.
-//
-//	medium, _ := store.NewMedium(store.Options{Path: "config.db"})
-//	_ = medium.Write("app/theme", "midnight")
+// Example: medium, _ := store.NewMedium(store.Options{Path: "config.db"})
+// _ = medium.Write("app/theme", "midnight")
 func NewMedium(options Options) (*Medium, error) {
 	store, err := New(options)
 	if err != nil {
@@ -77,12 +78,12 @@ func (m *Medium) Write(entryPath, content string) error {
 	return m.store.Set(group, key, content)
 }
 
-// WriteMode ignores the requested mode because key-value entries do not store POSIX permissions.
+// Example: _ = medium.WriteMode("app/theme", "midnight", 0600)
 func (m *Medium) WriteMode(entryPath, content string, _ fs.FileMode) error {
 	return m.Write(entryPath, content)
 }
 
-// EnsureDir is a no-op — groups are created implicitly on Set.
+// Example: _ = medium.EnsureDir("app")
 func (m *Medium) EnsureDir(_ string) error {
 	return nil
 }
@@ -149,8 +150,7 @@ func (m *Medium) Rename(oldPath, newPath string) error {
 	return m.store.Delete(oldGroup, oldKey)
 }
 
-// List returns directory entries. Empty path returns groups.
-// A group path returns keys in that group.
+// Example: entries, _ := medium.List("app")
 func (m *Medium) List(entryPath string) ([]fs.DirEntry, error) {
 	group, key := splitGroupKeyPath(entryPath)
 
@@ -187,7 +187,7 @@ func (m *Medium) List(entryPath string) ([]fs.DirEntry, error) {
 	return entries, nil
 }
 
-// Stat returns file info for a group (dir) or key (file).
+// Example: info, _ := medium.Stat("app/theme")
 func (m *Medium) Stat(entryPath string) (fs.FileInfo, error) {
 	group, key := splitGroupKeyPath(entryPath)
 	if group == "" {
