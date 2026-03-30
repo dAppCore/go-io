@@ -172,7 +172,7 @@ func (medium *Medium) List(entryPath string) ([]fs.DirEntry, error) {
 	}
 
 	if key != "" {
-		return nil, nil // leaf node, nothing beneath
+		return nil, nil
 	}
 
 	all, err := medium.store.GetAll(group)
@@ -275,8 +275,6 @@ func (medium *Medium) IsDir(entryPath string) bool {
 	entryCount, err := medium.store.Count(group)
 	return err == nil && entryCount > 0
 }
-
-// --- fs helper types ---
 
 type keyValueFileInfo struct {
 	name  string

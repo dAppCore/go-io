@@ -11,7 +11,6 @@ import (
 )
 
 // Example: _, err := keyValueStore.Get("app", "theme")
-// err matches store.NotFoundError when the key is missing.
 var NotFoundError = errors.New("key not found")
 
 // Example: keyValueStore, _ := store.New(store.Options{Path: ":memory:"})
@@ -20,7 +19,6 @@ type Store struct {
 }
 
 type Options struct {
-	// Path is the SQLite database path. Use ":memory:" for tests.
 	Path string
 }
 

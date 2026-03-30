@@ -1,7 +1,5 @@
-// Package io exposes CoreGO's storage surface.
-//
-//	medium, _ := io.NewSandboxed("/srv/app")
-//	_ = medium.Write("config/app.yaml", "port: 8080")
-//	backup, _ := io.NewSandboxed("/srv/backup")
-//	_ = io.Copy(medium, "data/report.json", backup, "daily/report.json")
+// medium, _ := io.NewSandboxed("/srv/app")
+// _ = medium.Write("config/app.yaml", "port: 8080")
+// backup, _ := io.NewSandboxed("/srv/backup")
+// _ = io.Copy(medium, "data/report.json", backup, "daily/report.json")
 package io

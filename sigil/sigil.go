@@ -1,14 +1,11 @@
-// Package sigil chains reversible byte transformations.
-//
-//	hexSigil, _ := sigil.NewSigil("hex")
-//	gzipSigil, _ := sigil.NewSigil("gzip")
-//	encoded, _ := sigil.Transmute([]byte("payload"), []sigil.Sigil{hexSigil, gzipSigil})
-//	decoded, _ := sigil.Untransmute(encoded, []sigil.Sigil{hexSigil, gzipSigil})
+// hexSigil, _ := sigil.NewSigil("hex")
+// gzipSigil, _ := sigil.NewSigil("gzip")
+// encoded, _ := sigil.Transmute([]byte("payload"), []sigil.Sigil{hexSigil, gzipSigil})
+// decoded, _ := sigil.Untransmute(encoded, []sigil.Sigil{hexSigil, gzipSigil})
 package sigil
 
 import core "dappco.re/go/core"
 
-// Sigil transforms byte slices.
 type Sigil interface {
 	// Example: encoded, _ := hexSigil.In([]byte("payload"))
 	In(data []byte) ([]byte, error)

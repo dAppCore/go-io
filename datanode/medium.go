@@ -1,9 +1,7 @@
-// Package datanode provides an io.Medium implementation backed by Borg's DataNode.
-//
-//	medium := datanode.New()
-//	_ = medium.Write("jobs/run.log", "started")
-//	snapshot, _ := medium.Snapshot()
-//	restored, _ := datanode.FromTar(snapshot)
+// medium := datanode.New()
+// _ = medium.Write("jobs/run.log", "started")
+// snapshot, _ := medium.Snapshot()
+// restored, _ := datanode.FromTar(snapshot)
 package datanode
 
 import (
@@ -36,7 +34,7 @@ var (
 // snapshot, _ := medium.Snapshot()
 type Medium struct {
 	dataNode     *borgdatanode.DataNode
-	directorySet map[string]bool // explicit directories that exist without file contents
+	directorySet map[string]bool
 	lock         sync.RWMutex
 }
 
@@ -101,8 +99,6 @@ func normaliseEntryPath(filePath string) string {
 	return filePath
 }
 
-// --- io.Medium interface ---
-
 func (medium *Medium) Read(filePath string) (string, error) {
 	medium.lock.RLock()
 	defer medium.lock.RUnlock()
@@ -139,7 +135,6 @@ func (medium *Medium) Write(filePath, content string) error {
 	}
 	medium.dataNode.AddData(filePath, []byte(content))
 
-	// ensure parent directories are tracked
 	medium.ensureDirsLocked(path.Dir(filePath))
 	return nil
 }
@@ -160,8 +155,6 @@ func (medium *Medium) EnsureDir(filePath string) error {
 	return nil
 }
 
-// ensureDirsLocked marks a directory and all ancestors as existing.
-// Caller must hold medium.lock.
 func (medium *Medium) ensureDirsLocked(directoryPath string) {
 	for directoryPath != "" && directoryPath != "." {
 		medium.directorySet[directoryPath] = true
@@ -226,7 +219,6 @@ func (medium *Medium) Delete(filePath string) error {
 		return nil
 	}
 
-	// Remove the file by creating a new DataNode without it
 	if err := medium.removeFileLocked(filePath); err != nil {
 		return core.E("datanode.Delete", core.Concat("failed to delete file: ", filePath), err)
 	}
@@ -253,7 +245,6 @@ func (medium *Medium) DeleteAll(filePath string) error {
 		found = true
 	}
 
-	// Remove all files under prefix
 	entries, err := medium.collectAllLocked()
 	if err != nil {
 		return core.E("datanode.DeleteAll", core.Concat("failed to inspect tree: ", filePath), err)
@@ -267,7 +258,6 @@ func (medium *Medium) DeleteAll(filePath string) error {
 		}
 	}
 
-	// Remove explicit directories under prefix
 	for directoryPath := range medium.directorySet {
 		if directoryPath == filePath || core.HasPrefix(directoryPath, prefix) {
 			delete(medium.directorySet, directoryPath)
@@ -466,7 +456,7 @@ func (medium *Medium) Exists(filePath string) bool {
 
 	filePath = normaliseEntryPath(filePath)
 	if filePath == "" {
-		return true // root always exists
+		return true
 	}
 	_, err := medium.dataNode.Stat(filePath)
 	if err == nil {
@@ -490,9 +480,6 @@ func (medium *Medium) IsDir(filePath string) bool {
 	return medium.directorySet[filePath]
 }
 
-// --- internal helpers ---
-
-// hasPrefixLocked checks if any file path starts with prefix. Caller holds lock.
 func (medium *Medium) hasPrefixLocked(prefix string) (bool, error) {
 	entries, err := medium.collectAllLocked()
 	if err != nil {
@@ -511,7 +498,6 @@ func (medium *Medium) hasPrefixLocked(prefix string) (bool, error) {
 	return false, nil
 }
 
-// collectAllLocked returns all file paths in the DataNode. Caller holds lock.
 func (medium *Medium) collectAllLocked() ([]string, error) {
 	var names []string
 	err := dataNodeWalkDir(medium.dataNode, ".", func(filePath string, entry fs.DirEntry, err error) error {
@@ -542,9 +528,6 @@ func (medium *Medium) readFileLocked(filePath string) ([]byte, error) {
 	return data, nil
 }
 
-// removeFileLocked removes a single file by rebuilding the DataNode.
-// This is necessary because Borg's DataNode doesn't expose a Remove method.
-// Caller must hold medium.lock write lock.
 func (medium *Medium) removeFileLocked(target string) error {
 	entries, err := medium.collectAllLocked()
 	if err != nil {
@@ -565,8 +548,6 @@ func (medium *Medium) removeFileLocked(target string) error {
 	return nil
 }
 
-// --- writeCloser buffers writes and flushes to DataNode on Close ---
-
 type writeCloser struct {
 	medium *Medium
 	path   string
@@ -586,8 +567,6 @@ func (writer *writeCloser) Close() error {
 	writer.medium.ensureDirsLocked(path.Dir(writer.path))
 	return nil
 }
-
-// --- fs types for explicit directories ---
 
 type dirEntry struct {
 	name string

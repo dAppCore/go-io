@@ -13,7 +13,7 @@ import (
 	core "dappco.re/go/core"
 	coreio "dappco.re/go/core/io"
 
-	_ "modernc.org/sqlite" // Pure Go SQLite driver
+	_ "modernc.org/sqlite"
 )
 
 // Example: medium, _ := sqlite.New(sqlite.Options{Path: ":memory:"})
@@ -26,9 +26,7 @@ type Medium struct {
 var _ coreio.Medium = (*Medium)(nil)
 
 type Options struct {
-	// Path is the SQLite database path. Use ":memory:" for tests.
-	Path string
-	// Table is the table name used for file storage. Empty defaults to "files".
+	Path  string
 	Table string
 }
 
@@ -563,8 +561,6 @@ func (medium *Medium) IsDir(filePath string) bool {
 	}
 	return isDir
 }
-
-// --- Internal types ---
 
 type fileInfo struct {
 	name    string

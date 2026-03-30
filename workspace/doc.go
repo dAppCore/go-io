@@ -1,5 +1,3 @@
-// Package workspace creates encrypted workspaces on top of io.Medium.
-//
 // Example: service, _ := workspace.New(workspace.Options{CryptProvider: cryptProvider})
 // workspaceID, _ := service.CreateWorkspace("alice", "pass123")
 // _ = service.SwitchWorkspace(workspaceID)

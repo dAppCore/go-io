@@ -14,35 +14,23 @@ import (
 )
 
 var (
-	// InvalidKeyError is returned when the encryption key is not 32 bytes.
 	InvalidKeyError = core.E("sigil.InvalidKeyError", "invalid key size, must be 32 bytes", nil)
 
-	// CiphertextTooShortError is returned when the ciphertext is too short to decrypt.
 	CiphertextTooShortError = core.E("sigil.CiphertextTooShortError", "ciphertext too short", nil)
 
-	// DecryptionFailedError is returned when decryption or authentication fails.
 	DecryptionFailedError = core.E("sigil.DecryptionFailedError", "decryption failed", nil)
 
-	// NoKeyConfiguredError is returned when no encryption key has been set.
 	NoKeyConfiguredError = core.E("sigil.NoKeyConfiguredError", "no encryption key configured", nil)
 )
 
-// PreObfuscator customises the bytes mixed in before and after encryption.
 type PreObfuscator interface {
-	// Obfuscate transforms plaintext before encryption using the provided entropy.
-	// The entropy is typically the encryption nonce, ensuring the transformation
-	// is unique per-encryption without additional random generation.
 	Obfuscate(data []byte, entropy []byte) []byte
 
-	// Deobfuscate reverses the transformation after decryption.
-	// Must be called with the same entropy used during Obfuscate.
 	Deobfuscate(data []byte, entropy []byte) []byte
 }
 
-// Example: cipherSigil, _ := sigil.NewChaChaPolySigil(key)
 type XORObfuscator struct{}
 
-// Obfuscate XORs the data with a key stream derived from the entropy.
 func (obfuscator *XORObfuscator) Obfuscate(data []byte, entropy []byte) []byte {
 	if len(data) == 0 {
 		return data
@@ -50,7 +38,6 @@ func (obfuscator *XORObfuscator) Obfuscate(data []byte, entropy []byte) []byte {
 	return obfuscator.transform(data, entropy)
 }
 
-// Deobfuscate reverses the XOR transformation (XOR is symmetric).
 func (obfuscator *XORObfuscator) Deobfuscate(data []byte, entropy []byte) []byte {
 	if len(data) == 0 {
 		return data
@@ -58,7 +45,6 @@ func (obfuscator *XORObfuscator) Deobfuscate(data []byte, entropy []byte) []byte
 	return obfuscator.transform(data, entropy)
 }
 
-// transform applies XOR with an entropy-derived key stream.
 func (obfuscator *XORObfuscator) transform(data []byte, entropy []byte) []byte {
 	result := make([]byte, len(data))
 	keyStream := obfuscator.deriveKeyStream(entropy, len(data))
@@ -68,12 +54,10 @@ func (obfuscator *XORObfuscator) transform(data []byte, entropy []byte) []byte {
 	return result
 }
 
-// deriveKeyStream creates a deterministic key stream from entropy.
 func (obfuscator *XORObfuscator) deriveKeyStream(entropy []byte, length int) []byte {
 	stream := make([]byte, length)
 	h := sha256.New()
 
-	// Generate key stream in 32-byte blocks
 	blockNum := uint64(0)
 	offset := 0
 	for offset < length {
@@ -92,10 +76,8 @@ func (obfuscator *XORObfuscator) deriveKeyStream(entropy []byte, length int) []b
 	return stream
 }
 
-// ShuffleMaskObfuscator adds byte shuffling on top of XOR masking.
 type ShuffleMaskObfuscator struct{}
 
-// Obfuscate shuffles bytes and applies a mask derived from entropy.
 func (obfuscator *ShuffleMaskObfuscator) Obfuscate(data []byte, entropy []byte) []byte {
 	if len(data) == 0 {
 		return data
@@ -104,16 +86,13 @@ func (obfuscator *ShuffleMaskObfuscator) Obfuscate(data []byte, entropy []byte) 
 	result := make([]byte, len(data))
 	copy(result, data)
 
-	// Generate permutation and mask from entropy
 	perm := obfuscator.generatePermutation(entropy, len(data))
 	mask := obfuscator.deriveMask(entropy, len(data))
 
-	// Apply mask first, then shuffle
 	for i := range result {
 		result[i] ^= mask[i]
 	}
 
-	// Shuffle using Fisher-Yates with deterministic seed
 	shuffled := make([]byte, len(data))
 	for i, p := range perm {
 		shuffled[i] = result[p]
@@ -122,7 +101,6 @@ func (obfuscator *ShuffleMaskObfuscator) Obfuscate(data []byte, entropy []byte) 
 	return shuffled
 }
 
-// Deobfuscate reverses the shuffle and mask operations.
 func (obfuscator *ShuffleMaskObfuscator) Deobfuscate(data []byte, entropy []byte) []byte {
 	if len(data) == 0 {
 		return data
@@ -130,16 +108,13 @@ func (obfuscator *ShuffleMaskObfuscator) Deobfuscate(data []byte, entropy []byte
 
 	result := make([]byte, len(data))
 
-	// Generate permutation and mask from entropy
 	perm := obfuscator.generatePermutation(entropy, len(data))
 	mask := obfuscator.deriveMask(entropy, len(data))
 
-	// Unshuffle first
 	for i, p := range perm {
 		result[p] = data[i]
 	}
 
-	// Remove mask
 	for i := range result {
 		result[i] ^= mask[i]
 	}
@@ -147,20 +122,17 @@ func (obfuscator *ShuffleMaskObfuscator) Deobfuscate(data []byte, entropy []byte
 	return result
 }
 
-// generatePermutation creates a deterministic permutation from entropy.
 func (obfuscator *ShuffleMaskObfuscator) generatePermutation(entropy []byte, length int) []int {
 	perm := make([]int, length)
 	for i := range perm {
 		perm[i] = i
 	}
 
-	// Use entropy to seed a deterministic shuffle
 	h := sha256.New()
 	h.Write(entropy)
 	h.Write([]byte("permutation"))
 	seed := h.Sum(nil)
 
-	// Fisher-Yates shuffle with deterministic randomness
 	for i := length - 1; i > 0; i-- {
 		h.Reset()
 		h.Write(seed)
@@ -175,7 +147,6 @@ func (obfuscator *ShuffleMaskObfuscator) generatePermutation(entropy []byte, len
 	return perm
 }
 
-// deriveMask creates a mask byte array from entropy.
 func (obfuscator *ShuffleMaskObfuscator) deriveMask(entropy []byte, length int) []byte {
 	mask := make([]byte, length)
 	h := sha256.New()
@@ -199,12 +170,11 @@ func (obfuscator *ShuffleMaskObfuscator) deriveMask(entropy []byte, length int) 
 	return mask
 }
 
-// Example: cipherSigil, _ := sigil.NewChaChaPolySigil(key)
 // Example: cipherSigil, _ := sigil.NewChaChaPolySigilWithObfuscator(key, &sigil.ShuffleMaskObfuscator{})
 type ChaChaPolySigil struct {
 	Key          []byte
 	Obfuscator   PreObfuscator
-	randomReader goio.Reader // for testing injection
+	randomReader goio.Reader
 }
 
 // Example: cipherSigil, _ := sigil.NewChaChaPolySigil([]byte("0123456789abcdef0123456789abcdef"))
@@ -244,7 +214,6 @@ func NewChaChaPolySigilWithObfuscator(key []byte, obfuscator PreObfuscator) (*Ch
 	return cipherSigil, nil
 }
 
-// In encrypts plaintext with the configured pre-obfuscator.
 func (sigil *ChaChaPolySigil) In(data []byte) ([]byte, error) {
 	if sigil.Key == nil {
 		return nil, NoKeyConfiguredError
@@ -258,7 +227,6 @@ func (sigil *ChaChaPolySigil) In(data []byte) ([]byte, error) {
 		return nil, core.E("sigil.ChaChaPolySigil.In", "create cipher", err)
 	}
 
-	// Generate nonce
 	nonce := make([]byte, aead.NonceSize())
 	reader := sigil.randomReader
 	if reader == nil {
@@ -268,21 +236,16 @@ func (sigil *ChaChaPolySigil) In(data []byte) ([]byte, error) {
 		return nil, core.E("sigil.ChaChaPolySigil.In", "read nonce", err)
 	}
 
-	// Pre-obfuscate the plaintext using nonce as entropy
-	// This ensures CPU encryption routines never see raw plaintext
 	obfuscated := data
 	if sigil.Obfuscator != nil {
 		obfuscated = sigil.Obfuscator.Obfuscate(data, nonce)
 	}
 
-	// Encrypt the obfuscated data
-	// Output: [nonce | ciphertext | auth tag]
 	ciphertext := aead.Seal(nonce, nonce, obfuscated, nil)
 
 	return ciphertext, nil
 }
 
-// Out decrypts ciphertext and reverses the pre-obfuscation step.
 func (sigil *ChaChaPolySigil) Out(data []byte) ([]byte, error) {
 	if sigil.Key == nil {
 		return nil, NoKeyConfiguredError
@@ -301,17 +264,14 @@ func (sigil *ChaChaPolySigil) Out(data []byte) ([]byte, error) {
 		return nil, CiphertextTooShortError
 	}
 
-	// Extract nonce from ciphertext
 	nonce := data[:aead.NonceSize()]
 	ciphertext := data[aead.NonceSize():]
 
-	// Decrypt
 	obfuscated, err := aead.Open(nil, nonce, ciphertext, nil)
 	if err != nil {
 		return nil, core.E("sigil.ChaChaPolySigil.Out", "decrypt ciphertext", DecryptionFailedError)
 	}
 
-	// Deobfuscate using the same nonce as entropy
 	plaintext := obfuscated
 	if sigil.Obfuscator != nil {
 		plaintext = sigil.Obfuscator.Deobfuscate(obfuscated, nonce)

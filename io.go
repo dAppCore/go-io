@@ -188,7 +188,6 @@ type MemoryMedium struct {
 	modTimes map[string]time.Time
 }
 
-// MockMedium is a compatibility alias for MemoryMedium.
 type MockMedium = MemoryMedium
 
 var _ Medium = (*MemoryMedium)(nil)
@@ -203,8 +202,6 @@ func NewMemoryMedium() *MemoryMedium {
 	}
 }
 
-// NewMockMedium is a compatibility alias for NewMemoryMedium.
-//
 // Example: medium := io.NewMockMedium()
 // _ = medium.Write("config/app.yaml", "port: 8080")
 func NewMockMedium() *MemoryMedium {
@@ -396,14 +393,12 @@ func (medium *MemoryMedium) WriteStream(path string) (goio.WriteCloser, error) {
 	return medium.Create(path)
 }
 
-// MemoryFile implements fs.File for MemoryMedium.
 type MemoryFile struct {
 	name    string
 	content []byte
 	offset  int64
 }
 
-// MockFile is a compatibility alias for MemoryFile.
 type MockFile = MemoryFile
 
 func (file *MemoryFile) Stat() (fs.FileInfo, error) {
@@ -423,14 +418,12 @@ func (file *MemoryFile) Close() error {
 	return nil
 }
 
-// MemoryWriteCloser implements WriteCloser for MemoryMedium.
 type MemoryWriteCloser struct {
 	medium *MemoryMedium
 	path   string
 	data   []byte
 }
 
-// MockWriteCloser is a compatibility alias for MemoryWriteCloser.
 type MockWriteCloser = MemoryWriteCloser
 
 func (writeCloser *MemoryWriteCloser) Write(data []byte) (int, error) {

@@ -23,7 +23,6 @@ var unrestrictedFileSystem = (&core.Fs{}).NewUnrestricted()
 // _ = medium.Write("config/app.yaml", "port: 8080")
 func New(root string) (*Medium, error) {
 	absoluteRoot := absolutePath(root)
-	// Example: local.New("/srv/app") resolves macOS "/var" to "/private/var" before sandbox checks.
 	if resolvedRoot, err := resolveSymlinksPath(absoluteRoot); err == nil {
 		absoluteRoot = resolvedRoot
 	}
@@ -181,16 +180,12 @@ func (medium *Medium) sandboxedPath(path string) string {
 		return core.Path(currentWorkingDir(), normalisePath(path))
 	}
 
-	// Use a cleaned absolute path to resolve all .. and . internally
-	// before joining with the root. This is a standard way to sandbox paths.
 	clean := cleanSandboxPath(path)
 
-	// If root is "/", allow absolute paths through
 	if medium.filesystemRoot == dirSeparator() {
 		return clean
 	}
 
-	// Join cleaned relative path with root
 	return core.Path(medium.filesystemRoot, core.TrimPrefix(clean, dirSeparator()))
 }
 
@@ -199,7 +194,6 @@ func (medium *Medium) validatePath(path string) (string, error) {
 		return medium.sandboxedPath(path), nil
 	}
 
-	// Split the cleaned path into components
 	parts := splitPathParts(cleanSandboxPath(path))
 	current := medium.filesystemRoot
 
@@ -208,16 +202,12 @@ func (medium *Medium) validatePath(path string) (string, error) {
 		realNext, err := resolveSymlinksPath(next)
 		if err != nil {
 			if core.Is(err, syscall.ENOENT) {
-				// Part doesn't exist, we can't follow symlinks anymore.
-				// Since the path is already Cleaned and current is safe,
-				// appending a component to current will not escape.
 				current = next
 				continue
 			}
 			return "", err
 		}
 
-		// Verify the resolved part is still within the root
 		if !isWithinRoot(medium.filesystemRoot, realNext) {
 			logSandboxEscape(medium.filesystemRoot, path, realNext)
 			return "", fs.ErrPermission

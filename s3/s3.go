@@ -1,5 +1,3 @@
-// Package s3 stores io.Medium data in S3 objects.
-//
 // Example: client := awss3.NewFromConfig(aws.Config{Region: "us-east-1"})
 // Example: medium, _ := s3.New(s3.Options{Bucket: "backups", Client: client, Prefix: "daily/"})
 // Example: _ = medium.Write("reports/daily.txt", "done")
@@ -45,11 +43,8 @@ var _ coreio.Medium = (*Medium)(nil)
 
 // Example: medium, _ := s3.New(s3.Options{Bucket: "backups", Client: client, Prefix: "daily/"})
 type Options struct {
-	// Bucket is the target S3 bucket name.
 	Bucket string
-	// Client is the AWS S3 client or test double used for requests.
 	Client Client
-	// Prefix is prepended to every object key.
 	Prefix string
 }
 
@@ -109,8 +104,6 @@ func New(options Options) (*Medium, error) {
 }
 
 func (medium *Medium) objectKey(filePath string) string {
-	// Clean the path using a leading "/" to sandbox traversal attempts,
-	// then strip the "/" prefix. This ensures ".." can't escape.
 	clean := path.Clean("/" + filePath)
 	if clean == "/" {
 		clean = ""
@@ -181,7 +174,6 @@ func (medium *Medium) IsFile(filePath string) bool {
 	if key == "" {
 		return false
 	}
-	// A "file" in S3 is an object whose key does not end with "/"
 	if core.HasSuffix(key, "/") {
 		return false
 	}
@@ -223,7 +215,6 @@ func (medium *Medium) DeleteAll(filePath string) error {
 		return core.E("s3.DeleteAll", "path is required", fs.ErrInvalid)
 	}
 
-	// First, try deleting the exact key
 	_, err := medium.client.DeleteObject(context.Background(), &awss3.DeleteObjectInput{
 		Bucket: aws.String(medium.bucket),
 		Key:    aws.String(key),
@@ -232,7 +223,6 @@ func (medium *Medium) DeleteAll(filePath string) error {
 		return core.E("s3.DeleteAll", core.Concat("failed to delete object: ", key), err)
 	}
 
-	// Then delete all objects under the prefix
 	prefix := key
 	if !core.HasSuffix(prefix, "/") {
 		prefix += "/"
@@ -560,8 +550,6 @@ func (medium *Medium) IsDir(filePath string) bool {
 	}
 	return len(listOutput.Contents) > 0 || len(listOutput.CommonPrefixes) > 0
 }
-
-// --- Internal types ---
 
 type fileInfo struct {
 	name    string

@@ -129,20 +129,14 @@ func (node *Node) WalkNode(root string, fn fs.WalkDirFunc) error {
 
 // Example: options := node.WalkOptions{MaxDepth: 1, SkipErrors: true}
 type WalkOptions struct {
-	// MaxDepth limits how many directory levels to descend. 0 means unlimited.
-	MaxDepth int
-	// Filter, if set, is called for each entry. Return true to include the
-	// entry (and descend into it if it is a directory).
-	Filter func(entryPath string, entry fs.DirEntry) bool
-	// SkipErrors suppresses errors (e.g. nonexistent root) instead of
-	// propagating them through the callback.
+	MaxDepth   int
+	Filter     func(entryPath string, entry fs.DirEntry) bool
 	SkipErrors bool
 }
 
 // Example: _ = nodeTree.WalkWithOptions(".", callback, node.WalkOptions{MaxDepth: 1, SkipErrors: true})
 func (node *Node) WalkWithOptions(root string, fn fs.WalkDirFunc, options WalkOptions) error {
 	if options.SkipErrors {
-		// If root doesn't exist, silently return nil.
 		if _, err := node.Stat(root); err != nil {
 			return nil
 		}
@@ -160,7 +154,6 @@ func (node *Node) WalkWithOptions(root string, fn fs.WalkDirFunc, options WalkOp
 
 		result := fn(entryPath, entry, err)
 
-		// After visiting a directory at MaxDepth, prevent descending further.
 		if result == nil && options.MaxDepth > 0 && entry != nil && entry.IsDir() && entryPath != root {
 			rel := core.TrimPrefix(entryPath, root)
 			rel = core.TrimPrefix(rel, "/")
@@ -181,7 +174,6 @@ func (node *Node) ReadFile(name string) ([]byte, error) {
 	if !ok {
 		return nil, core.E("node.ReadFile", core.Concat("path not found: ", name), fs.ErrNotExist)
 	}
-	// Return a copy to prevent callers from mutating internal state.
 	result := make([]byte, len(file.content))
 	copy(result, file.content)
 	return result, nil
@@ -217,7 +209,6 @@ func (node *Node) CopyTo(target coreio.Medium, sourcePath, destPath string) erro
 	}
 
 	if !info.IsDir() {
-		// Single file copy
 		file, ok := node.files[sourcePath]
 		if !ok {
 			return core.E("node.CopyTo", core.Concat("path not found: ", sourcePath), fs.ErrNotExist)
@@ -225,7 +216,6 @@ func (node *Node) CopyTo(target coreio.Medium, sourcePath, destPath string) erro
 		return target.Write(destPath, string(file.content))
 	}
 
-	// Directory: walk and copy all files underneath
 	prefix := sourcePath
 	if prefix != "" && !core.HasSuffix(prefix, "/") {
 		prefix += "/"
@@ -246,8 +236,6 @@ func (node *Node) CopyTo(target coreio.Medium, sourcePath, destPath string) erro
 	}
 	return nil
 }
-
-// ---------- Medium interface: fs.FS methods ----------
 
 func (node *Node) Open(name string) (fs.File, error) {
 	name = core.TrimPrefix(name, "/")
@@ -289,7 +277,6 @@ func (node *Node) ReadDir(name string) ([]fs.DirEntry, error) {
 		name = ""
 	}
 
-	// Disallow reading a file as a directory.
 	if info, err := node.Stat(name); err == nil && !info.IsDir() {
 		return nil, &fs.PathError{Op: "readdir", Path: name, Err: fs.ErrInvalid}
 	}
@@ -332,8 +319,6 @@ func (node *Node) ReadDir(name string) ([]fs.DirEntry, error) {
 	return entries, nil
 }
 
-// ---------- Medium interface: read/write ----------
-
 func (node *Node) Read(filePath string) (string, error) {
 	filePath = core.TrimPrefix(filePath, "/")
 	file, ok := node.files[filePath]
@@ -365,8 +350,6 @@ func (node *Node) EnsureDir(_ string) error {
 	return nil
 }
 
-// ---------- Medium interface: existence checks ----------
-
 func (node *Node) Exists(filePath string) bool {
 	_, err := node.Stat(filePath)
 	return err == nil
@@ -385,8 +368,6 @@ func (node *Node) IsDir(filePath string) bool {
 	}
 	return info.IsDir()
 }
-
-// ---------- Medium interface: mutations ----------
 
 func (node *Node) Delete(filePath string) error {
 	filePath = core.TrimPrefix(filePath, "/")
@@ -443,8 +424,6 @@ func (node *Node) List(filePath string) ([]fs.DirEntry, error) {
 	return node.ReadDir(filePath)
 }
 
-// ---------- Medium interface: streams ----------
-
 func (node *Node) Create(filePath string) (goio.WriteCloser, error) {
 	filePath = core.TrimPrefix(filePath, "/")
 	return &nodeWriter{node: node, path: filePath}, nil
@@ -472,9 +451,6 @@ func (node *Node) WriteStream(filePath string) (goio.WriteCloser, error) {
 	return node.Create(filePath)
 }
 
-// ---------- Internal types ----------
-
-// nodeWriter buffers writes and commits them to the Node on Close.
 type nodeWriter struct {
 	node *Node
 	path string
