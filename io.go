@@ -157,75 +157,74 @@ func Copy(source Medium, sourcePath string, destination Medium, destinationPath 
 	return nil
 }
 
-// Example: medium := io.NewMockMedium()
+// Example: medium := io.NewMemoryMedium()
 // _ = medium.Write("config/app.yaml", "port: 8080")
-type MockMedium struct {
+type MemoryMedium struct {
 	Files    map[string]string
 	Dirs     map[string]bool
 	ModTimes map[string]time.Time
 }
 
-// Example: medium := io.NewMemoryMedium()
-// _ = medium.Write("config/app.yaml", "port: 8080")
-type MemoryMedium = MockMedium
+// MockMedium is a compatibility alias for MemoryMedium.
+type MockMedium = MemoryMedium
 
 var _ Medium = (*MemoryMedium)(nil)
 
-// NewMockMedium returns MemoryMedium for compatibility.
-//
-// Example: medium := io.NewMockMedium()
+// Example: medium := io.NewMemoryMedium()
 // _ = medium.Write("config/app.yaml", "port: 8080")
-func NewMockMedium() *MemoryMedium {
-	return &MockMedium{
+func NewMemoryMedium() *MemoryMedium {
+	return &MemoryMedium{
 		Files:    make(map[string]string),
 		Dirs:     make(map[string]bool),
 		ModTimes: make(map[string]time.Time),
 	}
 }
 
-// Example: medium := io.NewMemoryMedium()
+// NewMockMedium is a compatibility alias for NewMemoryMedium.
+//
+// Example: medium := io.NewMockMedium()
 // _ = medium.Write("config/app.yaml", "port: 8080")
-func NewMemoryMedium() *MemoryMedium {
-	return NewMockMedium()
+func NewMockMedium() *MemoryMedium {
+	return NewMemoryMedium()
 }
 
-func (medium *MockMedium) Read(path string) (string, error) {
+func (medium *MemoryMedium) Read(path string) (string, error) {
 	content, ok := medium.Files[path]
 	if !ok {
-		return "", core.E("io.MockMedium.Read", core.Concat("file not found: ", path), fs.ErrNotExist)
+		return "", core.E("io.MemoryMedium.Read", core.Concat("file not found: ", path), fs.ErrNotExist)
 	}
 	return content, nil
 }
 
-func (medium *MockMedium) Write(path, content string) error {
+func (medium *MemoryMedium) Write(path, content string) error {
 	medium.Files[path] = content
 	medium.ModTimes[path] = time.Now()
 	return nil
 }
 
-func (medium *MockMedium) WriteMode(path, content string, mode fs.FileMode) error {
+func (medium *MemoryMedium) WriteMode(path, content string, mode fs.FileMode) error {
 	return medium.Write(path, content)
 }
 
-func (medium *MockMedium) EnsureDir(path string) error {
+func (medium *MemoryMedium) EnsureDir(path string) error {
 	medium.Dirs[path] = true
 	return nil
 }
 
-func (medium *MockMedium) IsFile(path string) bool {
+func (medium *MemoryMedium) IsFile(path string) bool {
 	_, ok := medium.Files[path]
 	return ok
 }
 
-func (medium *MockMedium) FileGet(path string) (string, error) {
+func (medium *MemoryMedium) FileGet(path string) (string, error) {
 	return medium.Read(path)
 }
 
-func (medium *MockMedium) FileSet(path, content string) error {
+func (medium *MemoryMedium) FileSet(path, content string) error {
 	return medium.Write(path, content)
 }
 
-func (medium *MockMedium) Delete(path string) error {
+func (medium *MemoryMedium) Delete(path string) error {
 	if _, ok := medium.Files[path]; ok {
 		delete(medium.Files, path)
 		return nil
@@ -237,21 +236,21 @@ func (medium *MockMedium) Delete(path string) error {
 		}
 		for filePath := range medium.Files {
 			if core.HasPrefix(filePath, prefix) {
-				return core.E("io.MockMedium.Delete", core.Concat("directory not empty: ", path), fs.ErrExist)
+				return core.E("io.MemoryMedium.Delete", core.Concat("directory not empty: ", path), fs.ErrExist)
 			}
 		}
 		for directoryPath := range medium.Dirs {
 			if directoryPath != path && core.HasPrefix(directoryPath, prefix) {
-				return core.E("io.MockMedium.Delete", core.Concat("directory not empty: ", path), fs.ErrExist)
+				return core.E("io.MemoryMedium.Delete", core.Concat("directory not empty: ", path), fs.ErrExist)
 			}
 		}
 		delete(medium.Dirs, path)
 		return nil
 	}
-	return core.E("io.MockMedium.Delete", core.Concat("path not found: ", path), fs.ErrNotExist)
+	return core.E("io.MemoryMedium.Delete", core.Concat("path not found: ", path), fs.ErrNotExist)
 }
 
-func (medium *MockMedium) DeleteAll(path string) error {
+func (medium *MemoryMedium) DeleteAll(path string) error {
 	found := false
 	if _, ok := medium.Files[path]; ok {
 		delete(medium.Files, path)
@@ -279,12 +278,12 @@ func (medium *MockMedium) DeleteAll(path string) error {
 	}
 
 	if !found {
-		return core.E("io.MockMedium.DeleteAll", core.Concat("path not found: ", path), fs.ErrNotExist)
+		return core.E("io.MemoryMedium.DeleteAll", core.Concat("path not found: ", path), fs.ErrNotExist)
 	}
 	return nil
 }
 
-func (medium *MockMedium) Rename(oldPath, newPath string) error {
+func (medium *MemoryMedium) Rename(oldPath, newPath string) error {
 	if content, ok := medium.Files[oldPath]; ok {
 		medium.Files[newPath] = content
 		delete(medium.Files, oldPath)
@@ -336,62 +335,62 @@ func (medium *MockMedium) Rename(oldPath, newPath string) error {
 		}
 		return nil
 	}
-	return core.E("io.MockMedium.Rename", core.Concat("path not found: ", oldPath), fs.ErrNotExist)
+	return core.E("io.MemoryMedium.Rename", core.Concat("path not found: ", oldPath), fs.ErrNotExist)
 }
 
-func (medium *MockMedium) Open(path string) (fs.File, error) {
+func (medium *MemoryMedium) Open(path string) (fs.File, error) {
 	content, ok := medium.Files[path]
 	if !ok {
-		return nil, core.E("io.MockMedium.Open", core.Concat("file not found: ", path), fs.ErrNotExist)
+		return nil, core.E("io.MemoryMedium.Open", core.Concat("file not found: ", path), fs.ErrNotExist)
 	}
-	return &MockFile{
+	return &MemoryFile{
 		name:    core.PathBase(path),
 		content: []byte(content),
 	}, nil
 }
 
-func (medium *MockMedium) Create(path string) (goio.WriteCloser, error) {
-	return &MockWriteCloser{
+func (medium *MemoryMedium) Create(path string) (goio.WriteCloser, error) {
+	return &MemoryWriteCloser{
 		medium: medium,
 		path:   path,
 	}, nil
 }
 
-func (medium *MockMedium) Append(path string) (goio.WriteCloser, error) {
+func (medium *MemoryMedium) Append(path string) (goio.WriteCloser, error) {
 	content := medium.Files[path]
-	return &MockWriteCloser{
+	return &MemoryWriteCloser{
 		medium: medium,
 		path:   path,
 		data:   []byte(content),
 	}, nil
 }
 
-func (medium *MockMedium) ReadStream(path string) (goio.ReadCloser, error) {
+func (medium *MemoryMedium) ReadStream(path string) (goio.ReadCloser, error) {
 	return medium.Open(path)
 }
 
-func (medium *MockMedium) WriteStream(path string) (goio.WriteCloser, error) {
+func (medium *MemoryMedium) WriteStream(path string) (goio.WriteCloser, error) {
 	return medium.Create(path)
 }
 
-// MockFile implements fs.File for MockMedium.
-type MockFile struct {
+// MemoryFile implements fs.File for MemoryMedium.
+type MemoryFile struct {
 	name    string
 	content []byte
 	offset  int64
 }
 
-// MemoryFile is the preferred alias for MockFile.
-type MemoryFile = MockFile
+// MockFile is a compatibility alias for MemoryFile.
+type MockFile = MemoryFile
 
-func (file *MockFile) Stat() (fs.FileInfo, error) {
+func (file *MemoryFile) Stat() (fs.FileInfo, error) {
 	return FileInfo{
 		name: file.name,
 		size: int64(len(file.content)),
 	}, nil
 }
 
-func (file *MockFile) Read(buffer []byte) (int, error) {
+func (file *MemoryFile) Read(buffer []byte) (int, error) {
 	if file.offset >= int64(len(file.content)) {
 		return 0, goio.EOF
 	}
@@ -400,32 +399,32 @@ func (file *MockFile) Read(buffer []byte) (int, error) {
 	return readCount, nil
 }
 
-func (file *MockFile) Close() error {
+func (file *MemoryFile) Close() error {
 	return nil
 }
 
-// MockWriteCloser implements WriteCloser for MockMedium.
-type MockWriteCloser struct {
-	medium *MockMedium
+// MemoryWriteCloser implements WriteCloser for MemoryMedium.
+type MemoryWriteCloser struct {
+	medium *MemoryMedium
 	path   string
 	data   []byte
 }
 
-// MemoryWriteCloser is the preferred alias for MockWriteCloser.
-type MemoryWriteCloser = MockWriteCloser
+// MockWriteCloser is a compatibility alias for MemoryWriteCloser.
+type MockWriteCloser = MemoryWriteCloser
 
-func (writeCloser *MockWriteCloser) Write(data []byte) (int, error) {
+func (writeCloser *MemoryWriteCloser) Write(data []byte) (int, error) {
 	writeCloser.data = append(writeCloser.data, data...)
 	return len(data), nil
 }
 
-func (writeCloser *MockWriteCloser) Close() error {
+func (writeCloser *MemoryWriteCloser) Close() error {
 	writeCloser.medium.Files[writeCloser.path] = string(writeCloser.data)
 	writeCloser.medium.ModTimes[writeCloser.path] = time.Now()
 	return nil
 }
 
-func (medium *MockMedium) List(path string) ([]fs.DirEntry, error) {
+func (medium *MemoryMedium) List(path string) ([]fs.DirEntry, error) {
 	if _, ok := medium.Dirs[path]; !ok {
 		hasChildren := false
 		prefix := path
@@ -447,7 +446,7 @@ func (medium *MockMedium) List(path string) ([]fs.DirEntry, error) {
 			}
 		}
 		if !hasChildren && path != "" {
-			return nil, core.E("io.MockMedium.List", core.Concat("directory not found: ", path), fs.ErrNotExist)
+			return nil, core.E("io.MemoryMedium.List", core.Concat("directory not found: ", path), fs.ErrNotExist)
 		}
 	}
 
@@ -527,7 +526,7 @@ func (medium *MockMedium) List(path string) ([]fs.DirEntry, error) {
 	return entries, nil
 }
 
-func (medium *MockMedium) Stat(path string) (fs.FileInfo, error) {
+func (medium *MemoryMedium) Stat(path string) (fs.FileInfo, error) {
 	if content, ok := medium.Files[path]; ok {
 		modTime, ok := medium.ModTimes[path]
 		if !ok {
@@ -547,10 +546,10 @@ func (medium *MockMedium) Stat(path string) (fs.FileInfo, error) {
 			mode:  fs.ModeDir | 0755,
 		}, nil
 	}
-	return nil, core.E("io.MockMedium.Stat", core.Concat("path not found: ", path), fs.ErrNotExist)
+	return nil, core.E("io.MemoryMedium.Stat", core.Concat("path not found: ", path), fs.ErrNotExist)
 }
 
-func (medium *MockMedium) Exists(path string) bool {
+func (medium *MemoryMedium) Exists(path string) bool {
 	if _, ok := medium.Files[path]; ok {
 		return true
 	}
@@ -560,7 +559,7 @@ func (medium *MockMedium) Exists(path string) bool {
 	return false
 }
 
-func (medium *MockMedium) IsDir(path string) bool {
+func (medium *MemoryMedium) IsDir(path string) bool {
 	_, ok := medium.Dirs[path]
 	return ok
 }
