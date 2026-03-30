@@ -18,37 +18,37 @@ func TestClient_New_ResolvesRoot_Good(t *testing.T) {
 	// New() resolves symlinks (macOS /var → /private/var), so compare resolved paths.
 	resolved, err := resolveSymlinksPath(root)
 	require.NoError(t, err)
-	assert.Equal(t, resolved, m.root)
+	assert.Equal(t, resolved, m.filesystemRoot)
 }
 
 func TestClient_Path_Sandboxed_Good(t *testing.T) {
-	m := &Medium{root: "/home/user"}
+	m := &Medium{filesystemRoot: "/home/user"}
 
 	// Normal paths
-	assert.Equal(t, "/home/user/file.txt", m.path("file.txt"))
-	assert.Equal(t, "/home/user/dir/file.txt", m.path("dir/file.txt"))
+	assert.Equal(t, "/home/user/file.txt", m.sandboxedPath("file.txt"))
+	assert.Equal(t, "/home/user/dir/file.txt", m.sandboxedPath("dir/file.txt"))
 
 	// Empty returns root
-	assert.Equal(t, "/home/user", m.path(""))
+	assert.Equal(t, "/home/user", m.sandboxedPath(""))
 
 	// Traversal attempts get sanitised
-	assert.Equal(t, "/home/user/file.txt", m.path("../file.txt"))
-	assert.Equal(t, "/home/user/file.txt", m.path("dir/../file.txt"))
+	assert.Equal(t, "/home/user/file.txt", m.sandboxedPath("../file.txt"))
+	assert.Equal(t, "/home/user/file.txt", m.sandboxedPath("dir/../file.txt"))
 
 	// Absolute paths are constrained to sandbox (no escape)
-	assert.Equal(t, "/home/user/etc/passwd", m.path("/etc/passwd"))
+	assert.Equal(t, "/home/user/etc/passwd", m.sandboxedPath("/etc/passwd"))
 }
 
 func TestClient_Path_RootFilesystem_Good(t *testing.T) {
-	m := &Medium{root: "/"}
+	m := &Medium{filesystemRoot: "/"}
 
 	// When root is "/", absolute paths pass through
-	assert.Equal(t, "/etc/passwd", m.path("/etc/passwd"))
-	assert.Equal(t, "/home/user/file.txt", m.path("/home/user/file.txt"))
+	assert.Equal(t, "/etc/passwd", m.sandboxedPath("/etc/passwd"))
+	assert.Equal(t, "/home/user/file.txt", m.sandboxedPath("/home/user/file.txt"))
 
 	// Relative paths are relative to CWD when root is "/"
 	cwd := currentWorkingDir()
-	assert.Equal(t, core.Path(cwd, "file.txt"), m.path("file.txt"))
+	assert.Equal(t, core.Path(cwd, "file.txt"), m.sandboxedPath("file.txt"))
 }
 
 func TestClient_ReadWrite_Basic_Good(t *testing.T) {
@@ -439,18 +439,18 @@ func TestClient_WriteStream_Basic_Good(t *testing.T) {
 }
 
 func TestClient_Path_TraversalAdvanced_Ugly(t *testing.T) {
-	m := &Medium{root: "/sandbox"}
+	m := &Medium{filesystemRoot: "/sandbox"}
 
 	// Multiple levels of traversal
-	assert.Equal(t, "/sandbox/file.txt", m.path("../../../file.txt"))
-	assert.Equal(t, "/sandbox/target", m.path("dir/../../target"))
+	assert.Equal(t, "/sandbox/file.txt", m.sandboxedPath("../../../file.txt"))
+	assert.Equal(t, "/sandbox/target", m.sandboxedPath("dir/../../target"))
 
 	// Traversal with hidden files
-	assert.Equal(t, "/sandbox/.ssh/id_rsa", m.path(".ssh/id_rsa"))
-	assert.Equal(t, "/sandbox/id_rsa", m.path(".ssh/../id_rsa"))
+	assert.Equal(t, "/sandbox/.ssh/id_rsa", m.sandboxedPath(".ssh/id_rsa"))
+	assert.Equal(t, "/sandbox/id_rsa", m.sandboxedPath(".ssh/../id_rsa"))
 
 	// Null bytes (Go's filepath.Clean handles them, but good to check)
-	assert.Equal(t, "/sandbox/file\x00.txt", m.path("file\x00.txt"))
+	assert.Equal(t, "/sandbox/file\x00.txt", m.sandboxedPath("file\x00.txt"))
 }
 
 func TestClient_ValidatePath_SymlinkEscape_Bad(t *testing.T) {
@@ -468,7 +468,7 @@ func TestClient_ValidatePath_SymlinkEscape_Bad(t *testing.T) {
 
 	// Test 1: Simple traversal
 	_, err = m.validatePath("../outside.txt")
-	assert.NoError(t, err) // path() sanitises to root, so this shouldn't escape
+	assert.NoError(t, err) // sandboxedPath sanitises to root, so this shouldn't escape
 
 	// Test 2: Symlink escape
 	// Create a symlink inside the sandbox pointing outside

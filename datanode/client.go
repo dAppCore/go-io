@@ -34,9 +34,9 @@ var (
 // Medium is an in-memory storage backend backed by a Borg DataNode.
 // All paths are relative (no leading slash). Thread-safe via RWMutex.
 type Medium struct {
-	dataNode *borgdatanode.DataNode
-	dirs     map[string]bool // explicit directory tracking
-	mu       sync.RWMutex
+	dataNode    *borgdatanode.DataNode
+	directories map[string]bool // explicit directory tracking
+	mu          sync.RWMutex
 }
 
 // New creates a new empty DataNode Medium.
@@ -47,8 +47,8 @@ type Medium struct {
 //	_ = medium.Write("jobs/run.log", "started")
 func New() *Medium {
 	return &Medium{
-		dataNode: borgdatanode.New(),
-		dirs:     make(map[string]bool),
+		dataNode:    borgdatanode.New(),
+		directories: make(map[string]bool),
 	}
 }
 
@@ -65,8 +65,8 @@ func FromTar(data []byte) (*Medium, error) {
 		return nil, core.E("datanode.FromTar", "failed to restore", err)
 	}
 	return &Medium{
-		dataNode: dataNode,
-		dirs:     make(map[string]bool),
+		dataNode:    dataNode,
+		directories: make(map[string]bool),
 	}, nil
 }
 
@@ -95,7 +95,7 @@ func (m *Medium) Restore(data []byte) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.dataNode = dataNode
-	m.dirs = make(map[string]bool)
+	m.directories = make(map[string]bool)
 	return nil
 }
 
@@ -109,8 +109,8 @@ func (m *Medium) DataNode() *borgdatanode.DataNode {
 	return m.dataNode
 }
 
-// clean normalises a path: strips leading slash, cleans traversal.
-func clean(p string) string {
+// cleanPath normalises a path: strips leading slash, cleans traversal.
+func cleanPath(p string) string {
 	p = core.TrimPrefix(p, "/")
 	p = path.Clean(p)
 	if p == "." {
@@ -128,7 +128,7 @@ func (m *Medium) Read(p string) (string, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	p = clean(p)
+	p = cleanPath(p)
 	f, err := m.dataNode.Open(p)
 	if err != nil {
 		return "", core.E("datanode.Read", core.Concat("not found: ", p), fs.ErrNotExist)
@@ -157,13 +157,13 @@ func (m *Medium) Write(p, content string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	p = clean(p)
+	p = cleanPath(p)
 	if p == "" {
 		return core.E("datanode.Write", "empty path", fs.ErrInvalid)
 	}
 	m.dataNode.AddData(p, []byte(content))
 
-	// ensure parent dirs are tracked
+	// ensure parent directories are tracked
 	m.ensureDirsLocked(path.Dir(p))
 	return nil
 }
@@ -182,7 +182,7 @@ func (m *Medium) EnsureDir(p string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	p = clean(p)
+	p = cleanPath(p)
 	if p == "" {
 		return nil
 	}
@@ -194,7 +194,7 @@ func (m *Medium) EnsureDir(p string) error {
 // Caller must hold m.mu.
 func (m *Medium) ensureDirsLocked(p string) {
 	for p != "" && p != "." {
-		m.dirs[p] = true
+		m.directories[p] = true
 		p = path.Dir(p)
 		if p == "." {
 			break
@@ -209,7 +209,7 @@ func (m *Medium) IsFile(p string) bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	p = clean(p)
+	p = cleanPath(p)
 	info, err := m.dataNode.Stat(p)
 	return err == nil && !info.IsDir()
 }
@@ -235,7 +235,7 @@ func (m *Medium) Delete(p string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	p = clean(p)
+	p = cleanPath(p)
 	if p == "" {
 		return core.E("datanode.Delete", "cannot delete root", fs.ErrPermission)
 	}
@@ -243,8 +243,8 @@ func (m *Medium) Delete(p string) error {
 	// Check if it's a file in the DataNode
 	info, err := m.dataNode.Stat(p)
 	if err != nil {
-		// Check explicit dirs
-		if m.dirs[p] {
+		// Check explicit directories
+		if m.directories[p] {
 			// Check if dir is empty
 			hasChildren, err := m.hasPrefixLocked(p + "/")
 			if err != nil {
@@ -253,7 +253,7 @@ func (m *Medium) Delete(p string) error {
 			if hasChildren {
 				return core.E("datanode.Delete", core.Concat("directory not empty: ", p), fs.ErrExist)
 			}
-			delete(m.dirs, p)
+			delete(m.directories, p)
 			return nil
 		}
 		return core.E("datanode.Delete", core.Concat("not found: ", p), fs.ErrNotExist)
@@ -267,7 +267,7 @@ func (m *Medium) Delete(p string) error {
 		if hasChildren {
 			return core.E("datanode.Delete", core.Concat("directory not empty: ", p), fs.ErrExist)
 		}
-		delete(m.dirs, p)
+		delete(m.directories, p)
 		return nil
 	}
 
@@ -285,7 +285,7 @@ func (m *Medium) DeleteAll(p string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	p = clean(p)
+	p = cleanPath(p)
 	if p == "" {
 		return core.E("datanode.DeleteAll", "cannot delete root", fs.ErrPermission)
 	}
@@ -316,10 +316,10 @@ func (m *Medium) DeleteAll(p string) error {
 		}
 	}
 
-	// Remove explicit dirs under prefix
-	for d := range m.dirs {
+	// Remove explicit directories under prefix
+	for d := range m.directories {
 		if d == p || core.HasPrefix(d, prefix) {
-			delete(m.dirs, d)
+			delete(m.directories, d)
 			found = true
 		}
 	}
@@ -337,8 +337,8 @@ func (m *Medium) Rename(oldPath, newPath string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	oldPath = clean(oldPath)
-	newPath = clean(newPath)
+	oldPath = cleanPath(oldPath)
+	newPath = cleanPath(newPath)
 
 	// Check if source is a file
 	info, err := m.dataNode.Stat(oldPath)
@@ -382,17 +382,17 @@ func (m *Medium) Rename(oldPath, newPath string) error {
 		}
 	}
 
-	// Move explicit dirs
+	// Move explicit directories
 	dirsToMove := make(map[string]string)
-	for d := range m.dirs {
+	for d := range m.directories {
 		if d == oldPath || core.HasPrefix(d, oldPrefix) {
 			newD := core.Concat(newPath, core.TrimPrefix(d, oldPath))
 			dirsToMove[d] = newD
 		}
 	}
 	for old, nw := range dirsToMove {
-		delete(m.dirs, old)
-		m.dirs[nw] = true
+		delete(m.directories, old)
+		m.directories[nw] = true
 	}
 
 	return nil
@@ -405,12 +405,12 @@ func (m *Medium) List(p string) ([]fs.DirEntry, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	p = clean(p)
+	p = cleanPath(p)
 
 	entries, err := m.dataNode.ReadDir(p)
 	if err != nil {
-		// Check explicit dirs
-		if p == "" || m.dirs[p] {
+		// Check explicit directories
+		if p == "" || m.directories[p] {
 			return []fs.DirEntry{}, nil
 		}
 		return nil, core.E("datanode.List", core.Concat("not found: ", p), fs.ErrNotExist)
@@ -426,7 +426,7 @@ func (m *Medium) List(p string) ([]fs.DirEntry, error) {
 		seen[e.Name()] = true
 	}
 
-	for d := range m.dirs {
+	for d := range m.directories {
 		if !core.HasPrefix(d, prefix) {
 			continue
 		}
@@ -455,7 +455,7 @@ func (m *Medium) Stat(p string) (fs.FileInfo, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	p = clean(p)
+	p = cleanPath(p)
 	if p == "" {
 		return &fileInfo{name: ".", isDir: true, mode: fs.ModeDir | 0755}, nil
 	}
@@ -465,7 +465,7 @@ func (m *Medium) Stat(p string) (fs.FileInfo, error) {
 		return info, nil
 	}
 
-	if m.dirs[p] {
+	if m.directories[p] {
 		return &fileInfo{name: path.Base(p), isDir: true, mode: fs.ModeDir | 0755}, nil
 	}
 	return nil, core.E("datanode.Stat", core.Concat("not found: ", p), fs.ErrNotExist)
@@ -478,7 +478,7 @@ func (m *Medium) Open(p string) (fs.File, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	p = clean(p)
+	p = cleanPath(p)
 	return m.dataNode.Open(p)
 }
 
@@ -486,7 +486,7 @@ func (m *Medium) Open(p string) (fs.File, error) {
 //
 //	result := m.Create(...)
 func (m *Medium) Create(p string) (goio.WriteCloser, error) {
-	p = clean(p)
+	p = cleanPath(p)
 	if p == "" {
 		return nil, core.E("datanode.Create", "empty path", fs.ErrInvalid)
 	}
@@ -497,7 +497,7 @@ func (m *Medium) Create(p string) (goio.WriteCloser, error) {
 //
 //	result := m.Append(...)
 func (m *Medium) Append(p string) (goio.WriteCloser, error) {
-	p = clean(p)
+	p = cleanPath(p)
 	if p == "" {
 		return nil, core.E("datanode.Append", "empty path", fs.ErrInvalid)
 	}
@@ -525,7 +525,7 @@ func (m *Medium) ReadStream(p string) (goio.ReadCloser, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	p = clean(p)
+	p = cleanPath(p)
 	f, err := m.dataNode.Open(p)
 	if err != nil {
 		return nil, core.E("datanode.ReadStream", core.Concat("not found: ", p), fs.ErrNotExist)
@@ -547,7 +547,7 @@ func (m *Medium) Exists(p string) bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	p = clean(p)
+	p = cleanPath(p)
 	if p == "" {
 		return true // root always exists
 	}
@@ -555,7 +555,7 @@ func (m *Medium) Exists(p string) bool {
 	if err == nil {
 		return true
 	}
-	return m.dirs[p]
+	return m.directories[p]
 }
 
 // IsDir documents the IsDir operation.
@@ -565,7 +565,7 @@ func (m *Medium) IsDir(p string) bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	p = clean(p)
+	p = cleanPath(p)
 	if p == "" {
 		return true
 	}
@@ -573,7 +573,7 @@ func (m *Medium) IsDir(p string) bool {
 	if err == nil {
 		return info.IsDir()
 	}
-	return m.dirs[p]
+	return m.directories[p]
 }
 
 // --- internal helpers ---
@@ -589,7 +589,7 @@ func (m *Medium) hasPrefixLocked(prefix string) (bool, error) {
 			return true, nil
 		}
 	}
-	for d := range m.dirs {
+	for d := range m.directories {
 		if core.HasPrefix(d, prefix) {
 			return true, nil
 		}
