@@ -25,7 +25,7 @@ import (
 type ReverseSigil struct{}
 
 // In reverses the bytes of the data.
-func (s *ReverseSigil) In(data []byte) ([]byte, error) {
+func (sigil *ReverseSigil) In(data []byte) ([]byte, error) {
 	if data == nil {
 		return nil, nil
 	}
@@ -37,8 +37,8 @@ func (s *ReverseSigil) In(data []byte) ([]byte, error) {
 }
 
 // Out reverses the bytes of the data.
-func (s *ReverseSigil) Out(data []byte) ([]byte, error) {
-	return s.In(data)
+func (sigil *ReverseSigil) Out(data []byte) ([]byte, error) {
+	return sigil.In(data)
 }
 
 // HexSigil is a Sigil that encodes/decodes data to/from hexadecimal.
@@ -46,7 +46,7 @@ func (s *ReverseSigil) Out(data []byte) ([]byte, error) {
 type HexSigil struct{}
 
 // In encodes the data to hexadecimal.
-func (s *HexSigil) In(data []byte) ([]byte, error) {
+func (sigil *HexSigil) In(data []byte) ([]byte, error) {
 	if data == nil {
 		return nil, nil
 	}
@@ -56,7 +56,7 @@ func (s *HexSigil) In(data []byte) ([]byte, error) {
 }
 
 // Out decodes the data from hexadecimal.
-func (s *HexSigil) Out(data []byte) ([]byte, error) {
+func (sigil *HexSigil) Out(data []byte) ([]byte, error) {
 	if data == nil {
 		return nil, nil
 	}
@@ -70,7 +70,7 @@ func (s *HexSigil) Out(data []byte) ([]byte, error) {
 type Base64Sigil struct{}
 
 // In encodes the data to base64.
-func (s *Base64Sigil) In(data []byte) ([]byte, error) {
+func (sigil *Base64Sigil) In(data []byte) ([]byte, error) {
 	if data == nil {
 		return nil, nil
 	}
@@ -80,7 +80,7 @@ func (s *Base64Sigil) In(data []byte) ([]byte, error) {
 }
 
 // Out decodes the data from base64.
-func (s *Base64Sigil) Out(data []byte) ([]byte, error) {
+func (sigil *Base64Sigil) Out(data []byte) ([]byte, error) {
 	if data == nil {
 		return nil, nil
 	}
@@ -96,12 +96,12 @@ type GzipSigil struct {
 }
 
 // In compresses the data using gzip.
-func (s *GzipSigil) In(data []byte) ([]byte, error) {
+func (sigil *GzipSigil) In(data []byte) ([]byte, error) {
 	if data == nil {
 		return nil, nil
 	}
 	var b bytes.Buffer
-	outputWriter := s.outputWriter
+	outputWriter := sigil.outputWriter
 	if outputWriter == nil {
 		outputWriter = &b
 	}
@@ -116,7 +116,7 @@ func (s *GzipSigil) In(data []byte) ([]byte, error) {
 }
 
 // Out decompresses the data using gzip.
-func (s *GzipSigil) Out(data []byte) ([]byte, error) {
+func (sigil *GzipSigil) Out(data []byte) ([]byte, error) {
 	if data == nil {
 		return nil, nil
 	}
@@ -137,7 +137,7 @@ func (s *GzipSigil) Out(data []byte) ([]byte, error) {
 type JSONSigil struct{ Indent bool }
 
 // In compacts or indents the JSON data.
-func (s *JSONSigil) In(data []byte) ([]byte, error) {
+func (sigil *JSONSigil) In(data []byte) ([]byte, error) {
 	if data == nil {
 		return nil, nil
 	}
@@ -152,14 +152,14 @@ func (s *JSONSigil) In(data []byte) ([]byte, error) {
 	}
 
 	compact := core.JSONMarshalString(decoded)
-	if s.Indent {
+	if sigil.Indent {
 		return []byte(indentJSON(compact)), nil
 	}
 	return []byte(compact), nil
 }
 
 // Out is a no-op for JSONSigil.
-func (s *JSONSigil) Out(data []byte) ([]byte, error) {
+func (sigil *JSONSigil) Out(data []byte) ([]byte, error) {
 	// For simplicity, Out is a no-op. The primary use is formatting.
 	return data, nil
 }
@@ -179,9 +179,9 @@ func NewHashSigil(h crypto.Hash) *HashSigil {
 }
 
 // In hashes the data.
-func (s *HashSigil) In(data []byte) ([]byte, error) {
+func (sigil *HashSigil) In(data []byte) ([]byte, error) {
 	var hasher goio.Writer
-	switch s.Hash {
+	switch sigil.Hash {
 	case crypto.MD4:
 		hasher = md4.New()
 	case crypto.MD5:
@@ -228,7 +228,7 @@ func (s *HashSigil) In(data []byte) ([]byte, error) {
 }
 
 // Out is a no-op for HashSigil.
-func (s *HashSigil) Out(data []byte) ([]byte, error) {
+func (sigil *HashSigil) Out(data []byte) ([]byte, error) {
 	return data, nil
 }
 

@@ -100,16 +100,16 @@ func New(options Options) (*Medium, error) {
 	if options.Client == nil {
 		return nil, core.E("s3.New", "client is required", nil)
 	}
-	m := &Medium{
+	medium := &Medium{
 		client: options.Client,
 		bucket: options.Bucket,
 		prefix: normalisePrefix(options.Prefix),
 	}
-	return m, nil
+	return medium, nil
 }
 
 // objectKey maps a virtual path to the full S3 object key.
-func (m *Medium) objectKey(filePath string) string {
+func (medium *Medium) objectKey(filePath string) string {
 	// Clean the path using a leading "/" to sandbox traversal attempts,
 	// then strip the "/" prefix. This ensures ".." can't escape.
 	clean := path.Clean("/" + filePath)
@@ -118,23 +118,23 @@ func (m *Medium) objectKey(filePath string) string {
 	}
 	clean = core.TrimPrefix(clean, "/")
 
-	if m.prefix == "" {
+	if medium.prefix == "" {
 		return clean
 	}
 	if clean == "" {
-		return m.prefix
+		return medium.prefix
 	}
-	return m.prefix + clean
+	return medium.prefix + clean
 }
 
-func (m *Medium) Read(filePath string) (string, error) {
-	key := m.objectKey(filePath)
+func (medium *Medium) Read(filePath string) (string, error) {
+	key := medium.objectKey(filePath)
 	if key == "" {
 		return "", core.E("s3.Read", "path is required", fs.ErrInvalid)
 	}
 
-	out, err := m.client.GetObject(context.Background(), &awss3.GetObjectInput{
-		Bucket: aws.String(m.bucket),
+	out, err := medium.client.GetObject(context.Background(), &awss3.GetObjectInput{
+		Bucket: aws.String(medium.bucket),
 		Key:    aws.String(key),
 	})
 	if err != nil {
@@ -149,14 +149,14 @@ func (m *Medium) Read(filePath string) (string, error) {
 	return string(data), nil
 }
 
-func (m *Medium) Write(filePath, content string) error {
-	key := m.objectKey(filePath)
+func (medium *Medium) Write(filePath, content string) error {
+	key := medium.objectKey(filePath)
 	if key == "" {
 		return core.E("s3.Write", "path is required", fs.ErrInvalid)
 	}
 
-	_, err := m.client.PutObject(context.Background(), &awss3.PutObjectInput{
-		Bucket: aws.String(m.bucket),
+	_, err := medium.client.PutObject(context.Background(), &awss3.PutObjectInput{
+		Bucket: aws.String(medium.bucket),
 		Key:    aws.String(key),
 		Body:   core.NewReader(content),
 	})
@@ -167,18 +167,18 @@ func (m *Medium) Write(filePath, content string) error {
 }
 
 // Example: _ = medium.WriteMode("keys/private.key", key, 0600)
-func (m *Medium) WriteMode(filePath, content string, _ fs.FileMode) error {
-	return m.Write(filePath, content)
+func (medium *Medium) WriteMode(filePath, content string, _ fs.FileMode) error {
+	return medium.Write(filePath, content)
 }
 
 // Example: _ = medium.EnsureDir("reports/2026")
-func (m *Medium) EnsureDir(_ string) error {
+func (medium *Medium) EnsureDir(_ string) error {
 	return nil
 }
 
 // Example: ok := medium.IsFile("reports/daily.txt")
-func (m *Medium) IsFile(filePath string) bool {
-	key := m.objectKey(filePath)
+func (medium *Medium) IsFile(filePath string) bool {
+	key := medium.objectKey(filePath)
 	if key == "" {
 		return false
 	}
@@ -186,29 +186,29 @@ func (m *Medium) IsFile(filePath string) bool {
 	if core.HasSuffix(key, "/") {
 		return false
 	}
-	_, err := m.client.HeadObject(context.Background(), &awss3.HeadObjectInput{
-		Bucket: aws.String(m.bucket),
+	_, err := medium.client.HeadObject(context.Background(), &awss3.HeadObjectInput{
+		Bucket: aws.String(medium.bucket),
 		Key:    aws.String(key),
 	})
 	return err == nil
 }
 
-func (m *Medium) FileGet(filePath string) (string, error) {
-	return m.Read(filePath)
+func (medium *Medium) FileGet(filePath string) (string, error) {
+	return medium.Read(filePath)
 }
 
-func (m *Medium) FileSet(filePath, content string) error {
-	return m.Write(filePath, content)
+func (medium *Medium) FileSet(filePath, content string) error {
+	return medium.Write(filePath, content)
 }
 
-func (m *Medium) Delete(filePath string) error {
-	key := m.objectKey(filePath)
+func (medium *Medium) Delete(filePath string) error {
+	key := medium.objectKey(filePath)
 	if key == "" {
 		return core.E("s3.Delete", "path is required", fs.ErrInvalid)
 	}
 
-	_, err := m.client.DeleteObject(context.Background(), &awss3.DeleteObjectInput{
-		Bucket: aws.String(m.bucket),
+	_, err := medium.client.DeleteObject(context.Background(), &awss3.DeleteObjectInput{
+		Bucket: aws.String(medium.bucket),
 		Key:    aws.String(key),
 	})
 	if err != nil {
@@ -218,15 +218,15 @@ func (m *Medium) Delete(filePath string) error {
 }
 
 // Example: _ = medium.DeleteAll("reports/2026")
-func (m *Medium) DeleteAll(filePath string) error {
-	key := m.objectKey(filePath)
+func (medium *Medium) DeleteAll(filePath string) error {
+	key := medium.objectKey(filePath)
 	if key == "" {
 		return core.E("s3.DeleteAll", "path is required", fs.ErrInvalid)
 	}
 
 	// First, try deleting the exact key
-	_, err := m.client.DeleteObject(context.Background(), &awss3.DeleteObjectInput{
-		Bucket: aws.String(m.bucket),
+	_, err := medium.client.DeleteObject(context.Background(), &awss3.DeleteObjectInput{
+		Bucket: aws.String(medium.bucket),
 		Key:    aws.String(key),
 	})
 	if err != nil {
@@ -243,8 +243,8 @@ func (m *Medium) DeleteAll(filePath string) error {
 	var continuationToken *string
 
 	for paginator {
-		listOut, err := m.client.ListObjectsV2(context.Background(), &awss3.ListObjectsV2Input{
-			Bucket:            aws.String(m.bucket),
+		listOut, err := medium.client.ListObjectsV2(context.Background(), &awss3.ListObjectsV2Input{
+			Bucket:            aws.String(medium.bucket),
 			Prefix:            aws.String(prefix),
 			ContinuationToken: continuationToken,
 		})
@@ -261,8 +261,8 @@ func (m *Medium) DeleteAll(filePath string) error {
 			objects[i] = types.ObjectIdentifier{Key: obj.Key}
 		}
 
-		deleteOut, err := m.client.DeleteObjects(context.Background(), &awss3.DeleteObjectsInput{
-			Bucket: aws.String(m.bucket),
+		deleteOut, err := medium.client.DeleteObjects(context.Background(), &awss3.DeleteObjectsInput{
+			Bucket: aws.String(medium.bucket),
 			Delete: &types.Delete{Objects: objects, Quiet: aws.Bool(true)},
 		})
 		if err != nil {
@@ -283,17 +283,17 @@ func (m *Medium) DeleteAll(filePath string) error {
 }
 
 // Example: _ = medium.Rename("drafts/todo.txt", "archive/todo.txt")
-func (m *Medium) Rename(oldPath, newPath string) error {
-	oldKey := m.objectKey(oldPath)
-	newKey := m.objectKey(newPath)
+func (medium *Medium) Rename(oldPath, newPath string) error {
+	oldKey := medium.objectKey(oldPath)
+	newKey := medium.objectKey(newPath)
 	if oldKey == "" || newKey == "" {
 		return core.E("s3.Rename", "both old and new paths are required", fs.ErrInvalid)
 	}
 
-	copySource := m.bucket + "/" + oldKey
+	copySource := medium.bucket + "/" + oldKey
 
-	_, err := m.client.CopyObject(context.Background(), &awss3.CopyObjectInput{
-		Bucket:     aws.String(m.bucket),
+	_, err := medium.client.CopyObject(context.Background(), &awss3.CopyObjectInput{
+		Bucket:     aws.String(medium.bucket),
 		CopySource: aws.String(copySource),
 		Key:        aws.String(newKey),
 	})
@@ -301,8 +301,8 @@ func (m *Medium) Rename(oldPath, newPath string) error {
 		return core.E("s3.Rename", core.Concat("failed to copy object: ", oldKey, " -> ", newKey), err)
 	}
 
-	_, err = m.client.DeleteObject(context.Background(), &awss3.DeleteObjectInput{
-		Bucket: aws.String(m.bucket),
+	_, err = medium.client.DeleteObject(context.Background(), &awss3.DeleteObjectInput{
+		Bucket: aws.String(medium.bucket),
 		Key:    aws.String(oldKey),
 	})
 	if err != nil {
@@ -313,16 +313,16 @@ func (m *Medium) Rename(oldPath, newPath string) error {
 }
 
 // Example: entries, _ := medium.List("reports")
-func (m *Medium) List(filePath string) ([]fs.DirEntry, error) {
-	prefix := m.objectKey(filePath)
+func (medium *Medium) List(filePath string) ([]fs.DirEntry, error) {
+	prefix := medium.objectKey(filePath)
 	if prefix != "" && !core.HasSuffix(prefix, "/") {
 		prefix += "/"
 	}
 
 	var entries []fs.DirEntry
 
-	listOut, err := m.client.ListObjectsV2(context.Background(), &awss3.ListObjectsV2Input{
-		Bucket:    aws.String(m.bucket),
+	listOut, err := medium.client.ListObjectsV2(context.Background(), &awss3.ListObjectsV2Input{
+		Bucket:    aws.String(medium.bucket),
 		Prefix:    aws.String(prefix),
 		Delimiter: aws.String("/"),
 	})
@@ -386,14 +386,14 @@ func (m *Medium) List(filePath string) ([]fs.DirEntry, error) {
 }
 
 // Example: info, _ := medium.Stat("reports/daily.txt")
-func (m *Medium) Stat(filePath string) (fs.FileInfo, error) {
-	key := m.objectKey(filePath)
+func (medium *Medium) Stat(filePath string) (fs.FileInfo, error) {
+	key := medium.objectKey(filePath)
 	if key == "" {
 		return nil, core.E("s3.Stat", "path is required", fs.ErrInvalid)
 	}
 
-	out, err := m.client.HeadObject(context.Background(), &awss3.HeadObjectInput{
-		Bucket: aws.String(m.bucket),
+	out, err := medium.client.HeadObject(context.Background(), &awss3.HeadObjectInput{
+		Bucket: aws.String(medium.bucket),
 		Key:    aws.String(key),
 	})
 	if err != nil {
@@ -418,14 +418,14 @@ func (m *Medium) Stat(filePath string) (fs.FileInfo, error) {
 	}, nil
 }
 
-func (m *Medium) Open(filePath string) (fs.File, error) {
-	key := m.objectKey(filePath)
+func (medium *Medium) Open(filePath string) (fs.File, error) {
+	key := medium.objectKey(filePath)
 	if key == "" {
 		return nil, core.E("s3.Open", "path is required", fs.ErrInvalid)
 	}
 
-	out, err := m.client.GetObject(context.Background(), &awss3.GetObjectInput{
-		Bucket: aws.String(m.bucket),
+	out, err := medium.client.GetObject(context.Background(), &awss3.GetObjectInput{
+		Bucket: aws.String(medium.bucket),
 		Key:    aws.String(key),
 	})
 	if err != nil {
@@ -456,27 +456,27 @@ func (m *Medium) Open(filePath string) (fs.File, error) {
 }
 
 // Example: writer, _ := medium.Create("reports/daily.txt")
-func (m *Medium) Create(filePath string) (goio.WriteCloser, error) {
-	key := m.objectKey(filePath)
+func (medium *Medium) Create(filePath string) (goio.WriteCloser, error) {
+	key := medium.objectKey(filePath)
 	if key == "" {
 		return nil, core.E("s3.Create", "path is required", fs.ErrInvalid)
 	}
 	return &s3WriteCloser{
-		medium: m,
+		medium: medium,
 		key:    key,
 	}, nil
 }
 
 // Example: writer, _ := medium.Append("reports/daily.txt")
-func (m *Medium) Append(filePath string) (goio.WriteCloser, error) {
-	key := m.objectKey(filePath)
+func (medium *Medium) Append(filePath string) (goio.WriteCloser, error) {
+	key := medium.objectKey(filePath)
 	if key == "" {
 		return nil, core.E("s3.Append", "path is required", fs.ErrInvalid)
 	}
 
 	var existing []byte
-	out, err := m.client.GetObject(context.Background(), &awss3.GetObjectInput{
-		Bucket: aws.String(m.bucket),
+	out, err := medium.client.GetObject(context.Background(), &awss3.GetObjectInput{
+		Bucket: aws.String(medium.bucket),
 		Key:    aws.String(key),
 	})
 	if err == nil {
@@ -485,20 +485,20 @@ func (m *Medium) Append(filePath string) (goio.WriteCloser, error) {
 	}
 
 	return &s3WriteCloser{
-		medium: m,
+		medium: medium,
 		key:    key,
 		data:   existing,
 	}, nil
 }
 
-func (m *Medium) ReadStream(filePath string) (goio.ReadCloser, error) {
-	key := m.objectKey(filePath)
+func (medium *Medium) ReadStream(filePath string) (goio.ReadCloser, error) {
+	key := medium.objectKey(filePath)
 	if key == "" {
 		return nil, core.E("s3.ReadStream", "path is required", fs.ErrInvalid)
 	}
 
-	out, err := m.client.GetObject(context.Background(), &awss3.GetObjectInput{
-		Bucket: aws.String(m.bucket),
+	out, err := medium.client.GetObject(context.Background(), &awss3.GetObjectInput{
+		Bucket: aws.String(medium.bucket),
 		Key:    aws.String(key),
 	})
 	if err != nil {
@@ -507,20 +507,20 @@ func (m *Medium) ReadStream(filePath string) (goio.ReadCloser, error) {
 	return out.Body, nil
 }
 
-func (m *Medium) WriteStream(filePath string) (goio.WriteCloser, error) {
-	return m.Create(filePath)
+func (medium *Medium) WriteStream(filePath string) (goio.WriteCloser, error) {
+	return medium.Create(filePath)
 }
 
 // Example: ok := medium.Exists("reports/daily.txt")
-func (m *Medium) Exists(filePath string) bool {
-	key := m.objectKey(filePath)
+func (medium *Medium) Exists(filePath string) bool {
+	key := medium.objectKey(filePath)
 	if key == "" {
 		return false
 	}
 
 	// Check as an exact object
-	_, err := m.client.HeadObject(context.Background(), &awss3.HeadObjectInput{
-		Bucket: aws.String(m.bucket),
+	_, err := medium.client.HeadObject(context.Background(), &awss3.HeadObjectInput{
+		Bucket: aws.String(medium.bucket),
 		Key:    aws.String(key),
 	})
 	if err == nil {
@@ -532,8 +532,8 @@ func (m *Medium) Exists(filePath string) bool {
 	if !core.HasSuffix(prefix, "/") {
 		prefix += "/"
 	}
-	listOut, err := m.client.ListObjectsV2(context.Background(), &awss3.ListObjectsV2Input{
-		Bucket:  aws.String(m.bucket),
+	listOut, err := medium.client.ListObjectsV2(context.Background(), &awss3.ListObjectsV2Input{
+		Bucket:  aws.String(medium.bucket),
 		Prefix:  aws.String(prefix),
 		MaxKeys: aws.Int32(1),
 	})
@@ -544,8 +544,8 @@ func (m *Medium) Exists(filePath string) bool {
 }
 
 // Example: ok := medium.IsDir("reports")
-func (m *Medium) IsDir(filePath string) bool {
-	key := m.objectKey(filePath)
+func (medium *Medium) IsDir(filePath string) bool {
+	key := medium.objectKey(filePath)
 	if key == "" {
 		return false
 	}
@@ -555,8 +555,8 @@ func (m *Medium) IsDir(filePath string) bool {
 		prefix += "/"
 	}
 
-	listOut, err := m.client.ListObjectsV2(context.Background(), &awss3.ListObjectsV2Input{
-		Bucket:  aws.String(m.bucket),
+	listOut, err := medium.client.ListObjectsV2(context.Background(), &awss3.ListObjectsV2Input{
+		Bucket:  aws.String(medium.bucket),
 		Prefix:  aws.String(prefix),
 		MaxKeys: aws.Int32(1),
 	})

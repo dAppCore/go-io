@@ -59,7 +59,7 @@ type Medium interface {
 	IsDir(path string) bool
 }
 
-// FileInfo is a test helper that satisfies fs.FileInfo.
+// Example: info := io.FileInfo{name: "app.yaml", size: 8, mode: 0644}
 type FileInfo struct {
 	name    string
 	size    int64
@@ -68,19 +68,19 @@ type FileInfo struct {
 	isDir   bool
 }
 
-func (fi FileInfo) Name() string { return fi.name }
+func (info FileInfo) Name() string { return info.name }
 
-func (fi FileInfo) Size() int64 { return fi.size }
+func (info FileInfo) Size() int64 { return info.size }
 
-func (fi FileInfo) Mode() fs.FileMode { return fi.mode }
+func (info FileInfo) Mode() fs.FileMode { return info.mode }
 
-func (fi FileInfo) ModTime() time.Time { return fi.modTime }
+func (info FileInfo) ModTime() time.Time { return info.modTime }
 
-func (fi FileInfo) IsDir() bool { return fi.isDir }
+func (info FileInfo) IsDir() bool { return info.isDir }
 
-func (fi FileInfo) Sys() any { return nil }
+func (info FileInfo) Sys() any { return nil }
 
-// DirEntry is a test helper that satisfies fs.DirEntry.
+// Example: entry := io.DirEntry{name: "app.yaml", mode: 0644}
 type DirEntry struct {
 	name  string
 	isDir bool
@@ -88,15 +88,15 @@ type DirEntry struct {
 	info  fs.FileInfo
 }
 
-func (de DirEntry) Name() string { return de.name }
+func (entry DirEntry) Name() string { return entry.name }
 
-func (de DirEntry) IsDir() bool { return de.isDir }
+func (entry DirEntry) IsDir() bool { return entry.isDir }
 
-func (de DirEntry) Type() fs.FileMode { return de.mode.Type() }
+func (entry DirEntry) Type() fs.FileMode { return entry.mode.Type() }
 
-func (de DirEntry) Info() (fs.FileInfo, error) { return de.info, nil }
+func (entry DirEntry) Info() (fs.FileInfo, error) { return entry.info, nil }
 
-// Example: io.Local.Read("/etc/hostname")
+// Example: _ = io.Local.Read("/etc/hostname")
 var Local Medium
 
 var _ Medium = (*local.Medium)(nil)
@@ -115,36 +115,34 @@ func NewSandboxed(root string) (Medium, error) {
 	return local.New(root)
 }
 
-// --- Helper Functions ---
-
 // Example: content, _ := io.Read(medium, "config/app.yaml")
-func Read(m Medium, path string) (string, error) {
-	return m.Read(path)
+func Read(medium Medium, path string) (string, error) {
+	return medium.Read(path)
 }
 
 // Example: _ = io.Write(medium, "config/app.yaml", "port: 8080")
-func Write(m Medium, path, content string) error {
-	return m.Write(path, content)
+func Write(medium Medium, path, content string) error {
+	return medium.Write(path, content)
 }
 
 // Example: reader, _ := io.ReadStream(medium, "logs/app.log")
-func ReadStream(m Medium, path string) (goio.ReadCloser, error) {
-	return m.ReadStream(path)
+func ReadStream(medium Medium, path string) (goio.ReadCloser, error) {
+	return medium.ReadStream(path)
 }
 
 // Example: writer, _ := io.WriteStream(medium, "logs/app.log")
-func WriteStream(m Medium, path string) (goio.WriteCloser, error) {
-	return m.WriteStream(path)
+func WriteStream(medium Medium, path string) (goio.WriteCloser, error) {
+	return medium.WriteStream(path)
 }
 
 // Example: _ = io.EnsureDir(medium, "config")
-func EnsureDir(m Medium, path string) error {
-	return m.EnsureDir(path)
+func EnsureDir(medium Medium, path string) error {
+	return medium.EnsureDir(path)
 }
 
 // Example: ok := io.IsFile(medium, "config/app.yaml")
-func IsFile(m Medium, path string) bool {
-	return m.IsFile(path)
+func IsFile(medium Medium, path string) bool {
+	return medium.IsFile(path)
 }
 
 // Example: _ = io.Copy(source, "input.txt", destination, "backup/input.txt")
@@ -158,8 +156,6 @@ func Copy(source Medium, sourcePath string, destination Medium, destinationPath 
 	}
 	return nil
 }
-
-// --- MockMedium ---
 
 // Example: medium := io.NewMockMedium()
 // _ = medium.Write("config/app.yaml", "port: 8080")
@@ -181,94 +177,91 @@ func NewMockMedium() *MockMedium {
 	}
 }
 
-func (m *MockMedium) Read(path string) (string, error) {
-	content, ok := m.Files[path]
+func (medium *MockMedium) Read(path string) (string, error) {
+	content, ok := medium.Files[path]
 	if !ok {
 		return "", core.E("io.MockMedium.Read", core.Concat("file not found: ", path), fs.ErrNotExist)
 	}
 	return content, nil
 }
 
-func (m *MockMedium) Write(path, content string) error {
-	m.Files[path] = content
-	m.ModTimes[path] = time.Now()
+func (medium *MockMedium) Write(path, content string) error {
+	medium.Files[path] = content
+	medium.ModTimes[path] = time.Now()
 	return nil
 }
 
-func (m *MockMedium) WriteMode(path, content string, mode fs.FileMode) error {
-	return m.Write(path, content)
+func (medium *MockMedium) WriteMode(path, content string, mode fs.FileMode) error {
+	return medium.Write(path, content)
 }
 
-func (m *MockMedium) EnsureDir(path string) error {
-	m.Dirs[path] = true
+func (medium *MockMedium) EnsureDir(path string) error {
+	medium.Dirs[path] = true
 	return nil
 }
 
-func (m *MockMedium) IsFile(path string) bool {
-	_, ok := m.Files[path]
+func (medium *MockMedium) IsFile(path string) bool {
+	_, ok := medium.Files[path]
 	return ok
 }
 
-func (m *MockMedium) FileGet(path string) (string, error) {
-	return m.Read(path)
+func (medium *MockMedium) FileGet(path string) (string, error) {
+	return medium.Read(path)
 }
 
-func (m *MockMedium) FileSet(path, content string) error {
-	return m.Write(path, content)
+func (medium *MockMedium) FileSet(path, content string) error {
+	return medium.Write(path, content)
 }
 
-func (m *MockMedium) Delete(path string) error {
-	if _, ok := m.Files[path]; ok {
-		delete(m.Files, path)
+func (medium *MockMedium) Delete(path string) error {
+	if _, ok := medium.Files[path]; ok {
+		delete(medium.Files, path)
 		return nil
 	}
-	if _, ok := m.Dirs[path]; ok {
-		// Check if directory is empty (no files or subdirs with this prefix)
+	if _, ok := medium.Dirs[path]; ok {
 		prefix := path
 		if !core.HasSuffix(prefix, "/") {
 			prefix += "/"
 		}
-		for f := range m.Files {
-			if core.HasPrefix(f, prefix) {
+		for filePath := range medium.Files {
+			if core.HasPrefix(filePath, prefix) {
 				return core.E("io.MockMedium.Delete", core.Concat("directory not empty: ", path), fs.ErrExist)
 			}
 		}
-		for d := range m.Dirs {
-			if d != path && core.HasPrefix(d, prefix) {
+		for directoryPath := range medium.Dirs {
+			if directoryPath != path && core.HasPrefix(directoryPath, prefix) {
 				return core.E("io.MockMedium.Delete", core.Concat("directory not empty: ", path), fs.ErrExist)
 			}
 		}
-		delete(m.Dirs, path)
+		delete(medium.Dirs, path)
 		return nil
 	}
 	return core.E("io.MockMedium.Delete", core.Concat("path not found: ", path), fs.ErrNotExist)
 }
 
-func (m *MockMedium) DeleteAll(path string) error {
+func (medium *MockMedium) DeleteAll(path string) error {
 	found := false
-	if _, ok := m.Files[path]; ok {
-		delete(m.Files, path)
+	if _, ok := medium.Files[path]; ok {
+		delete(medium.Files, path)
 		found = true
 	}
-	if _, ok := m.Dirs[path]; ok {
-		delete(m.Dirs, path)
+	if _, ok := medium.Dirs[path]; ok {
+		delete(medium.Dirs, path)
 		found = true
 	}
-
-	// Delete all entries under this path
 	prefix := path
 	if !core.HasSuffix(prefix, "/") {
 		prefix += "/"
 	}
-	for f := range m.Files {
-		if core.HasPrefix(f, prefix) {
-			delete(m.Files, f)
+	for filePath := range medium.Files {
+		if core.HasPrefix(filePath, prefix) {
+			delete(medium.Files, filePath)
 			found = true
 		}
 	}
-	for d := range m.Dirs {
-		if core.HasPrefix(d, prefix) {
-			delete(m.Dirs, d)
+	for directoryPath := range medium.Dirs {
+		if core.HasPrefix(directoryPath, prefix) {
+			delete(medium.Dirs, directoryPath)
 			found = true
 		}
 	}
@@ -279,20 +272,19 @@ func (m *MockMedium) DeleteAll(path string) error {
 	return nil
 }
 
-func (m *MockMedium) Rename(oldPath, newPath string) error {
-	if content, ok := m.Files[oldPath]; ok {
-		m.Files[newPath] = content
-		delete(m.Files, oldPath)
-		if mt, ok := m.ModTimes[oldPath]; ok {
-			m.ModTimes[newPath] = mt
-			delete(m.ModTimes, oldPath)
+func (medium *MockMedium) Rename(oldPath, newPath string) error {
+	if content, ok := medium.Files[oldPath]; ok {
+		medium.Files[newPath] = content
+		delete(medium.Files, oldPath)
+		if modTime, ok := medium.ModTimes[oldPath]; ok {
+			medium.ModTimes[newPath] = modTime
+			delete(medium.ModTimes, oldPath)
 		}
 		return nil
 	}
-	if _, ok := m.Dirs[oldPath]; ok {
-		// Move directory and all contents
-		m.Dirs[newPath] = true
-		delete(m.Dirs, oldPath)
+	if _, ok := medium.Dirs[oldPath]; ok {
+		medium.Dirs[newPath] = true
+		delete(medium.Dirs, oldPath)
 
 		oldPrefix := oldPath
 		if !core.HasSuffix(oldPrefix, "/") {
@@ -303,42 +295,40 @@ func (m *MockMedium) Rename(oldPath, newPath string) error {
 			newPrefix += "/"
 		}
 
-		// Collect files to move first (don't mutate during iteration)
 		filesToMove := make(map[string]string)
-		for f := range m.Files {
-			if core.HasPrefix(f, oldPrefix) {
-				newF := core.Concat(newPrefix, core.TrimPrefix(f, oldPrefix))
-				filesToMove[f] = newF
+		for filePath := range medium.Files {
+			if core.HasPrefix(filePath, oldPrefix) {
+				newFilePath := core.Concat(newPrefix, core.TrimPrefix(filePath, oldPrefix))
+				filesToMove[filePath] = newFilePath
 			}
 		}
-		for oldF, newF := range filesToMove {
-			m.Files[newF] = m.Files[oldF]
-			delete(m.Files, oldF)
-			if mt, ok := m.ModTimes[oldF]; ok {
-				m.ModTimes[newF] = mt
-				delete(m.ModTimes, oldF)
+		for oldFilePath, newFilePath := range filesToMove {
+			medium.Files[newFilePath] = medium.Files[oldFilePath]
+			delete(medium.Files, oldFilePath)
+			if modTime, ok := medium.ModTimes[oldFilePath]; ok {
+				medium.ModTimes[newFilePath] = modTime
+				delete(medium.ModTimes, oldFilePath)
 			}
 		}
 
-		// Collect directories to move first
 		dirsToMove := make(map[string]string)
-		for d := range m.Dirs {
-			if core.HasPrefix(d, oldPrefix) {
-				newD := core.Concat(newPrefix, core.TrimPrefix(d, oldPrefix))
-				dirsToMove[d] = newD
+		for directoryPath := range medium.Dirs {
+			if core.HasPrefix(directoryPath, oldPrefix) {
+				newDirectoryPath := core.Concat(newPrefix, core.TrimPrefix(directoryPath, oldPrefix))
+				dirsToMove[directoryPath] = newDirectoryPath
 			}
 		}
-		for oldD, newD := range dirsToMove {
-			m.Dirs[newD] = true
-			delete(m.Dirs, oldD)
+		for oldDirectoryPath, newDirectoryPath := range dirsToMove {
+			medium.Dirs[newDirectoryPath] = true
+			delete(medium.Dirs, oldDirectoryPath)
 		}
 		return nil
 	}
 	return core.E("io.MockMedium.Rename", core.Concat("path not found: ", oldPath), fs.ErrNotExist)
 }
 
-func (m *MockMedium) Open(path string) (fs.File, error) {
-	content, ok := m.Files[path]
+func (medium *MockMedium) Open(path string) (fs.File, error) {
+	content, ok := medium.Files[path]
 	if !ok {
 		return nil, core.E("io.MockMedium.Open", core.Concat("file not found: ", path), fs.ErrNotExist)
 	}
@@ -348,28 +338,28 @@ func (m *MockMedium) Open(path string) (fs.File, error) {
 	}, nil
 }
 
-func (m *MockMedium) Create(path string) (goio.WriteCloser, error) {
+func (medium *MockMedium) Create(path string) (goio.WriteCloser, error) {
 	return &MockWriteCloser{
-		medium: m,
+		medium: medium,
 		path:   path,
 	}, nil
 }
 
-func (m *MockMedium) Append(path string) (goio.WriteCloser, error) {
-	content := m.Files[path]
+func (medium *MockMedium) Append(path string) (goio.WriteCloser, error) {
+	content := medium.Files[path]
 	return &MockWriteCloser{
-		medium: m,
+		medium: medium,
 		path:   path,
 		data:   []byte(content),
 	}, nil
 }
 
-func (m *MockMedium) ReadStream(path string) (goio.ReadCloser, error) {
-	return m.Open(path)
+func (medium *MockMedium) ReadStream(path string) (goio.ReadCloser, error) {
+	return medium.Open(path)
 }
 
-func (m *MockMedium) WriteStream(path string) (goio.WriteCloser, error) {
-	return m.Create(path)
+func (medium *MockMedium) WriteStream(path string) (goio.WriteCloser, error) {
+	return medium.Create(path)
 }
 
 // MockFile implements fs.File for MockMedium.
@@ -379,23 +369,23 @@ type MockFile struct {
 	offset  int64
 }
 
-func (f *MockFile) Stat() (fs.FileInfo, error) {
+func (file *MockFile) Stat() (fs.FileInfo, error) {
 	return FileInfo{
-		name: f.name,
-		size: int64(len(f.content)),
+		name: file.name,
+		size: int64(len(file.content)),
 	}, nil
 }
 
-func (f *MockFile) Read(b []byte) (int, error) {
-	if f.offset >= int64(len(f.content)) {
+func (file *MockFile) Read(buffer []byte) (int, error) {
+	if file.offset >= int64(len(file.content)) {
 		return 0, goio.EOF
 	}
-	n := copy(b, f.content[f.offset:])
-	f.offset += int64(n)
-	return n, nil
+	readCount := copy(buffer, file.content[file.offset:])
+	file.offset += int64(readCount)
+	return readCount, nil
 }
 
-func (f *MockFile) Close() error {
+func (file *MockFile) Close() error {
 	return nil
 }
 
@@ -406,34 +396,33 @@ type MockWriteCloser struct {
 	data   []byte
 }
 
-func (w *MockWriteCloser) Write(p []byte) (int, error) {
-	w.data = append(w.data, p...)
-	return len(p), nil
+func (writeCloser *MockWriteCloser) Write(data []byte) (int, error) {
+	writeCloser.data = append(writeCloser.data, data...)
+	return len(data), nil
 }
 
-func (w *MockWriteCloser) Close() error {
-	w.medium.Files[w.path] = string(w.data)
-	w.medium.ModTimes[w.path] = time.Now()
+func (writeCloser *MockWriteCloser) Close() error {
+	writeCloser.medium.Files[writeCloser.path] = string(writeCloser.data)
+	writeCloser.medium.ModTimes[writeCloser.path] = time.Now()
 	return nil
 }
 
-func (m *MockMedium) List(path string) ([]fs.DirEntry, error) {
-	if _, ok := m.Dirs[path]; !ok {
-		// Check if it's the root or has children
+func (medium *MockMedium) List(path string) ([]fs.DirEntry, error) {
+	if _, ok := medium.Dirs[path]; !ok {
 		hasChildren := false
 		prefix := path
 		if path != "" && !core.HasSuffix(prefix, "/") {
 			prefix += "/"
 		}
-		for f := range m.Files {
-			if core.HasPrefix(f, prefix) {
+		for filePath := range medium.Files {
+			if core.HasPrefix(filePath, prefix) {
 				hasChildren = true
 				break
 			}
 		}
 		if !hasChildren {
-			for d := range m.Dirs {
-				if core.HasPrefix(d, prefix) {
+			for directoryPath := range medium.Dirs {
+				if core.HasPrefix(directoryPath, prefix) {
 					hasChildren = true
 					break
 				}
@@ -452,16 +441,13 @@ func (m *MockMedium) List(path string) ([]fs.DirEntry, error) {
 	seen := make(map[string]bool)
 	var entries []fs.DirEntry
 
-	// Find immediate children (files)
-	for f, content := range m.Files {
-		if !core.HasPrefix(f, prefix) {
+	for filePath, content := range medium.Files {
+		if !core.HasPrefix(filePath, prefix) {
 			continue
 		}
-		rest := core.TrimPrefix(f, prefix)
+		rest := core.TrimPrefix(filePath, prefix)
 		if rest == "" || core.Contains(rest, "/") {
-			// Skip if it's not an immediate child
 			if idx := bytes.IndexByte([]byte(rest), '/'); idx != -1 {
-				// This is a subdirectory
 				dirName := rest[:idx]
 				if !seen[dirName] {
 					seen[dirName] = true
@@ -494,16 +480,14 @@ func (m *MockMedium) List(path string) ([]fs.DirEntry, error) {
 		}
 	}
 
-	// Find immediate subdirectories
-	for d := range m.Dirs {
-		if !core.HasPrefix(d, prefix) {
+	for directoryPath := range medium.Dirs {
+		if !core.HasPrefix(directoryPath, prefix) {
 			continue
 		}
-		rest := core.TrimPrefix(d, prefix)
+		rest := core.TrimPrefix(directoryPath, prefix)
 		if rest == "" {
 			continue
 		}
-		// Get only immediate child
 		if idx := bytes.IndexByte([]byte(rest), '/'); idx != -1 {
 			rest = rest[:idx]
 		}
@@ -525,9 +509,9 @@ func (m *MockMedium) List(path string) ([]fs.DirEntry, error) {
 	return entries, nil
 }
 
-func (m *MockMedium) Stat(path string) (fs.FileInfo, error) {
-	if content, ok := m.Files[path]; ok {
-		modTime, ok := m.ModTimes[path]
+func (medium *MockMedium) Stat(path string) (fs.FileInfo, error) {
+	if content, ok := medium.Files[path]; ok {
+		modTime, ok := medium.ModTimes[path]
 		if !ok {
 			modTime = time.Now()
 		}
@@ -538,7 +522,7 @@ func (m *MockMedium) Stat(path string) (fs.FileInfo, error) {
 			modTime: modTime,
 		}, nil
 	}
-	if _, ok := m.Dirs[path]; ok {
+	if _, ok := medium.Dirs[path]; ok {
 		return FileInfo{
 			name:  core.PathBase(path),
 			isDir: true,
@@ -548,17 +532,17 @@ func (m *MockMedium) Stat(path string) (fs.FileInfo, error) {
 	return nil, core.E("io.MockMedium.Stat", core.Concat("path not found: ", path), fs.ErrNotExist)
 }
 
-func (m *MockMedium) Exists(path string) bool {
-	if _, ok := m.Files[path]; ok {
+func (medium *MockMedium) Exists(path string) bool {
+	if _, ok := medium.Files[path]; ok {
 		return true
 	}
-	if _, ok := m.Dirs[path]; ok {
+	if _, ok := medium.Dirs[path]; ok {
 		return true
 	}
 	return false
 }
 
-func (m *MockMedium) IsDir(path string) bool {
-	_, ok := m.Dirs[path]
+func (medium *MockMedium) IsDir(path string) bool {
+	_, ok := medium.Dirs[path]
 	return ok
 }

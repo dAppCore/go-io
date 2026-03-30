@@ -20,8 +20,8 @@ type Sigil interface {
 // Example: encoded, _ := sigil.Transmute([]byte("payload"), []sigil.Sigil{hexSigil, gzipSigil})
 func Transmute(data []byte, sigils []Sigil) ([]byte, error) {
 	var err error
-	for _, s := range sigils {
-		data, err = s.In(data)
+	for _, sigilValue := range sigils {
+		data, err = sigilValue.In(data)
 		if err != nil {
 			return nil, core.E("sigil.Transmute", "sigil in failed", err)
 		}

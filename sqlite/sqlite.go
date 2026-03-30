@@ -79,9 +79,9 @@ func New(options Options) (*Medium, error) {
 }
 
 // Close closes the underlying database connection.
-func (m *Medium) Close() error {
-	if m.database != nil {
-		return m.database.Close()
+func (medium *Medium) Close() error {
+	if medium.database != nil {
+		return medium.database.Close()
 	}
 	return nil
 }
@@ -96,7 +96,7 @@ func normaliseEntryPath(filePath string) string {
 	return core.TrimPrefix(clean, "/")
 }
 
-func (m *Medium) Read(filePath string) (string, error) {
+func (medium *Medium) Read(filePath string) (string, error) {
 	key := normaliseEntryPath(filePath)
 	if key == "" {
 		return "", core.E("sqlite.Read", "path is required", fs.ErrInvalid)
@@ -104,8 +104,8 @@ func (m *Medium) Read(filePath string) (string, error) {
 
 	var content []byte
 	var isDir bool
-	err := m.database.QueryRow(
-		`SELECT content, is_dir FROM `+m.table+` WHERE path = ?`, key,
+	err := medium.database.QueryRow(
+		`SELECT content, is_dir FROM `+medium.table+` WHERE path = ?`, key,
 	).Scan(&content, &isDir)
 	if err == sql.ErrNoRows {
 		return "", core.E("sqlite.Read", core.Concat("file not found: ", key), fs.ErrNotExist)
@@ -119,19 +119,19 @@ func (m *Medium) Read(filePath string) (string, error) {
 	return string(content), nil
 }
 
-func (m *Medium) Write(filePath, content string) error {
-	return m.WriteMode(filePath, content, 0644)
+func (medium *Medium) Write(filePath, content string) error {
+	return medium.WriteMode(filePath, content, 0644)
 }
 
 // Example: _ = medium.WriteMode("keys/private.key", key, 0600)
-func (m *Medium) WriteMode(filePath, content string, mode fs.FileMode) error {
+func (medium *Medium) WriteMode(filePath, content string, mode fs.FileMode) error {
 	key := normaliseEntryPath(filePath)
 	if key == "" {
 		return core.E("sqlite.WriteMode", "path is required", fs.ErrInvalid)
 	}
 
-	_, err := m.database.Exec(
-		`INSERT INTO `+m.table+` (path, content, mode, is_dir, mtime) VALUES (?, ?, ?, FALSE, ?)
+	_, err := medium.database.Exec(
+		`INSERT INTO `+medium.table+` (path, content, mode, is_dir, mtime) VALUES (?, ?, ?, FALSE, ?)
 		 ON CONFLICT(path) DO UPDATE SET content = excluded.content, mode = excluded.mode, is_dir = FALSE, mtime = excluded.mtime`,
 		key, []byte(content), int(mode), time.Now().UTC(),
 	)
@@ -142,15 +142,15 @@ func (m *Medium) WriteMode(filePath, content string, mode fs.FileMode) error {
 }
 
 // Example: _ = medium.EnsureDir("config")
-func (m *Medium) EnsureDir(filePath string) error {
+func (medium *Medium) EnsureDir(filePath string) error {
 	key := normaliseEntryPath(filePath)
 	if key == "" {
 		// Root always "exists"
 		return nil
 	}
 
-	_, err := m.database.Exec(
-		`INSERT INTO `+m.table+` (path, content, mode, is_dir, mtime) VALUES (?, '', 493, TRUE, ?)
+	_, err := medium.database.Exec(
+		`INSERT INTO `+medium.table+` (path, content, mode, is_dir, mtime) VALUES (?, '', 493, TRUE, ?)
 		 ON CONFLICT(path) DO NOTHING`,
 		key, time.Now().UTC(),
 	)
@@ -160,15 +160,15 @@ func (m *Medium) EnsureDir(filePath string) error {
 	return nil
 }
 
-func (m *Medium) IsFile(filePath string) bool {
+func (medium *Medium) IsFile(filePath string) bool {
 	key := normaliseEntryPath(filePath)
 	if key == "" {
 		return false
 	}
 
 	var isDir bool
-	err := m.database.QueryRow(
-		`SELECT is_dir FROM `+m.table+` WHERE path = ?`, key,
+	err := medium.database.QueryRow(
+		`SELECT is_dir FROM `+medium.table+` WHERE path = ?`, key,
 	).Scan(&isDir)
 	if err != nil {
 		return false
@@ -176,16 +176,16 @@ func (m *Medium) IsFile(filePath string) bool {
 	return !isDir
 }
 
-func (m *Medium) FileGet(filePath string) (string, error) {
-	return m.Read(filePath)
+func (medium *Medium) FileGet(filePath string) (string, error) {
+	return medium.Read(filePath)
 }
 
-func (m *Medium) FileSet(filePath, content string) error {
-	return m.Write(filePath, content)
+func (medium *Medium) FileSet(filePath, content string) error {
+	return medium.Write(filePath, content)
 }
 
 // Example: _ = medium.Delete("config/app.yaml")
-func (m *Medium) Delete(filePath string) error {
+func (medium *Medium) Delete(filePath string) error {
 	key := normaliseEntryPath(filePath)
 	if key == "" {
 		return core.E("sqlite.Delete", "path is required", fs.ErrInvalid)
@@ -193,8 +193,8 @@ func (m *Medium) Delete(filePath string) error {
 
 	// Check if it's a directory with children
 	var isDir bool
-	err := m.database.QueryRow(
-		`SELECT is_dir FROM `+m.table+` WHERE path = ?`, key,
+	err := medium.database.QueryRow(
+		`SELECT is_dir FROM `+medium.table+` WHERE path = ?`, key,
 	).Scan(&isDir)
 	if err == sql.ErrNoRows {
 		return core.E("sqlite.Delete", core.Concat("path not found: ", key), fs.ErrNotExist)
@@ -207,8 +207,8 @@ func (m *Medium) Delete(filePath string) error {
 		// Check for children
 		prefix := key + "/"
 		var count int
-		err := m.database.QueryRow(
-			`SELECT COUNT(*) FROM `+m.table+` WHERE path LIKE ? AND path != ?`, prefix+"%", key,
+		err := medium.database.QueryRow(
+			`SELECT COUNT(*) FROM `+medium.table+` WHERE path LIKE ? AND path != ?`, prefix+"%", key,
 		).Scan(&count)
 		if err != nil {
 			return core.E("sqlite.Delete", core.Concat("count failed: ", key), err)
@@ -218,7 +218,7 @@ func (m *Medium) Delete(filePath string) error {
 		}
 	}
 
-	res, err := m.database.Exec(`DELETE FROM `+m.table+` WHERE path = ?`, key)
+	res, err := medium.database.Exec(`DELETE FROM `+medium.table+` WHERE path = ?`, key)
 	if err != nil {
 		return core.E("sqlite.Delete", core.Concat("delete failed: ", key), err)
 	}
@@ -230,7 +230,7 @@ func (m *Medium) Delete(filePath string) error {
 }
 
 // Example: _ = medium.DeleteAll("config")
-func (m *Medium) DeleteAll(filePath string) error {
+func (medium *Medium) DeleteAll(filePath string) error {
 	key := normaliseEntryPath(filePath)
 	if key == "" {
 		return core.E("sqlite.DeleteAll", "path is required", fs.ErrInvalid)
@@ -239,8 +239,8 @@ func (m *Medium) DeleteAll(filePath string) error {
 	prefix := key + "/"
 
 	// Delete the exact path and all children
-	res, err := m.database.Exec(
-		`DELETE FROM `+m.table+` WHERE path = ? OR path LIKE ?`,
+	res, err := medium.database.Exec(
+		`DELETE FROM `+medium.table+` WHERE path = ? OR path LIKE ?`,
 		key, prefix+"%",
 	)
 	if err != nil {
@@ -254,14 +254,14 @@ func (m *Medium) DeleteAll(filePath string) error {
 }
 
 // Example: _ = medium.Rename("drafts/todo.txt", "archive/todo.txt")
-func (m *Medium) Rename(oldPath, newPath string) error {
+func (medium *Medium) Rename(oldPath, newPath string) error {
 	oldKey := normaliseEntryPath(oldPath)
 	newKey := normaliseEntryPath(newPath)
 	if oldKey == "" || newKey == "" {
 		return core.E("sqlite.Rename", "both old and new paths are required", fs.ErrInvalid)
 	}
 
-	tx, err := m.database.Begin()
+	tx, err := medium.database.Begin()
 	if err != nil {
 		return core.E("sqlite.Rename", "begin tx failed", err)
 	}
@@ -273,7 +273,7 @@ func (m *Medium) Rename(oldPath, newPath string) error {
 	var isDir bool
 	var mtime time.Time
 	err = tx.QueryRow(
-		`SELECT content, mode, is_dir, mtime FROM `+m.table+` WHERE path = ?`, oldKey,
+		`SELECT content, mode, is_dir, mtime FROM `+medium.table+` WHERE path = ?`, oldKey,
 	).Scan(&content, &mode, &isDir, &mtime)
 	if err == sql.ErrNoRows {
 		return core.E("sqlite.Rename", core.Concat("source not found: ", oldKey), fs.ErrNotExist)
@@ -284,7 +284,7 @@ func (m *Medium) Rename(oldPath, newPath string) error {
 
 	// Insert or replace at new path
 	_, err = tx.Exec(
-		`INSERT INTO `+m.table+` (path, content, mode, is_dir, mtime) VALUES (?, ?, ?, ?, ?)
+		`INSERT INTO `+medium.table+` (path, content, mode, is_dir, mtime) VALUES (?, ?, ?, ?, ?)
 		 ON CONFLICT(path) DO UPDATE SET content = excluded.content, mode = excluded.mode, is_dir = excluded.is_dir, mtime = excluded.mtime`,
 		newKey, content, mode, isDir, mtime,
 	)
@@ -293,7 +293,7 @@ func (m *Medium) Rename(oldPath, newPath string) error {
 	}
 
 	// Delete old path
-	_, err = tx.Exec(`DELETE FROM `+m.table+` WHERE path = ?`, oldKey)
+	_, err = tx.Exec(`DELETE FROM `+medium.table+` WHERE path = ?`, oldKey)
 	if err != nil {
 		return core.E("sqlite.Rename", core.Concat("delete old path failed: ", oldKey), err)
 	}
@@ -304,7 +304,7 @@ func (m *Medium) Rename(oldPath, newPath string) error {
 		newPrefix := newKey + "/"
 
 		rows, err := tx.Query(
-			`SELECT path, content, mode, is_dir, mtime FROM `+m.table+` WHERE path LIKE ?`,
+			`SELECT path, content, mode, is_dir, mtime FROM `+medium.table+` WHERE path LIKE ?`,
 			oldPrefix+"%",
 		)
 		if err != nil {
@@ -332,7 +332,7 @@ func (m *Medium) Rename(oldPath, newPath string) error {
 		for _, c := range children {
 			newChildPath := core.Concat(newPrefix, core.TrimPrefix(c.path, oldPrefix))
 			_, err = tx.Exec(
-				`INSERT INTO `+m.table+` (path, content, mode, is_dir, mtime) VALUES (?, ?, ?, ?, ?)
+				`INSERT INTO `+medium.table+` (path, content, mode, is_dir, mtime) VALUES (?, ?, ?, ?, ?)
 				 ON CONFLICT(path) DO UPDATE SET content = excluded.content, mode = excluded.mode, is_dir = excluded.is_dir, mtime = excluded.mtime`,
 				newChildPath, c.content, c.mode, c.isDir, c.mtime,
 			)
@@ -342,7 +342,7 @@ func (m *Medium) Rename(oldPath, newPath string) error {
 		}
 
 		// Delete old children
-		_, err = tx.Exec(`DELETE FROM `+m.table+` WHERE path LIKE ?`, oldPrefix+"%")
+		_, err = tx.Exec(`DELETE FROM `+medium.table+` WHERE path LIKE ?`, oldPrefix+"%")
 		if err != nil {
 			return core.E("sqlite.Rename", "delete old children failed", err)
 		}
@@ -352,15 +352,15 @@ func (m *Medium) Rename(oldPath, newPath string) error {
 }
 
 // Example: entries, _ := medium.List("config")
-func (m *Medium) List(filePath string) ([]fs.DirEntry, error) {
+func (medium *Medium) List(filePath string) ([]fs.DirEntry, error) {
 	prefix := normaliseEntryPath(filePath)
 	if prefix != "" {
 		prefix += "/"
 	}
 
 	// Query all paths under the prefix
-	rows, err := m.database.Query(
-		`SELECT path, content, mode, is_dir, mtime FROM `+m.table+` WHERE path LIKE ? OR path LIKE ?`,
+	rows, err := medium.database.Query(
+		`SELECT path, content, mode, is_dir, mtime FROM `+medium.table+` WHERE path LIKE ? OR path LIKE ?`,
 		prefix+"%", prefix+"%",
 	)
 	if err != nil {
@@ -427,7 +427,7 @@ func (m *Medium) List(filePath string) ([]fs.DirEntry, error) {
 	return entries, rows.Err()
 }
 
-func (m *Medium) Stat(filePath string) (fs.FileInfo, error) {
+func (medium *Medium) Stat(filePath string) (fs.FileInfo, error) {
 	key := normaliseEntryPath(filePath)
 	if key == "" {
 		return nil, core.E("sqlite.Stat", "path is required", fs.ErrInvalid)
@@ -437,8 +437,8 @@ func (m *Medium) Stat(filePath string) (fs.FileInfo, error) {
 	var mode int
 	var isDir bool
 	var mtime time.Time
-	err := m.database.QueryRow(
-		`SELECT content, mode, is_dir, mtime FROM `+m.table+` WHERE path = ?`, key,
+	err := medium.database.QueryRow(
+		`SELECT content, mode, is_dir, mtime FROM `+medium.table+` WHERE path = ?`, key,
 	).Scan(&content, &mode, &isDir, &mtime)
 	if err == sql.ErrNoRows {
 		return nil, core.E("sqlite.Stat", core.Concat("path not found: ", key), fs.ErrNotExist)
@@ -457,7 +457,7 @@ func (m *Medium) Stat(filePath string) (fs.FileInfo, error) {
 	}, nil
 }
 
-func (m *Medium) Open(filePath string) (fs.File, error) {
+func (medium *Medium) Open(filePath string) (fs.File, error) {
 	key := normaliseEntryPath(filePath)
 	if key == "" {
 		return nil, core.E("sqlite.Open", "path is required", fs.ErrInvalid)
@@ -467,8 +467,8 @@ func (m *Medium) Open(filePath string) (fs.File, error) {
 	var mode int
 	var isDir bool
 	var mtime time.Time
-	err := m.database.QueryRow(
-		`SELECT content, mode, is_dir, mtime FROM `+m.table+` WHERE path = ?`, key,
+	err := medium.database.QueryRow(
+		`SELECT content, mode, is_dir, mtime FROM `+medium.table+` WHERE path = ?`, key,
 	).Scan(&content, &mode, &isDir, &mtime)
 	if err == sql.ErrNoRows {
 		return nil, core.E("sqlite.Open", core.Concat("file not found: ", key), fs.ErrNotExist)
@@ -488,39 +488,39 @@ func (m *Medium) Open(filePath string) (fs.File, error) {
 	}, nil
 }
 
-func (m *Medium) Create(filePath string) (goio.WriteCloser, error) {
+func (medium *Medium) Create(filePath string) (goio.WriteCloser, error) {
 	key := normaliseEntryPath(filePath)
 	if key == "" {
 		return nil, core.E("sqlite.Create", "path is required", fs.ErrInvalid)
 	}
 	return &sqliteWriteCloser{
-		medium: m,
+		medium: medium,
 		path:   key,
 	}, nil
 }
 
-func (m *Medium) Append(filePath string) (goio.WriteCloser, error) {
+func (medium *Medium) Append(filePath string) (goio.WriteCloser, error) {
 	key := normaliseEntryPath(filePath)
 	if key == "" {
 		return nil, core.E("sqlite.Append", "path is required", fs.ErrInvalid)
 	}
 
 	var existing []byte
-	err := m.database.QueryRow(
-		`SELECT content FROM `+m.table+` WHERE path = ? AND is_dir = FALSE`, key,
+	err := medium.database.QueryRow(
+		`SELECT content FROM `+medium.table+` WHERE path = ? AND is_dir = FALSE`, key,
 	).Scan(&existing)
 	if err != nil && err != sql.ErrNoRows {
 		return nil, core.E("sqlite.Append", core.Concat("query failed: ", key), err)
 	}
 
 	return &sqliteWriteCloser{
-		medium: m,
+		medium: medium,
 		path:   key,
 		data:   existing,
 	}, nil
 }
 
-func (m *Medium) ReadStream(filePath string) (goio.ReadCloser, error) {
+func (medium *Medium) ReadStream(filePath string) (goio.ReadCloser, error) {
 	key := normaliseEntryPath(filePath)
 	if key == "" {
 		return nil, core.E("sqlite.ReadStream", "path is required", fs.ErrInvalid)
@@ -528,8 +528,8 @@ func (m *Medium) ReadStream(filePath string) (goio.ReadCloser, error) {
 
 	var content []byte
 	var isDir bool
-	err := m.database.QueryRow(
-		`SELECT content, is_dir FROM `+m.table+` WHERE path = ?`, key,
+	err := medium.database.QueryRow(
+		`SELECT content, is_dir FROM `+medium.table+` WHERE path = ?`, key,
 	).Scan(&content, &isDir)
 	if err == sql.ErrNoRows {
 		return nil, core.E("sqlite.ReadStream", core.Concat("file not found: ", key), fs.ErrNotExist)
@@ -544,11 +544,11 @@ func (m *Medium) ReadStream(filePath string) (goio.ReadCloser, error) {
 	return goio.NopCloser(bytes.NewReader(content)), nil
 }
 
-func (m *Medium) WriteStream(filePath string) (goio.WriteCloser, error) {
-	return m.Create(filePath)
+func (medium *Medium) WriteStream(filePath string) (goio.WriteCloser, error) {
+	return medium.Create(filePath)
 }
 
-func (m *Medium) Exists(filePath string) bool {
+func (medium *Medium) Exists(filePath string) bool {
 	key := normaliseEntryPath(filePath)
 	if key == "" {
 		// Root always exists
@@ -556,8 +556,8 @@ func (m *Medium) Exists(filePath string) bool {
 	}
 
 	var count int
-	err := m.database.QueryRow(
-		`SELECT COUNT(*) FROM `+m.table+` WHERE path = ?`, key,
+	err := medium.database.QueryRow(
+		`SELECT COUNT(*) FROM `+medium.table+` WHERE path = ?`, key,
 	).Scan(&count)
 	if err != nil {
 		return false
@@ -565,15 +565,15 @@ func (m *Medium) Exists(filePath string) bool {
 	return count > 0
 }
 
-func (m *Medium) IsDir(filePath string) bool {
+func (medium *Medium) IsDir(filePath string) bool {
 	key := normaliseEntryPath(filePath)
 	if key == "" {
 		return false
 	}
 
 	var isDir bool
-	err := m.database.QueryRow(
-		`SELECT is_dir FROM `+m.table+` WHERE path = ?`, key,
+	err := medium.database.QueryRow(
+		`SELECT is_dir FROM `+medium.table+` WHERE path = ?`, key,
 	).Scan(&isDir)
 	if err != nil {
 		return false

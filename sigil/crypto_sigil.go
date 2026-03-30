@@ -45,25 +45,25 @@ type PreObfuscator interface {
 type XORObfuscator struct{}
 
 // Obfuscate XORs the data with a key stream derived from the entropy.
-func (x *XORObfuscator) Obfuscate(data []byte, entropy []byte) []byte {
+func (obfuscator *XORObfuscator) Obfuscate(data []byte, entropy []byte) []byte {
 	if len(data) == 0 {
 		return data
 	}
-	return x.transform(data, entropy)
+	return obfuscator.transform(data, entropy)
 }
 
 // Deobfuscate reverses the XOR transformation (XOR is symmetric).
-func (x *XORObfuscator) Deobfuscate(data []byte, entropy []byte) []byte {
+func (obfuscator *XORObfuscator) Deobfuscate(data []byte, entropy []byte) []byte {
 	if len(data) == 0 {
 		return data
 	}
-	return x.transform(data, entropy)
+	return obfuscator.transform(data, entropy)
 }
 
 // transform applies XOR with an entropy-derived key stream.
-func (x *XORObfuscator) transform(data []byte, entropy []byte) []byte {
+func (obfuscator *XORObfuscator) transform(data []byte, entropy []byte) []byte {
 	result := make([]byte, len(data))
-	keyStream := x.deriveKeyStream(entropy, len(data))
+	keyStream := obfuscator.deriveKeyStream(entropy, len(data))
 	for i := range data {
 		result[i] = data[i] ^ keyStream[i]
 	}
@@ -71,7 +71,7 @@ func (x *XORObfuscator) transform(data []byte, entropy []byte) []byte {
 }
 
 // deriveKeyStream creates a deterministic key stream from entropy.
-func (x *XORObfuscator) deriveKeyStream(entropy []byte, length int) []byte {
+func (obfuscator *XORObfuscator) deriveKeyStream(entropy []byte, length int) []byte {
 	stream := make([]byte, length)
 	h := sha256.New()
 
@@ -98,7 +98,7 @@ func (x *XORObfuscator) deriveKeyStream(entropy []byte, length int) []byte {
 type ShuffleMaskObfuscator struct{}
 
 // Obfuscate shuffles bytes and applies a mask derived from entropy.
-func (s *ShuffleMaskObfuscator) Obfuscate(data []byte, entropy []byte) []byte {
+func (obfuscator *ShuffleMaskObfuscator) Obfuscate(data []byte, entropy []byte) []byte {
 	if len(data) == 0 {
 		return data
 	}
@@ -107,8 +107,8 @@ func (s *ShuffleMaskObfuscator) Obfuscate(data []byte, entropy []byte) []byte {
 	copy(result, data)
 
 	// Generate permutation and mask from entropy
-	perm := s.generatePermutation(entropy, len(data))
-	mask := s.deriveMask(entropy, len(data))
+	perm := obfuscator.generatePermutation(entropy, len(data))
+	mask := obfuscator.deriveMask(entropy, len(data))
 
 	// Apply mask first, then shuffle
 	for i := range result {
@@ -125,7 +125,7 @@ func (s *ShuffleMaskObfuscator) Obfuscate(data []byte, entropy []byte) []byte {
 }
 
 // Deobfuscate reverses the shuffle and mask operations.
-func (s *ShuffleMaskObfuscator) Deobfuscate(data []byte, entropy []byte) []byte {
+func (obfuscator *ShuffleMaskObfuscator) Deobfuscate(data []byte, entropy []byte) []byte {
 	if len(data) == 0 {
 		return data
 	}
@@ -133,8 +133,8 @@ func (s *ShuffleMaskObfuscator) Deobfuscate(data []byte, entropy []byte) []byte 
 	result := make([]byte, len(data))
 
 	// Generate permutation and mask from entropy
-	perm := s.generatePermutation(entropy, len(data))
-	mask := s.deriveMask(entropy, len(data))
+	perm := obfuscator.generatePermutation(entropy, len(data))
+	mask := obfuscator.deriveMask(entropy, len(data))
 
 	// Unshuffle first
 	for i, p := range perm {
@@ -150,7 +150,7 @@ func (s *ShuffleMaskObfuscator) Deobfuscate(data []byte, entropy []byte) []byte 
 }
 
 // generatePermutation creates a deterministic permutation from entropy.
-func (s *ShuffleMaskObfuscator) generatePermutation(entropy []byte, length int) []int {
+func (obfuscator *ShuffleMaskObfuscator) generatePermutation(entropy []byte, length int) []int {
 	perm := make([]int, length)
 	for i := range perm {
 		perm[i] = i
@@ -178,7 +178,7 @@ func (s *ShuffleMaskObfuscator) generatePermutation(entropy []byte, length int) 
 }
 
 // deriveMask creates a mask byte array from entropy.
-func (s *ShuffleMaskObfuscator) deriveMask(entropy []byte, length int) []byte {
+func (obfuscator *ShuffleMaskObfuscator) deriveMask(entropy []byte, length int) []byte {
 	mask := make([]byte, length)
 	h := sha256.New()
 
@@ -247,22 +247,22 @@ func NewChaChaPolySigilWithObfuscator(key []byte, obfuscator PreObfuscator) (*Ch
 }
 
 // In encrypts plaintext with the configured pre-obfuscator.
-func (s *ChaChaPolySigil) In(data []byte) ([]byte, error) {
-	if s.Key == nil {
+func (sigil *ChaChaPolySigil) In(data []byte) ([]byte, error) {
+	if sigil.Key == nil {
 		return nil, NoKeyConfiguredError
 	}
 	if data == nil {
 		return nil, nil
 	}
 
-	aead, err := chacha20poly1305.NewX(s.Key)
+	aead, err := chacha20poly1305.NewX(sigil.Key)
 	if err != nil {
 		return nil, core.E("sigil.ChaChaPolySigil.In", "create cipher", err)
 	}
 
 	// Generate nonce
 	nonce := make([]byte, aead.NonceSize())
-	reader := s.randomReader
+	reader := sigil.randomReader
 	if reader == nil {
 		reader = rand.Reader
 	}
@@ -273,8 +273,8 @@ func (s *ChaChaPolySigil) In(data []byte) ([]byte, error) {
 	// Pre-obfuscate the plaintext using nonce as entropy
 	// This ensures CPU encryption routines never see raw plaintext
 	obfuscated := data
-	if s.Obfuscator != nil {
-		obfuscated = s.Obfuscator.Obfuscate(data, nonce)
+	if sigil.Obfuscator != nil {
+		obfuscated = sigil.Obfuscator.Obfuscate(data, nonce)
 	}
 
 	// Encrypt the obfuscated data
@@ -285,15 +285,15 @@ func (s *ChaChaPolySigil) In(data []byte) ([]byte, error) {
 }
 
 // Out decrypts ciphertext and reverses the pre-obfuscation step.
-func (s *ChaChaPolySigil) Out(data []byte) ([]byte, error) {
-	if s.Key == nil {
+func (sigil *ChaChaPolySigil) Out(data []byte) ([]byte, error) {
+	if sigil.Key == nil {
 		return nil, NoKeyConfiguredError
 	}
 	if data == nil {
 		return nil, nil
 	}
 
-	aead, err := chacha20poly1305.NewX(s.Key)
+	aead, err := chacha20poly1305.NewX(sigil.Key)
 	if err != nil {
 		return nil, core.E("sigil.ChaChaPolySigil.Out", "create cipher", err)
 	}
@@ -315,8 +315,8 @@ func (s *ChaChaPolySigil) Out(data []byte) ([]byte, error) {
 
 	// Deobfuscate using the same nonce as entropy
 	plaintext := obfuscated
-	if s.Obfuscator != nil {
-		plaintext = s.Obfuscator.Deobfuscate(obfuscated, nonce)
+	if sigil.Obfuscator != nil {
+		plaintext = sigil.Obfuscator.Deobfuscate(obfuscated, nonce)
 	}
 
 	if len(plaintext) == 0 {

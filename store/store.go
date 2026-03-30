@@ -52,14 +52,14 @@ func New(options Options) (*Store, error) {
 }
 
 // Example: _ = keyValueStore.Close()
-func (s *Store) Close() error {
-	return s.database.Close()
+func (store *Store) Close() error {
+	return store.database.Close()
 }
 
 // Example: theme, _ := keyValueStore.Get("app", "theme")
-func (s *Store) Get(group, key string) (string, error) {
+func (store *Store) Get(group, key string) (string, error) {
 	var value string
-	err := s.database.QueryRow("SELECT value FROM kv WHERE grp = ? AND key = ?", group, key).Scan(&value)
+	err := store.database.QueryRow("SELECT value FROM kv WHERE grp = ? AND key = ?", group, key).Scan(&value)
 	if err == sql.ErrNoRows {
 		return "", core.E("store.Get", core.Concat("not found: ", group, "/", key), NotFoundError)
 	}
@@ -70,8 +70,8 @@ func (s *Store) Get(group, key string) (string, error) {
 }
 
 // Example: _ = keyValueStore.Set("app", "theme", "midnight")
-func (s *Store) Set(group, key, value string) error {
-	_, err := s.database.Exec(
+func (store *Store) Set(group, key, value string) error {
+	_, err := store.database.Exec(
 		`INSERT INTO kv (grp, key, value) VALUES (?, ?, ?)
 		 ON CONFLICT(grp, key) DO UPDATE SET value = excluded.value`,
 		group, key, value,
@@ -83,8 +83,8 @@ func (s *Store) Set(group, key, value string) error {
 }
 
 // Example: _ = keyValueStore.Delete("app", "theme")
-func (s *Store) Delete(group, key string) error {
-	_, err := s.database.Exec("DELETE FROM kv WHERE grp = ? AND key = ?", group, key)
+func (store *Store) Delete(group, key string) error {
+	_, err := store.database.Exec("DELETE FROM kv WHERE grp = ? AND key = ?", group, key)
 	if err != nil {
 		return core.E("store.Delete", "exec", err)
 	}
@@ -92,9 +92,9 @@ func (s *Store) Delete(group, key string) error {
 }
 
 // Example: count, _ := keyValueStore.Count("app")
-func (s *Store) Count(group string) (int, error) {
+func (store *Store) Count(group string) (int, error) {
 	var count int
-	err := s.database.QueryRow("SELECT COUNT(*) FROM kv WHERE grp = ?", group).Scan(&count)
+	err := store.database.QueryRow("SELECT COUNT(*) FROM kv WHERE grp = ?", group).Scan(&count)
 	if err != nil {
 		return 0, core.E("store.Count", "query", err)
 	}
@@ -102,8 +102,8 @@ func (s *Store) Count(group string) (int, error) {
 }
 
 // Example: _ = keyValueStore.DeleteGroup("app")
-func (s *Store) DeleteGroup(group string) error {
-	_, err := s.database.Exec("DELETE FROM kv WHERE grp = ?", group)
+func (store *Store) DeleteGroup(group string) error {
+	_, err := store.database.Exec("DELETE FROM kv WHERE grp = ?", group)
 	if err != nil {
 		return core.E("store.DeleteGroup", "exec", err)
 	}
@@ -111,8 +111,8 @@ func (s *Store) DeleteGroup(group string) error {
 }
 
 // Example: values, _ := keyValueStore.GetAll("app")
-func (s *Store) GetAll(group string) (map[string]string, error) {
-	rows, err := s.database.Query("SELECT key, value FROM kv WHERE grp = ?", group)
+func (store *Store) GetAll(group string) (map[string]string, error) {
+	rows, err := store.database.Query("SELECT key, value FROM kv WHERE grp = ?", group)
 	if err != nil {
 		return nil, core.E("store.GetAll", "query", err)
 	}
@@ -135,8 +135,8 @@ func (s *Store) GetAll(group string) (map[string]string, error) {
 // Example: keyValueStore, _ := store.New(store.Options{Path: ":memory:"})
 // _ = keyValueStore.Set("user", "name", "alice")
 // out, _ := keyValueStore.Render("hello {{ .name }}", "user")
-func (s *Store) Render(templateText, group string) (string, error) {
-	rows, err := s.database.Query("SELECT key, value FROM kv WHERE grp = ?", group)
+func (store *Store) Render(templateText, group string) (string, error) {
+	rows, err := store.database.Query("SELECT key, value FROM kv WHERE grp = ?", group)
 	if err != nil {
 		return "", core.E("store.Render", "query", err)
 	}

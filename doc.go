@@ -1,4 +1,4 @@
-// Package io gives CoreGO a single storage surface.
+// Package io exposes CoreGO's storage surface.
 //
 //	medium, _ := io.NewSandboxed("/srv/app")
 //	_ = medium.Write("config/app.yaml", "port: 8080")
