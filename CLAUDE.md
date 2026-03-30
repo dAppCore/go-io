@@ -132,4 +132,4 @@ Sentinel errors (`var ErrNotFound`, `var ErrInvalidKey`, etc.) use standard `err
 
 ## Testing
 
-Use `io.MockMedium` or `io.NewSandboxed(t.TempDir())` in tests — never hit real S3/SQLite unless integration testing. S3 tests use an interface-based mock (`s3API`).
+Use `io.MockMedium` or `io.NewSandboxed(t.TempDir())` in tests — never hit real S3/SQLite unless integration testing. S3 tests use an interface-based mock (`s3.Client`).
