@@ -260,7 +260,7 @@ func (m *Medium) WriteMode(path, content string, mode fs.FileMode) error {
 	if err != nil {
 		return err
 	}
-	return resultErr("local.WriteMode", core.Concat("write failed: ", path), unrestrictedFileSystem.WriteMode(resolvedPath, content, mode))
+	return resultError("local.WriteMode", core.Concat("write failed: ", path), unrestrictedFileSystem.WriteMode(resolvedPath, content, mode))
 }
 
 func (m *Medium) EnsureDir(path string) error {
@@ -268,7 +268,7 @@ func (m *Medium) EnsureDir(path string) error {
 	if err != nil {
 		return err
 	}
-	return resultErr("local.EnsureDir", core.Concat("ensure dir failed: ", path), unrestrictedFileSystem.EnsureDir(resolvedPath))
+	return resultError("local.EnsureDir", core.Concat("ensure dir failed: ", path), unrestrictedFileSystem.EnsureDir(resolvedPath))
 }
 
 func (m *Medium) IsDir(path string) bool {
@@ -359,7 +359,7 @@ func (m *Medium) Delete(path string) error {
 	if isProtectedPath(resolvedPath) {
 		return core.E("local.Delete", core.Concat("refusing to delete protected path: ", resolvedPath), nil)
 	}
-	return resultErr("local.Delete", core.Concat("delete failed: ", path), unrestrictedFileSystem.Delete(resolvedPath))
+	return resultError("local.Delete", core.Concat("delete failed: ", path), unrestrictedFileSystem.Delete(resolvedPath))
 }
 
 func (m *Medium) DeleteAll(path string) error {
@@ -370,7 +370,7 @@ func (m *Medium) DeleteAll(path string) error {
 	if isProtectedPath(resolvedPath) {
 		return core.E("local.DeleteAll", core.Concat("refusing to delete protected path: ", resolvedPath), nil)
 	}
-	return resultErr("local.DeleteAll", core.Concat("delete all failed: ", path), unrestrictedFileSystem.DeleteAll(resolvedPath))
+	return resultError("local.DeleteAll", core.Concat("delete all failed: ", path), unrestrictedFileSystem.DeleteAll(resolvedPath))
 }
 
 func (m *Medium) Rename(oldPath, newPath string) error {
@@ -382,7 +382,7 @@ func (m *Medium) Rename(oldPath, newPath string) error {
 	if err != nil {
 		return err
 	}
-	return resultErr("local.Rename", core.Concat("rename failed: ", oldPath), unrestrictedFileSystem.Rename(oldResolvedPath, newResolvedPath))
+	return resultError("local.Rename", core.Concat("rename failed: ", oldPath), unrestrictedFileSystem.Rename(oldResolvedPath, newResolvedPath))
 }
 
 func (m *Medium) FileGet(path string) (string, error) {
@@ -420,7 +420,7 @@ func readlink(path string) (string, error) {
 	}
 }
 
-func resultErr(operation, message string, result core.Result) error {
+func resultError(operation, message string, result core.Result) error {
 	if result.OK {
 		return nil
 	}
@@ -432,7 +432,7 @@ func resultErr(operation, message string, result core.Result) error {
 
 func resultString(operation, message string, result core.Result) (string, error) {
 	if !result.OK {
-		return "", resultErr(operation, message, result)
+		return "", resultError(operation, message, result)
 	}
 	value, ok := result.Value.(string)
 	if !ok {
@@ -443,7 +443,7 @@ func resultString(operation, message string, result core.Result) (string, error)
 
 func resultDirEntries(operation, message string, result core.Result) ([]fs.DirEntry, error) {
 	if !result.OK {
-		return nil, resultErr(operation, message, result)
+		return nil, resultError(operation, message, result)
 	}
 	entries, ok := result.Value.([]fs.DirEntry)
 	if !ok {
@@ -454,7 +454,7 @@ func resultDirEntries(operation, message string, result core.Result) ([]fs.DirEn
 
 func resultFileInfo(operation, message string, result core.Result) (fs.FileInfo, error) {
 	if !result.OK {
-		return nil, resultErr(operation, message, result)
+		return nil, resultError(operation, message, result)
 	}
 	fileInfo, ok := result.Value.(fs.FileInfo)
 	if !ok {
@@ -465,7 +465,7 @@ func resultFileInfo(operation, message string, result core.Result) (fs.FileInfo,
 
 func resultFile(operation, message string, result core.Result) (fs.File, error) {
 	if !result.OK {
-		return nil, resultErr(operation, message, result)
+		return nil, resultError(operation, message, result)
 	}
 	file, ok := result.Value.(fs.File)
 	if !ok {
@@ -476,7 +476,7 @@ func resultFile(operation, message string, result core.Result) (fs.File, error) 
 
 func resultWriteCloser(operation, message string, result core.Result) (goio.WriteCloser, error) {
 	if !result.OK {
-		return nil, resultErr(operation, message, result)
+		return nil, resultError(operation, message, result)
 	}
 	writer, ok := result.Value.(goio.WriteCloser)
 	if !ok {

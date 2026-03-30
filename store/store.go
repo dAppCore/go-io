@@ -30,8 +30,8 @@ type Options struct {
 
 // New opens a SQLite-backed key-value store.
 //
-//	kvStore, _ := store.New(store.Options{Path: ":memory:"})
-//	_ = kvStore.Set("app", "theme", "midnight")
+//	keyValueStore, _ := store.New(store.Options{Path: ":memory:"})
+//	_ = keyValueStore.Set("app", "theme", "midnight")
 func New(options Options) (*Store, error) {
 	if options.Path == "" {
 		return nil, core.E("store.New", "database path is required", fs.ErrInvalid)
@@ -57,12 +57,12 @@ func New(options Options) (*Store, error) {
 	return &Store{database: database}, nil
 }
 
-// Example: _ = kvStore.Close()
+// Example: _ = keyValueStore.Close()
 func (s *Store) Close() error {
 	return s.database.Close()
 }
 
-// Example: theme, _ := kvStore.Get("app", "theme")
+// Example: theme, _ := keyValueStore.Get("app", "theme")
 func (s *Store) Get(group, key string) (string, error) {
 	var value string
 	err := s.database.QueryRow("SELECT value FROM kv WHERE grp = ? AND key = ?", group, key).Scan(&value)
@@ -75,7 +75,7 @@ func (s *Store) Get(group, key string) (string, error) {
 	return value, nil
 }
 
-// Example: _ = kvStore.Set("app", "theme", "midnight")
+// Example: _ = keyValueStore.Set("app", "theme", "midnight")
 func (s *Store) Set(group, key, value string) error {
 	_, err := s.database.Exec(
 		`INSERT INTO kv (grp, key, value) VALUES (?, ?, ?)
@@ -88,7 +88,7 @@ func (s *Store) Set(group, key, value string) error {
 	return nil
 }
 
-// Example: _ = kvStore.Delete("app", "theme")
+// Example: _ = keyValueStore.Delete("app", "theme")
 func (s *Store) Delete(group, key string) error {
 	_, err := s.database.Exec("DELETE FROM kv WHERE grp = ? AND key = ?", group, key)
 	if err != nil {
@@ -97,7 +97,7 @@ func (s *Store) Delete(group, key string) error {
 	return nil
 }
 
-// Example: count, _ := kvStore.Count("app")
+// Example: count, _ := keyValueStore.Count("app")
 func (s *Store) Count(group string) (int, error) {
 	var count int
 	err := s.database.QueryRow("SELECT COUNT(*) FROM kv WHERE grp = ?", group).Scan(&count)
@@ -107,7 +107,7 @@ func (s *Store) Count(group string) (int, error) {
 	return count, nil
 }
 
-// Example: _ = kvStore.DeleteGroup("app")
+// Example: _ = keyValueStore.DeleteGroup("app")
 func (s *Store) DeleteGroup(group string) error {
 	_, err := s.database.Exec("DELETE FROM kv WHERE grp = ?", group)
 	if err != nil {
@@ -116,7 +116,7 @@ func (s *Store) DeleteGroup(group string) error {
 	return nil
 }
 
-// Example: values, _ := kvStore.GetAll("app")
+// Example: values, _ := keyValueStore.GetAll("app")
 func (s *Store) GetAll(group string) (map[string]string, error) {
 	rows, err := s.database.Query("SELECT key, value FROM kv WHERE grp = ?", group)
 	if err != nil {
@@ -142,9 +142,9 @@ func (s *Store) GetAll(group string) (map[string]string, error) {
 //
 // Example usage:
 //
-//	kvStore, _ := store.New(store.Options{Path: ":memory:"})
-//	_ = kvStore.Set("user", "name", "alice")
-//	out, _ := kvStore.Render("hello {{ .name }}", "user")
+//	keyValueStore, _ := store.New(store.Options{Path: ":memory:"})
+//	_ = keyValueStore.Set("user", "name", "alice")
+//	out, _ := keyValueStore.Render("hello {{ .name }}", "user")
 func (s *Store) Render(templateText, group string) (string, error) {
 	rows, err := s.database.Query("SELECT key, value FROM kv WHERE grp = ?", group)
 	if err != nil {

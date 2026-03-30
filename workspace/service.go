@@ -176,13 +176,19 @@ func (s *Service) WorkspaceFileSet(workspaceFilePath, content string) error {
 
 // service, _ := workspace.New(workspace.Options{Core: core.New(), Crypt: myCryptProvider})
 //
-//	ipcResult := service.HandleIPCEvents(core.New(), map[string]any{
+//	createResult := service.HandleIPCEvents(core.New(), map[string]any{
 //		"action":     "workspace.create",
 //		"identifier": "alice",
 //		"password":   "pass123",
 //	})
 //
-// _ = ipcResult.OK
+//	switchResult := service.HandleIPCEvents(core.New(), map[string]any{
+//		"action":      "workspace.switch",
+//		"workspaceID": "f3f0d7",
+//	})
+//
+// _ = createResult.OK
+// _ = switchResult.OK
 func (s *Service) HandleIPCEvents(_ *core.Core, message core.Message) core.Result {
 	switch payload := message.(type) {
 	case map[string]any:
@@ -197,7 +203,11 @@ func (s *Service) HandleIPCEvents(_ *core.Core, message core.Message) core.Resul
 			}
 			return core.Result{Value: workspaceID, OK: true}
 		case "workspace.switch":
-			workspaceID, _ := payload["name"].(string)
+			workspaceID, _ := payload["workspaceID"].(string)
+			if workspaceID == "" {
+				// Keep the legacy key as a fallback for older callers.
+				workspaceID, _ = payload["name"].(string)
+			}
 			if err := s.SwitchWorkspace(workspaceID); err != nil {
 				return core.Result{}.New(err)
 			}

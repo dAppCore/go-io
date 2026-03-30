@@ -103,15 +103,21 @@ func TestService_HandleIPCEvents_Good(t *testing.T) {
 	require.NotEmpty(t, workspaceID)
 
 	switchResult := s.HandleIPCEvents(core.New(), map[string]any{
-		"action": "workspace.switch",
-		"name":   workspaceID,
+		"action":      "workspace.switch",
+		"workspaceID": workspaceID,
 	})
 	assert.True(t, switchResult.OK)
 	assert.Equal(t, workspaceID, s.activeWorkspaceID)
 
-	failedSwitch := s.HandleIPCEvents(core.New(), map[string]any{
+	legacySwitch := s.HandleIPCEvents(core.New(), map[string]any{
 		"action": "workspace.switch",
-		"name":   "missing",
+		"name":   workspaceID,
+	})
+	assert.True(t, legacySwitch.OK)
+
+	failedSwitch := s.HandleIPCEvents(core.New(), map[string]any{
+		"action":      "workspace.switch",
+		"workspaceID": "missing",
 	})
 	assert.False(t, failedSwitch.OK)
 

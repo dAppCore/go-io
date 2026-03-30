@@ -32,12 +32,12 @@ func NewMedium(options Options) (*Medium, error) {
 	return &Medium{store: store}, nil
 }
 
-// Example: medium := kvStore.AsMedium()
+// Example: medium := keyValueStore.AsMedium()
 func (s *Store) AsMedium() *Medium {
 	return &Medium{store: s}
 }
 
-// Example: kvStore := medium.Store()
+// Example: keyValueStore := medium.Store()
 func (m *Medium) Store() *Store {
 	return m.store
 }
@@ -167,7 +167,7 @@ func (m *Medium) List(entryPath string) ([]fs.DirEntry, error) {
 			if err := rows.Scan(&groupName); err != nil {
 				return nil, core.E("store.List", "scan", err)
 			}
-			entries = append(entries, &kvDirEntry{name: groupName, isDir: true})
+			entries = append(entries, &keyValueDirEntry{name: groupName, isDir: true})
 		}
 		return entries, rows.Err()
 	}
@@ -182,7 +182,7 @@ func (m *Medium) List(entryPath string) ([]fs.DirEntry, error) {
 	}
 	var entries []fs.DirEntry
 	for key, value := range all {
-		entries = append(entries, &kvDirEntry{name: key, size: int64(len(value))})
+		entries = append(entries, &keyValueDirEntry{name: key, size: int64(len(value))})
 	}
 	return entries, nil
 }
@@ -201,13 +201,13 @@ func (m *Medium) Stat(entryPath string) (fs.FileInfo, error) {
 		if entryCount == 0 {
 			return nil, core.E("store.Stat", core.Concat("group not found: ", group), fs.ErrNotExist)
 		}
-		return &kvFileInfo{name: group, isDir: true}, nil
+		return &keyValueFileInfo{name: group, isDir: true}, nil
 	}
 	val, err := m.store.Get(group, key)
 	if err != nil {
 		return nil, err
 	}
-	return &kvFileInfo{name: key, size: int64(len(val))}, nil
+	return &keyValueFileInfo{name: key, size: int64(len(val))}, nil
 }
 
 func (m *Medium) Open(entryPath string) (fs.File, error) {
@@ -219,7 +219,7 @@ func (m *Medium) Open(entryPath string) (fs.File, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &kvFile{name: key, content: []byte(val)}, nil
+	return &keyValueFile{name: key, content: []byte(val)}, nil
 }
 
 func (m *Medium) Create(entryPath string) (goio.WriteCloser, error) {
@@ -227,7 +227,7 @@ func (m *Medium) Create(entryPath string) (goio.WriteCloser, error) {
 	if key == "" {
 		return nil, core.E("store.Create", "path must include group/key", fs.ErrInvalid)
 	}
-	return &kvWriteCloser{store: m.store, group: group, key: key}, nil
+	return &keyValueWriteCloser{store: m.store, group: group, key: key}, nil
 }
 
 func (m *Medium) Append(entryPath string) (goio.WriteCloser, error) {
@@ -236,7 +236,7 @@ func (m *Medium) Append(entryPath string) (goio.WriteCloser, error) {
 		return nil, core.E("store.Append", "path must include group/key", fs.ErrInvalid)
 	}
 	existing, _ := m.store.Get(group, key)
-	return &kvWriteCloser{store: m.store, group: group, key: key, data: []byte(existing)}, nil
+	return &keyValueWriteCloser{store: m.store, group: group, key: key, data: []byte(existing)}, nil
 }
 
 func (m *Medium) ReadStream(entryPath string) (goio.ReadCloser, error) {
@@ -279,61 +279,61 @@ func (m *Medium) IsDir(entryPath string) bool {
 
 // --- fs helper types ---
 
-type kvFileInfo struct {
+type keyValueFileInfo struct {
 	name  string
 	size  int64
 	isDir bool
 }
 
-func (fi *kvFileInfo) Name() string { return fi.name }
+func (fi *keyValueFileInfo) Name() string { return fi.name }
 
-func (fi *kvFileInfo) Size() int64 { return fi.size }
+func (fi *keyValueFileInfo) Size() int64 { return fi.size }
 
-func (fi *kvFileInfo) Mode() fs.FileMode {
+func (fi *keyValueFileInfo) Mode() fs.FileMode {
 	if fi.isDir {
 		return fs.ModeDir | 0755
 	}
 	return 0644
 }
 
-func (fi *kvFileInfo) ModTime() time.Time { return time.Time{} }
+func (fi *keyValueFileInfo) ModTime() time.Time { return time.Time{} }
 
-func (fi *kvFileInfo) IsDir() bool { return fi.isDir }
+func (fi *keyValueFileInfo) IsDir() bool { return fi.isDir }
 
-func (fi *kvFileInfo) Sys() any { return nil }
+func (fi *keyValueFileInfo) Sys() any { return nil }
 
-type kvDirEntry struct {
+type keyValueDirEntry struct {
 	name  string
 	isDir bool
 	size  int64
 }
 
-func (de *kvDirEntry) Name() string { return de.name }
+func (de *keyValueDirEntry) Name() string { return de.name }
 
-func (de *kvDirEntry) IsDir() bool { return de.isDir }
+func (de *keyValueDirEntry) IsDir() bool { return de.isDir }
 
-func (de *kvDirEntry) Type() fs.FileMode {
+func (de *keyValueDirEntry) Type() fs.FileMode {
 	if de.isDir {
 		return fs.ModeDir
 	}
 	return 0
 }
 
-func (de *kvDirEntry) Info() (fs.FileInfo, error) {
-	return &kvFileInfo{name: de.name, size: de.size, isDir: de.isDir}, nil
+func (de *keyValueDirEntry) Info() (fs.FileInfo, error) {
+	return &keyValueFileInfo{name: de.name, size: de.size, isDir: de.isDir}, nil
 }
 
-type kvFile struct {
+type keyValueFile struct {
 	name    string
 	content []byte
 	offset  int64
 }
 
-func (f *kvFile) Stat() (fs.FileInfo, error) {
-	return &kvFileInfo{name: f.name, size: int64(len(f.content))}, nil
+func (f *keyValueFile) Stat() (fs.FileInfo, error) {
+	return &keyValueFileInfo{name: f.name, size: int64(len(f.content))}, nil
 }
 
-func (f *kvFile) Read(b []byte) (int, error) {
+func (f *keyValueFile) Read(b []byte) (int, error) {
 	if f.offset >= int64(len(f.content)) {
 		return 0, goio.EOF
 	}
@@ -342,20 +342,20 @@ func (f *kvFile) Read(b []byte) (int, error) {
 	return n, nil
 }
 
-func (f *kvFile) Close() error { return nil }
+func (f *keyValueFile) Close() error { return nil }
 
-type kvWriteCloser struct {
+type keyValueWriteCloser struct {
 	store *Store
 	group string
 	key   string
 	data  []byte
 }
 
-func (w *kvWriteCloser) Write(p []byte) (int, error) {
+func (w *keyValueWriteCloser) Write(p []byte) (int, error) {
 	w.data = append(w.data, p...)
 	return len(p), nil
 }
 
-func (w *kvWriteCloser) Close() error {
+func (w *keyValueWriteCloser) Close() error {
 	return w.store.Set(w.group, w.key, string(w.data))
 }
