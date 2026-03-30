@@ -176,15 +176,15 @@ func (s *Service) WorkspaceFileSet(filename, content string) error {
 	return s.medium.Write(filePath, content)
 }
 
-// HandleIPCEvents handles workspace-related IPC messages.
+// service, _ := workspace.New(workspace.Options{Core: core.New(), Crypt: myCryptProvider})
 //
-//	service, _ := workspace.New(workspace.Options{Core: core.New(), Crypt: myCryptProvider})
 //	ipcResult := service.HandleIPCEvents(core.New(), map[string]any{
 //		"action":     "workspace.create",
 //		"identifier": "alice",
 //		"password":   "pass123",
 //	})
-//	_ = ipcResult.OK
+//
+// _ = ipcResult.OK
 func (s *Service) HandleIPCEvents(_ *core.Core, message core.Message) core.Result {
 	switch payload := message.(type) {
 	case map[string]any:

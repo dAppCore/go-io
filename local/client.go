@@ -240,7 +240,6 @@ func (m *Medium) validatePath(path string) (string, error) {
 	return current, nil
 }
 
-// Read returns file contents as string.
 func (m *Medium) Read(path string) (string, error) {
 	resolvedPath, err := m.validatePath(path)
 	if err != nil {
@@ -249,15 +248,10 @@ func (m *Medium) Read(path string) (string, error) {
 	return resultString("local.Read", core.Concat("read failed: ", path), unrestrictedFileSystem.Read(resolvedPath))
 }
 
-// Write saves content to file, creating parent directories as needed.
-// Files are created with mode 0644. For sensitive files (keys, secrets),
-// use WriteMode with 0600.
 func (m *Medium) Write(path, content string) error {
 	return m.WriteMode(path, content, 0644)
 }
 
-// WriteMode saves content to file with explicit permissions.
-// Use 0600 for sensitive files (encryption output, private keys, auth hashes).
 func (m *Medium) WriteMode(path, content string, mode fs.FileMode) error {
 	resolvedPath, err := m.validatePath(path)
 	if err != nil {
@@ -266,7 +260,6 @@ func (m *Medium) WriteMode(path, content string, mode fs.FileMode) error {
 	return resultErr("local.WriteMode", core.Concat("write failed: ", path), unrestrictedFileSystem.WriteMode(resolvedPath, content, mode))
 }
 
-// EnsureDir creates directory if it doesn't exist.
 func (m *Medium) EnsureDir(path string) error {
 	resolvedPath, err := m.validatePath(path)
 	if err != nil {
@@ -275,7 +268,6 @@ func (m *Medium) EnsureDir(path string) error {
 	return resultErr("local.EnsureDir", core.Concat("ensure dir failed: ", path), unrestrictedFileSystem.EnsureDir(resolvedPath))
 }
 
-// IsDir returns true if path is a directory.
 func (m *Medium) IsDir(path string) bool {
 	if path == "" {
 		return false
@@ -287,7 +279,6 @@ func (m *Medium) IsDir(path string) bool {
 	return unrestrictedFileSystem.IsDir(resolvedPath)
 }
 
-// IsFile returns true if path is a regular file.
 func (m *Medium) IsFile(path string) bool {
 	if path == "" {
 		return false
@@ -299,7 +290,6 @@ func (m *Medium) IsFile(path string) bool {
 	return unrestrictedFileSystem.IsFile(resolvedPath)
 }
 
-// Exists returns true if path exists.
 func (m *Medium) Exists(path string) bool {
 	resolvedPath, err := m.validatePath(path)
 	if err != nil {
@@ -308,7 +298,6 @@ func (m *Medium) Exists(path string) bool {
 	return unrestrictedFileSystem.Exists(resolvedPath)
 }
 
-// List returns directory entries.
 func (m *Medium) List(path string) ([]fs.DirEntry, error) {
 	resolvedPath, err := m.validatePath(path)
 	if err != nil {
@@ -317,7 +306,6 @@ func (m *Medium) List(path string) ([]fs.DirEntry, error) {
 	return resultDirEntries("local.List", core.Concat("list failed: ", path), unrestrictedFileSystem.List(resolvedPath))
 }
 
-// Stat returns file info.
 func (m *Medium) Stat(path string) (fs.FileInfo, error) {
 	resolvedPath, err := m.validatePath(path)
 	if err != nil {
@@ -326,7 +314,6 @@ func (m *Medium) Stat(path string) (fs.FileInfo, error) {
 	return resultFileInfo("local.Stat", core.Concat("stat failed: ", path), unrestrictedFileSystem.Stat(resolvedPath))
 }
 
-// Open opens the named file for reading.
 func (m *Medium) Open(path string) (fs.File, error) {
 	resolvedPath, err := m.validatePath(path)
 	if err != nil {
@@ -335,7 +322,6 @@ func (m *Medium) Open(path string) (fs.File, error) {
 	return resultFile("local.Open", core.Concat("open failed: ", path), unrestrictedFileSystem.Open(resolvedPath))
 }
 
-// Create creates or truncates the named file.
 func (m *Medium) Create(path string) (goio.WriteCloser, error) {
 	resolvedPath, err := m.validatePath(path)
 	if err != nil {
@@ -344,7 +330,6 @@ func (m *Medium) Create(path string) (goio.WriteCloser, error) {
 	return resultWriteCloser("local.Create", core.Concat("create failed: ", path), unrestrictedFileSystem.Create(resolvedPath))
 }
 
-// Append opens the named file for appending, creating it if it doesn't exist.
 func (m *Medium) Append(path string) (goio.WriteCloser, error) {
 	resolvedPath, err := m.validatePath(path)
 	if err != nil {
@@ -353,27 +338,16 @@ func (m *Medium) Append(path string) (goio.WriteCloser, error) {
 	return resultWriteCloser("local.Append", core.Concat("append failed: ", path), unrestrictedFileSystem.Append(resolvedPath))
 }
 
-// ReadStream returns a reader for the file content.
-//
-// This is a convenience wrapper around Open that exposes a streaming-oriented
-// API, as required by the io.Medium interface, while Open provides the more
-// general filesystem-level operation. Both methods are kept for semantic
-// clarity and backward compatibility.
+// Example: reader, _ := medium.ReadStream("logs/app.log")
 func (m *Medium) ReadStream(path string) (goio.ReadCloser, error) {
 	return m.Open(path)
 }
 
-// WriteStream returns a writer for the file content.
-//
-// This is a convenience wrapper around Create that exposes a streaming-oriented
-// API, as required by the io.Medium interface, while Create provides the more
-// general filesystem-level operation. Both methods are kept for semantic
-// clarity and backward compatibility.
+// Example: writer, _ := medium.WriteStream("logs/app.log")
 func (m *Medium) WriteStream(path string) (goio.WriteCloser, error) {
 	return m.Create(path)
 }
 
-// Delete removes a file or empty directory.
 func (m *Medium) Delete(path string) error {
 	resolvedPath, err := m.validatePath(path)
 	if err != nil {
@@ -385,7 +359,6 @@ func (m *Medium) Delete(path string) error {
 	return resultErr("local.Delete", core.Concat("delete failed: ", path), unrestrictedFileSystem.Delete(resolvedPath))
 }
 
-// DeleteAll removes a file or directory recursively.
 func (m *Medium) DeleteAll(path string) error {
 	resolvedPath, err := m.validatePath(path)
 	if err != nil {
@@ -397,7 +370,6 @@ func (m *Medium) DeleteAll(path string) error {
 	return resultErr("local.DeleteAll", core.Concat("delete all failed: ", path), unrestrictedFileSystem.DeleteAll(resolvedPath))
 }
 
-// Rename moves a file or directory.
 func (m *Medium) Rename(oldPath, newPath string) error {
 	oldResolvedPath, err := m.validatePath(oldPath)
 	if err != nil {

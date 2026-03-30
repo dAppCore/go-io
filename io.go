@@ -14,51 +14,36 @@ import (
 // This allows for different implementations (e.g., local disk, S3, SFTP)
 // to be used interchangeably.
 type Medium interface {
-	// Read retrieves the content of a file as a string.
 	Read(path string) (string, error)
 
-	// Write saves the given content to a file, overwriting it if it exists.
-	// Default permissions: 0644. For sensitive files, use WriteMode.
 	Write(path, content string) error
 
 	// WriteMode saves content with explicit file permissions.
 	// Use 0600 for sensitive files (keys, secrets, encrypted output).
 	WriteMode(path, content string, mode fs.FileMode) error
 
-	// EnsureDir makes sure a directory exists, creating it if necessary.
 	EnsureDir(path string) error
 
-	// IsFile checks if a path exists and is a regular file.
 	IsFile(path string) bool
 
-	// FileGet is a convenience function that reads a file from the medium.
 	FileGet(path string) (string, error)
 
-	// FileSet is a convenience function that writes a file to the medium.
 	FileSet(path, content string) error
 
-	// Delete removes a file or empty directory.
 	Delete(path string) error
 
-	// DeleteAll removes a file or directory and all its contents recursively.
 	DeleteAll(path string) error
 
-	// Rename moves a file or directory from oldPath to newPath.
 	Rename(oldPath, newPath string) error
 
-	// List returns the directory entries for the given path.
 	List(path string) ([]fs.DirEntry, error)
 
-	// Stat returns file information for the given path.
 	Stat(path string) (fs.FileInfo, error)
 
-	// Open opens the named file for reading.
 	Open(path string) (fs.File, error)
 
-	// Create creates or truncates the named file.
 	Create(path string) (goio.WriteCloser, error)
 
-	// Append opens the named file for appending, creating it if it doesn't exist.
 	Append(path string) (goio.WriteCloser, error)
 
 	// ReadStream returns a reader for the file content.
@@ -207,7 +192,6 @@ func NewMockMedium() *MockMedium {
 	}
 }
 
-// Read retrieves the content of a file from the mock filesystem.
 func (m *MockMedium) Read(path string) (string, error) {
 	content, ok := m.Files[path]
 	if !ok {
@@ -216,7 +200,6 @@ func (m *MockMedium) Read(path string) (string, error) {
 	return content, nil
 }
 
-// Write saves the given content to a file in the mock filesystem.
 func (m *MockMedium) Write(path, content string) error {
 	m.Files[path] = content
 	m.ModTimes[path] = time.Now()
@@ -227,29 +210,24 @@ func (m *MockMedium) WriteMode(path, content string, mode fs.FileMode) error {
 	return m.Write(path, content)
 }
 
-// EnsureDir records that a directory exists in the mock filesystem.
 func (m *MockMedium) EnsureDir(path string) error {
 	m.Dirs[path] = true
 	return nil
 }
 
-// IsFile checks if a path exists as a file in the mock filesystem.
 func (m *MockMedium) IsFile(path string) bool {
 	_, ok := m.Files[path]
 	return ok
 }
 
-// FileGet is a convenience function that reads a file from the mock filesystem.
 func (m *MockMedium) FileGet(path string) (string, error) {
 	return m.Read(path)
 }
 
-// FileSet is a convenience function that writes a file to the mock filesystem.
 func (m *MockMedium) FileSet(path, content string) error {
 	return m.Write(path, content)
 }
 
-// Delete removes a file or empty directory from the mock filesystem.
 func (m *MockMedium) Delete(path string) error {
 	if _, ok := m.Files[path]; ok {
 		delete(m.Files, path)
@@ -277,7 +255,6 @@ func (m *MockMedium) Delete(path string) error {
 	return core.E("io.MockMedium.Delete", core.Concat("path not found: ", path), fs.ErrNotExist)
 }
 
-// DeleteAll removes a file or directory and all contents from the mock filesystem.
 func (m *MockMedium) DeleteAll(path string) error {
 	found := false
 	if _, ok := m.Files[path]; ok {
@@ -313,7 +290,6 @@ func (m *MockMedium) DeleteAll(path string) error {
 	return nil
 }
 
-// Rename moves a file or directory in the mock filesystem.
 func (m *MockMedium) Rename(oldPath, newPath string) error {
 	if content, ok := m.Files[oldPath]; ok {
 		m.Files[newPath] = content
@@ -372,7 +348,6 @@ func (m *MockMedium) Rename(oldPath, newPath string) error {
 	return core.E("io.MockMedium.Rename", core.Concat("path not found: ", oldPath), fs.ErrNotExist)
 }
 
-// Open opens a file from the mock filesystem.
 func (m *MockMedium) Open(path string) (fs.File, error) {
 	content, ok := m.Files[path]
 	if !ok {
@@ -384,7 +359,6 @@ func (m *MockMedium) Open(path string) (fs.File, error) {
 	}, nil
 }
 
-// Create creates a file in the mock filesystem.
 func (m *MockMedium) Create(path string) (goio.WriteCloser, error) {
 	return &MockWriteCloser{
 		medium: m,
@@ -392,7 +366,6 @@ func (m *MockMedium) Create(path string) (goio.WriteCloser, error) {
 	}, nil
 }
 
-// Append opens a file for appending in the mock filesystem.
 func (m *MockMedium) Append(path string) (goio.WriteCloser, error) {
 	content := m.Files[path]
 	return &MockWriteCloser{
@@ -402,12 +375,10 @@ func (m *MockMedium) Append(path string) (goio.WriteCloser, error) {
 	}, nil
 }
 
-// ReadStream returns a reader for the file content in the mock filesystem.
 func (m *MockMedium) ReadStream(path string) (goio.ReadCloser, error) {
 	return m.Open(path)
 }
 
-// WriteStream returns a writer for the file content in the mock filesystem.
 func (m *MockMedium) WriteStream(path string) (goio.WriteCloser, error) {
 	return m.Create(path)
 }
@@ -457,7 +428,6 @@ func (w *MockWriteCloser) Close() error {
 	return nil
 }
 
-// List returns directory entries for the mock filesystem.
 func (m *MockMedium) List(path string) ([]fs.DirEntry, error) {
 	if _, ok := m.Dirs[path]; !ok {
 		// Check if it's the root or has children
@@ -566,7 +536,6 @@ func (m *MockMedium) List(path string) ([]fs.DirEntry, error) {
 	return entries, nil
 }
 
-// Stat returns file information for the mock filesystem.
 func (m *MockMedium) Stat(path string) (fs.FileInfo, error) {
 	if content, ok := m.Files[path]; ok {
 		modTime, ok := m.ModTimes[path]
@@ -590,7 +559,6 @@ func (m *MockMedium) Stat(path string) (fs.FileInfo, error) {
 	return nil, core.E("io.MockMedium.Stat", core.Concat("path not found: ", path), fs.ErrNotExist)
 }
 
-// Exists checks if a path exists in the mock filesystem.
 func (m *MockMedium) Exists(path string) bool {
 	if _, ok := m.Files[path]; ok {
 		return true
@@ -601,7 +569,6 @@ func (m *MockMedium) Exists(path string) bool {
 	return false
 }
 
-// IsDir checks if a path is a directory in the mock filesystem.
 func (m *MockMedium) IsDir(path string) bool {
 	_, ok := m.Dirs[path]
 	return ok

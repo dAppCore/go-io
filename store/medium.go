@@ -64,7 +64,6 @@ func splitPath(entryPath string) (group, key string) {
 	return parts[0], parts[1]
 }
 
-// Read retrieves the value at group/key.
 func (m *Medium) Read(entryPath string) (string, error) {
 	group, key := splitPath(entryPath)
 	if key == "" {
@@ -73,7 +72,6 @@ func (m *Medium) Read(entryPath string) (string, error) {
 	return m.store.Get(group, key)
 }
 
-// Write stores a value at group/key.
 func (m *Medium) Write(entryPath, content string) error {
 	group, key := splitPath(entryPath)
 	if key == "" {
@@ -92,7 +90,6 @@ func (m *Medium) EnsureDir(_ string) error {
 	return nil
 }
 
-// IsFile returns true if a group/key pair exists.
 func (m *Medium) IsFile(entryPath string) bool {
 	group, key := splitPath(entryPath)
 	if key == "" {
@@ -110,7 +107,6 @@ func (m *Medium) FileSet(entryPath, content string) error {
 	return m.Write(entryPath, content)
 }
 
-// Delete removes a key, or checks that a group is empty.
 func (m *Medium) Delete(entryPath string) error {
 	group, key := splitPath(entryPath)
 	if group == "" {
@@ -129,7 +125,6 @@ func (m *Medium) Delete(entryPath string) error {
 	return m.store.Delete(group, key)
 }
 
-// DeleteAll removes a key, or all keys in a group.
 func (m *Medium) DeleteAll(entryPath string) error {
 	group, key := splitPath(entryPath)
 	if group == "" {
@@ -141,7 +136,6 @@ func (m *Medium) DeleteAll(entryPath string) error {
 	return m.store.Delete(group, key)
 }
 
-// Rename moves a key from one path to another.
 func (m *Medium) Rename(oldPath, newPath string) error {
 	oldGroup, oldKey := splitPath(oldPath)
 	newGroup, newKey := splitPath(newPath)
@@ -219,7 +213,6 @@ func (m *Medium) Stat(entryPath string) (fs.FileInfo, error) {
 	return &kvFileInfo{name: key, size: int64(len(val))}, nil
 }
 
-// Open opens a key for reading.
 func (m *Medium) Open(entryPath string) (fs.File, error) {
 	group, key := splitPath(entryPath)
 	if key == "" {
@@ -232,7 +225,6 @@ func (m *Medium) Open(entryPath string) (fs.File, error) {
 	return &kvFile{name: key, content: []byte(val)}, nil
 }
 
-// Create creates or truncates a key. Content is stored on Close.
 func (m *Medium) Create(entryPath string) (goio.WriteCloser, error) {
 	group, key := splitPath(entryPath)
 	if key == "" {
@@ -241,7 +233,6 @@ func (m *Medium) Create(entryPath string) (goio.WriteCloser, error) {
 	return &kvWriteCloser{store: m.store, group: group, key: key}, nil
 }
 
-// Append opens a key for appending. Content is stored on Close.
 func (m *Medium) Append(entryPath string) (goio.WriteCloser, error) {
 	group, key := splitPath(entryPath)
 	if key == "" {
@@ -251,7 +242,6 @@ func (m *Medium) Append(entryPath string) (goio.WriteCloser, error) {
 	return &kvWriteCloser{store: m.store, group: group, key: key, data: []byte(existing)}, nil
 }
 
-// ReadStream returns a reader for the value.
 func (m *Medium) ReadStream(entryPath string) (goio.ReadCloser, error) {
 	group, key := splitPath(entryPath)
 	if key == "" {
@@ -264,12 +254,10 @@ func (m *Medium) ReadStream(entryPath string) (goio.ReadCloser, error) {
 	return goio.NopCloser(core.NewReader(val)), nil
 }
 
-// WriteStream returns a writer. Content is stored on Close.
 func (m *Medium) WriteStream(entryPath string) (goio.WriteCloser, error) {
 	return m.Create(entryPath)
 }
 
-// Exists returns true if a group or key exists.
 func (m *Medium) Exists(entryPath string) bool {
 	group, key := splitPath(entryPath)
 	if group == "" {
@@ -283,7 +271,6 @@ func (m *Medium) Exists(entryPath string) bool {
 	return err == nil
 }
 
-// IsDir returns true if the path is a group with entries.
 func (m *Medium) IsDir(entryPath string) bool {
 	group, key := splitPath(entryPath)
 	if key != "" || group == "" {

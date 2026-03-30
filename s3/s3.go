@@ -128,7 +128,6 @@ func (m *Medium) key(filePath string) string {
 	return m.prefix + clean
 }
 
-// Read retrieves the content of a file as a string.
 func (m *Medium) Read(filePath string) (string, error) {
 	key := m.key(filePath)
 	if key == "" {
@@ -151,7 +150,6 @@ func (m *Medium) Read(filePath string) (string, error) {
 	return string(data), nil
 }
 
-// Write saves the given content to a file, overwriting it if it exists.
 func (m *Medium) Write(filePath, content string) error {
 	key := m.key(filePath)
 	if key == "" {
@@ -196,17 +194,14 @@ func (m *Medium) IsFile(filePath string) bool {
 	return err == nil
 }
 
-// FileGet is a convenience function that reads a file from the medium.
 func (m *Medium) FileGet(filePath string) (string, error) {
 	return m.Read(filePath)
 }
 
-// FileSet is a convenience function that writes a file to the medium.
 func (m *Medium) FileSet(filePath, content string) error {
 	return m.Write(filePath, content)
 }
 
-// Delete removes a single object.
 func (m *Medium) Delete(filePath string) error {
 	key := m.key(filePath)
 	if key == "" {
@@ -424,7 +419,6 @@ func (m *Medium) Stat(filePath string) (fs.FileInfo, error) {
 	}, nil
 }
 
-// Open opens the named file for reading.
 func (m *Medium) Open(filePath string) (fs.File, error) {
 	key := m.key(filePath)
 	if key == "" {
@@ -500,7 +494,6 @@ func (m *Medium) Append(filePath string) (goio.WriteCloser, error) {
 	}, nil
 }
 
-// ReadStream returns a reader for the file content.
 func (m *Medium) ReadStream(filePath string) (goio.ReadCloser, error) {
 	key := m.key(filePath)
 	if key == "" {
@@ -517,7 +510,6 @@ func (m *Medium) ReadStream(filePath string) (goio.ReadCloser, error) {
 	return out.Body, nil
 }
 
-// WriteStream returns a writer for the file content. Content is uploaded on Close.
 func (m *Medium) WriteStream(filePath string) (goio.WriteCloser, error) {
 	return m.Create(filePath)
 }
