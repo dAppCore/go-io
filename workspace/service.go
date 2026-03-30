@@ -11,7 +11,7 @@ import (
 	"dappco.re/go/core/io"
 )
 
-// Workspace provides management for encrypted user workspaces.
+// Workspace is the interface returned by New.
 type Workspace interface {
 	CreateWorkspace(identifier, password string) (string, error)
 	SwitchWorkspace(workspaceID string) error
@@ -19,12 +19,12 @@ type Workspace interface {
 	WorkspaceFileSet(workspaceFilePath, content string) error
 }
 
-// CryptProvider is the interface for PGP key generation.
+// CryptProvider generates the encrypted private key stored with each workspace.
 type CryptProvider interface {
 	CreateKeyPair(name, passphrase string) (string, error)
 }
 
-// Options configures the workspace service.
+// Options configures New.
 type Options struct {
 	// Core is the Core runtime used by the service.
 	Core *core.Core
@@ -32,7 +32,7 @@ type Options struct {
 	Crypt CryptProvider
 }
 
-// Service implements the Workspace interface.
+// Service is the concrete Workspace implementation.
 type Service struct {
 	core              *core.Core
 	crypt             CryptProvider
@@ -44,7 +44,7 @@ type Service struct {
 
 var _ Workspace = (*Service)(nil)
 
-// New creates an encrypted workspace service from a Core runtime.
+// New creates an encrypted workspace service.
 //
 //	service, _ := workspace.New(workspace.Options{Core: core.New(), Crypt: cryptProvider})
 //	workspaceID, _ := service.CreateWorkspace("alice", "pass123")

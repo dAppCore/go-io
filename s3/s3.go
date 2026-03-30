@@ -1,4 +1,8 @@
-// Package s3 provides an S3-backed implementation of the io.Medium interface.
+// Package s3 provides an S3-backed io.Medium.
+//
+//	client := awss3.NewFromConfig(aws.Config{Region: "us-east-1"})
+//	medium, _ := s3.New(s3.Options{Bucket: "backups", Client: client, Prefix: "daily/"})
+//	_ = medium.Write("reports/daily.txt", "done")
 package s3
 
 import (
@@ -29,7 +33,7 @@ type Client interface {
 	CopyObject(ctx context.Context, params *awss3.CopyObjectInput, optFns ...func(*awss3.Options)) (*awss3.CopyObjectOutput, error)
 }
 
-// Medium is an S3-backed storage backend implementing the io.Medium interface.
+// Medium is the concrete io.Medium returned by New.
 type Medium struct {
 	client Client
 	bucket string
@@ -38,7 +42,7 @@ type Medium struct {
 
 var _ coreio.Medium = (*Medium)(nil)
 
-// Options configures a Medium.
+// Options configures New.
 type Options struct {
 	// Bucket is the target S3 bucket name.
 	Bucket string
@@ -86,13 +90,9 @@ func normalisePrefix(prefix string) string {
 	return clean
 }
 
-// Use New to scope writes to a bucket and optional prefix.
+// New opens an S3-backed medium for one bucket and optional prefix.
 //
-// Example usage:
-//
-//	config := aws.Config{}
-//	awsClient := awss3.NewFromConfig(config)
-//	medium, _ := s3.New(s3.Options{Bucket: "backups", Client: awsClient, Prefix: "daily/"})
+//	medium, _ := s3.New(s3.Options{Bucket: "backups", Client: client, Prefix: "daily/"})
 //	_ = medium.Write("reports/daily.txt", "done")
 func New(options Options) (*Medium, error) {
 	if options.Bucket == "" {

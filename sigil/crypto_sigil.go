@@ -1,15 +1,11 @@
-// This file implements the Pre-Obfuscation Layer Protocol with
-// XChaCha20-Poly1305 encryption. The protocol applies a reversible transformation
-// to plaintext BEFORE it reaches CPU encryption routines, providing defence-in-depth
-// against side-channel attacks.
+// Package sigil provides pre-obfuscation helpers for XChaCha20-Poly1305.
 //
-// The encryption flow is:
+//	cipherSigil, _ := sigil.NewChaChaPolySigil([]byte("0123456789abcdef0123456789abcdef"))
+//	ciphertext, _ := cipherSigil.In([]byte("payload"))
+//	plaintext, _ := cipherSigil.Out(ciphertext)
 //
-//	plaintext -> obfuscate(nonce) -> encrypt -> [nonce || ciphertext || tag]
-//
-// The decryption flow is:
-//
-//	[nonce || ciphertext || tag] -> decrypt -> deobfuscate(nonce) -> plaintext
+// Use NewChaChaPolySigilWithObfuscator when you want ShuffleMaskObfuscator
+// instead of the default XOR pre-obfuscation layer.
 package sigil
 
 import (
@@ -36,12 +32,10 @@ var (
 	NoKeyConfiguredError = core.E("sigil.NoKeyConfiguredError", "no encryption key configured", nil)
 )
 
-// PreObfuscator applies a reversible transformation to data before encryption.
-// This ensures that raw plaintext patterns are never sent directly to CPU
-// encryption routines, providing defence against side-channel attacks.
+// PreObfuscator is the hook ChaChaPolySigil uses before and after encryption.
 //
-// Implementations must be deterministic: given the same entropy, the transformation
-// must be perfectly reversible: Deobfuscate(Obfuscate(x, e), e) == x
+// XORObfuscator is the default. ShuffleMaskObfuscator is available when you
+// want byte shuffling as well as masking.
 type PreObfuscator interface {
 	// Obfuscate transforms plaintext before encryption using the provided entropy.
 	// The entropy is typically the encryption nonce, ensuring the transformation
@@ -53,15 +47,7 @@ type PreObfuscator interface {
 	Deobfuscate(data []byte, entropy []byte) []byte
 }
 
-// XORObfuscator performs XOR-based obfuscation using an entropy-derived key stream.
-//
-// The key stream is generated using SHA-256 in counter mode:
-//
-//	keyStream[i*32:(i+1)*32] = SHA256(entropy || BigEndian64(i))
-//
-// This provides a cryptographically uniform key stream that decorrelates
-// plaintext patterns from the data seen by the encryption routine.
-// XOR is symmetric, so obfuscation and deobfuscation use the same operation.
+// XORObfuscator is the default pre-obfuscator returned by NewChaChaPolySigil.
 type XORObfuscator struct{}
 
 // Obfuscate XORs the data with a key stream derived from the entropy.
@@ -114,16 +100,7 @@ func (x *XORObfuscator) deriveKeyStream(entropy []byte, length int) []byte {
 	return stream
 }
 
-// ShuffleMaskObfuscator provides stronger obfuscation through byte shuffling and masking.
-//
-// The obfuscation process:
-//  1. Generate a mask from entropy using SHA-256 in counter mode
-//  2. XOR the data with the mask
-//  3. Generate a deterministic permutation using Fisher-Yates shuffle
-//  4. Reorder bytes according to the permutation
-//
-// This provides both value transformation (XOR mask) and position transformation
-// (shuffle), making pattern analysis more difficult than XOR alone.
+// ShuffleMaskObfuscator adds byte shuffling on top of XOR masking.
 type ShuffleMaskObfuscator struct{}
 
 // Obfuscate shuffles bytes and applies a mask derived from entropy.
@@ -230,28 +207,17 @@ func (s *ShuffleMaskObfuscator) deriveMask(entropy []byte, length int) []byte {
 	return mask
 }
 
-// ChaChaPolySigil is a Sigil that encrypts/decrypts data using ChaCha20-Poly1305.
-// It applies pre-obfuscation before encryption to ensure raw plaintext never
-// goes directly to CPU encryption routines.
-//
-// The output format is:
-// [24-byte nonce][encrypted(obfuscated(plaintext))]
-//
-// Unlike demo implementations, the nonce is ONLY embedded in the ciphertext,
-// not exposed separately in headers.
+// ChaChaPolySigil is returned by NewChaChaPolySigil and
+// NewChaChaPolySigilWithObfuscator.
 type ChaChaPolySigil struct {
 	Key          []byte
 	Obfuscator   PreObfuscator
 	randomReader goio.Reader // for testing injection
 }
 
-// Use NewChaChaPolySigil with a 32-byte key to encrypt payloads.
-// The key must be exactly 32 bytes.
+// NewChaChaPolySigil returns a ChaChaPolySigil backed by a 32-byte key.
 //
-// Example usage:
-//
-//	key := []byte("0123456789abcdef0123456789abcdef")
-//	cipherSigil, _ := sigil.NewChaChaPolySigil(key)
+//	cipherSigil, _ := sigil.NewChaChaPolySigil([]byte("0123456789abcdef0123456789abcdef"))
 //	ciphertext, _ := cipherSigil.In([]byte("payload"))
 //	plaintext, _ := cipherSigil.Out(ciphertext)
 func NewChaChaPolySigil(key []byte) (*ChaChaPolySigil, error) {
@@ -269,12 +235,12 @@ func NewChaChaPolySigil(key []byte) (*ChaChaPolySigil, error) {
 	}, nil
 }
 
-// Use NewChaChaPolySigilWithObfuscator when you want a custom pre-obfuscator.
+// NewChaChaPolySigilWithObfuscator returns a ChaChaPolySigil with a custom pre-obfuscator.
 //
-// Example usage:
-//
-//	key := []byte("0123456789abcdef0123456789abcdef")
-//	cipherSigil, _ := sigil.NewChaChaPolySigilWithObfuscator(key, &sigil.ShuffleMaskObfuscator{})
+//	cipherSigil, _ := sigil.NewChaChaPolySigilWithObfuscator(
+//		[]byte("0123456789abcdef0123456789abcdef"),
+//		&sigil.ShuffleMaskObfuscator{},
+//	)
 //	ciphertext, _ := cipherSigil.In([]byte("payload"))
 //	plaintext, _ := cipherSigil.Out(ciphertext)
 func NewChaChaPolySigilWithObfuscator(key []byte, obfuscator PreObfuscator) (*ChaChaPolySigil, error) {
@@ -288,8 +254,7 @@ func NewChaChaPolySigilWithObfuscator(key []byte, obfuscator PreObfuscator) (*Ch
 	return cipherSigil, nil
 }
 
-// In encrypts the data with pre-obfuscation.
-// The flow is: plaintext -> obfuscate -> encrypt
+// In encrypts plaintext with the configured pre-obfuscator.
 func (s *ChaChaPolySigil) In(data []byte) ([]byte, error) {
 	if s.Key == nil {
 		return nil, NoKeyConfiguredError
@@ -327,8 +292,7 @@ func (s *ChaChaPolySigil) In(data []byte) ([]byte, error) {
 	return ciphertext, nil
 }
 
-// Out decrypts the data and reverses obfuscation.
-// The flow is: decrypt -> deobfuscate -> plaintext
+// Out decrypts ciphertext and reverses the pre-obfuscation step.
 func (s *ChaChaPolySigil) Out(data []byte) ([]byte, error) {
 	if s.Key == nil {
 		return nil, NoKeyConfiguredError
@@ -370,9 +334,9 @@ func (s *ChaChaPolySigil) Out(data []byte) ([]byte, error) {
 	return plaintext, nil
 }
 
-// GetNonceFromCiphertext extracts the nonce from encrypted output.
-// This is provided for debugging/logging purposes only.
-// The nonce should NOT be stored separately in headers.
+// GetNonceFromCiphertext returns the nonce embedded in ciphertext.
+//
+//	nonce, _ := sigil.GetNonceFromCiphertext(ciphertext)
 func GetNonceFromCiphertext(ciphertext []byte) ([]byte, error) {
 	nonceSize := chacha20poly1305.NonceSizeX
 	if len(ciphertext) < nonceSize {
