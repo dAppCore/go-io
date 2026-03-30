@@ -173,17 +173,17 @@ func TestCryptoSigil_NewChaChaPolySigil_KeyIsCopied_Good(t *testing.T) {
 
 func TestCryptoSigil_NewChaChaPolySigil_ShortKey_Bad(t *testing.T) {
 	_, err := NewChaChaPolySigil([]byte("too short"))
-	assert.ErrorIs(t, err, ErrInvalidKey)
+	assert.ErrorIs(t, err, InvalidKeyError)
 }
 
 func TestCryptoSigil_NewChaChaPolySigil_LongKey_Bad(t *testing.T) {
 	_, err := NewChaChaPolySigil(make([]byte, 64))
-	assert.ErrorIs(t, err, ErrInvalidKey)
+	assert.ErrorIs(t, err, InvalidKeyError)
 }
 
 func TestCryptoSigil_NewChaChaPolySigil_EmptyKey_Bad(t *testing.T) {
 	_, err := NewChaChaPolySigil(nil)
-	assert.ErrorIs(t, err, ErrInvalidKey)
+	assert.ErrorIs(t, err, InvalidKeyError)
 }
 
 // ── NewChaChaPolySigilWithObfuscator ───────────────────────────────
@@ -210,7 +210,7 @@ func TestCryptoSigil_NewChaChaPolySigilWithObfuscator_NilObfuscator_Good(t *test
 
 func TestCryptoSigil_NewChaChaPolySigilWithObfuscator_InvalidKey_Bad(t *testing.T) {
 	_, err := NewChaChaPolySigilWithObfuscator([]byte("bad"), &XORObfuscator{})
-	assert.ErrorIs(t, err, ErrInvalidKey)
+	assert.ErrorIs(t, err, InvalidKeyError)
 }
 
 // ── ChaChaPolySigil In/Out (encrypt/decrypt) ───────────────────────
@@ -300,10 +300,10 @@ func TestCryptoSigil_ChaChaPolySigil_NoKey_Bad(t *testing.T) {
 	s := &ChaChaPolySigil{}
 
 	_, err := s.In([]byte("data"))
-	assert.ErrorIs(t, err, ErrNoKeyConfigured)
+	assert.ErrorIs(t, err, NoKeyConfiguredError)
 
 	_, err = s.Out([]byte("data"))
-	assert.ErrorIs(t, err, ErrNoKeyConfigured)
+	assert.ErrorIs(t, err, NoKeyConfiguredError)
 }
 
 func TestCryptoSigil_ChaChaPolySigil_WrongKey_Bad(t *testing.T) {
@@ -319,7 +319,7 @@ func TestCryptoSigil_ChaChaPolySigil_WrongKey_Bad(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = s2.Out(ciphertext)
-	assert.ErrorIs(t, err, ErrDecryptionFailed)
+	assert.ErrorIs(t, err, DecryptionFailedError)
 }
 
 func TestCryptoSigil_ChaChaPolySigil_TruncatedCiphertext_Bad(t *testing.T) {
@@ -328,7 +328,7 @@ func TestCryptoSigil_ChaChaPolySigil_TruncatedCiphertext_Bad(t *testing.T) {
 
 	s, _ := NewChaChaPolySigil(key)
 	_, err := s.Out([]byte("too short"))
-	assert.ErrorIs(t, err, ErrCiphertextTooShort)
+	assert.ErrorIs(t, err, CiphertextTooShortError)
 }
 
 func TestCryptoSigil_ChaChaPolySigil_TamperedCiphertext_Bad(t *testing.T) {
@@ -342,7 +342,7 @@ func TestCryptoSigil_ChaChaPolySigil_TamperedCiphertext_Bad(t *testing.T) {
 	ciphertext[30] ^= 0xFF
 
 	_, err := s.Out(ciphertext)
-	assert.ErrorIs(t, err, ErrDecryptionFailed)
+	assert.ErrorIs(t, err, DecryptionFailedError)
 }
 
 // failReader returns an error on read — for testing nonce generation failure.
@@ -416,12 +416,12 @@ func TestCryptoSigil_GetNonceFromCiphertext_NonceCopied_Good(t *testing.T) {
 
 func TestCryptoSigil_GetNonceFromCiphertext_TooShort_Bad(t *testing.T) {
 	_, err := GetNonceFromCiphertext([]byte("short"))
-	assert.ErrorIs(t, err, ErrCiphertextTooShort)
+	assert.ErrorIs(t, err, CiphertextTooShortError)
 }
 
 func TestCryptoSigil_GetNonceFromCiphertext_Empty_Bad(t *testing.T) {
 	_, err := GetNonceFromCiphertext(nil)
-	assert.ErrorIs(t, err, ErrCiphertextTooShort)
+	assert.ErrorIs(t, err, CiphertextTooShortError)
 }
 
 // ── ChaChaPolySigil in Transmute pipeline ──────────────────────────

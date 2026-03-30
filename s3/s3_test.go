@@ -637,22 +637,22 @@ func TestS3_IsDir_Good(t *testing.T) {
 	assert.False(t, m.IsDir(""))
 }
 
-func TestS3_Key_Good(t *testing.T) {
+func TestS3_ObjectKey_Good(t *testing.T) {
 	mock := newMockS3()
 
 	// No prefix
 	m, _ := New(Options{Bucket: "bucket", Client: mock})
-	assert.Equal(t, "file.txt", m.key("file.txt"))
-	assert.Equal(t, "dir/file.txt", m.key("dir/file.txt"))
-	assert.Equal(t, "", m.key(""))
-	assert.Equal(t, "file.txt", m.key("/file.txt"))
-	assert.Equal(t, "file.txt", m.key("../file.txt"))
+	assert.Equal(t, "file.txt", m.objectKey("file.txt"))
+	assert.Equal(t, "dir/file.txt", m.objectKey("dir/file.txt"))
+	assert.Equal(t, "", m.objectKey(""))
+	assert.Equal(t, "file.txt", m.objectKey("/file.txt"))
+	assert.Equal(t, "file.txt", m.objectKey("../file.txt"))
 
 	// With prefix
 	m2, _ := New(Options{Bucket: "bucket", Client: mock, Prefix: "pfx"})
-	assert.Equal(t, "pfx/file.txt", m2.key("file.txt"))
-	assert.Equal(t, "pfx/dir/file.txt", m2.key("dir/file.txt"))
-	assert.Equal(t, "pfx/", m2.key(""))
+	assert.Equal(t, "pfx/file.txt", m2.objectKey("file.txt"))
+	assert.Equal(t, "pfx/dir/file.txt", m2.objectKey("dir/file.txt"))
+	assert.Equal(t, "pfx/", m2.objectKey(""))
 }
 
 // Ugly: verify the Medium interface is satisfied at compile time.

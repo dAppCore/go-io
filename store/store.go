@@ -10,8 +10,12 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-// ErrNotFound is returned when a key does not exist in the store.
-var ErrNotFound = errors.New("key not found")
+// NotFoundError is returned when a key does not exist in the store.
+var NotFoundError = errors.New("key not found")
+
+// ErrNotFound is kept for compatibility with older callers.
+// Deprecated: use NotFoundError.
+var ErrNotFound = NotFoundError
 
 // Store is a group-namespaced key-value store backed by SQLite.
 type Store struct {
@@ -63,7 +67,7 @@ func (s *Store) Get(group, key string) (string, error) {
 	var value string
 	err := s.database.QueryRow("SELECT value FROM kv WHERE grp = ? AND key = ?", group, key).Scan(&value)
 	if err == sql.ErrNoRows {
-		return "", core.E("store.Get", core.Concat("not found: ", group, "/", key), ErrNotFound)
+		return "", core.E("store.Get", core.Concat("not found: ", group, "/", key), NotFoundError)
 	}
 	if err != nil {
 		return "", core.E("store.Get", "query", err)

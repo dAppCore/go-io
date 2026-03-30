@@ -14,9 +14,9 @@ import (
 // Workspace provides management for encrypted user workspaces.
 type Workspace interface {
 	CreateWorkspace(identifier, password string) (string, error)
-	SwitchWorkspace(name string) error
-	WorkspaceFileGet(filename string) (string, error)
-	WorkspaceFileSet(filename, content string) error
+	SwitchWorkspace(workspaceID string) error
+	WorkspaceFileGet(workspaceFilePath string) (string, error)
+	WorkspaceFileSet(workspaceFilePath, content string) error
 }
 
 // CryptProvider is the interface for PGP key generation.
@@ -34,12 +34,12 @@ type Options struct {
 
 // Service implements the Workspace interface.
 type Service struct {
-	core            *core.Core
-	crypt           CryptProvider
-	activeWorkspace string
-	rootPath        string
-	medium          io.Medium
-	mu              sync.RWMutex
+	core              *core.Core
+	crypt             CryptProvider
+	activeWorkspaceID string
+	rootPath          string
+	medium            io.Medium
+	mu                sync.RWMutex
 }
 
 var _ Workspace = (*Service)(nil)
@@ -89,7 +89,7 @@ func (s *Service) CreateWorkspace(identifier, password string) (string, error) {
 
 	hash := sha256.Sum256([]byte(identifier))
 	workspaceID := hex.EncodeToString(hash[:])
-	workspaceDirectory, err := s.workspacePath("workspace.CreateWorkspace", workspaceID)
+	workspaceDirectory, err := s.resolveWorkspaceDirectory("workspace.CreateWorkspace", workspaceID)
 	if err != nil {
 		return "", err
 	}
@@ -117,45 +117,45 @@ func (s *Service) CreateWorkspace(identifier, password string) (string, error) {
 }
 
 // Example: _ = service.SwitchWorkspace(workspaceID)
-func (s *Service) SwitchWorkspace(name string) error {
+func (s *Service) SwitchWorkspace(workspaceID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	workspaceDirectory, err := s.workspacePath("workspace.SwitchWorkspace", name)
+	workspaceDirectory, err := s.resolveWorkspaceDirectory("workspace.SwitchWorkspace", workspaceID)
 	if err != nil {
 		return err
 	}
 	if !s.medium.IsDir(workspaceDirectory) {
-		return core.E("workspace.SwitchWorkspace", core.Concat("workspace not found: ", name), nil)
+		return core.E("workspace.SwitchWorkspace", core.Concat("workspace not found: ", workspaceID), nil)
 	}
 
-	s.activeWorkspace = core.PathBase(workspaceDirectory)
+	s.activeWorkspaceID = core.PathBase(workspaceDirectory)
 	return nil
 }
 
-// activeFilePath resolves a filename inside the active workspace files root.
+// resolveActiveWorkspaceFilePath resolves a file path inside the active workspace files root.
 // It rejects empty names and traversal outside the workspace root.
-func (s *Service) activeFilePath(operation, filename string) (string, error) {
-	if s.activeWorkspace == "" {
+func (s *Service) resolveActiveWorkspaceFilePath(operation, workspaceFilePath string) (string, error) {
+	if s.activeWorkspaceID == "" {
 		return "", core.E(operation, "no active workspace", nil)
 	}
-	filesRoot := core.Path(s.rootPath, s.activeWorkspace, "files")
-	filePath, err := joinPathWithinRoot(filesRoot, filename)
+	filesRoot := core.Path(s.rootPath, s.activeWorkspaceID, "files")
+	filePath, err := joinPathWithinRoot(filesRoot, workspaceFilePath)
 	if err != nil {
 		return "", core.E(operation, "file path escapes workspace files", fs.ErrPermission)
 	}
 	if filePath == filesRoot {
-		return "", core.E(operation, "filename is required", fs.ErrInvalid)
+		return "", core.E(operation, "workspace file path is required", fs.ErrInvalid)
 	}
 	return filePath, nil
 }
 
 // Example: content, _ := service.WorkspaceFileGet("notes/todo.txt")
-func (s *Service) WorkspaceFileGet(filename string) (string, error) {
+func (s *Service) WorkspaceFileGet(workspaceFilePath string) (string, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	filePath, err := s.activeFilePath("workspace.WorkspaceFileGet", filename)
+	filePath, err := s.resolveActiveWorkspaceFilePath("workspace.WorkspaceFileGet", workspaceFilePath)
 	if err != nil {
 		return "", err
 	}
@@ -163,11 +163,11 @@ func (s *Service) WorkspaceFileGet(filename string) (string, error) {
 }
 
 // Example: _ = service.WorkspaceFileSet("notes/todo.txt", "ship it")
-func (s *Service) WorkspaceFileSet(filename, content string) error {
+func (s *Service) WorkspaceFileSet(workspaceFilePath, content string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	filePath, err := s.activeFilePath("workspace.WorkspaceFileSet", filename)
+	filePath, err := s.resolveActiveWorkspaceFilePath("workspace.WorkspaceFileSet", workspaceFilePath)
 	if err != nil {
 		return err
 	}
@@ -197,8 +197,8 @@ func (s *Service) HandleIPCEvents(_ *core.Core, message core.Message) core.Resul
 			}
 			return core.Result{Value: workspaceID, OK: true}
 		case "workspace.switch":
-			name, _ := payload["name"].(string)
-			if err := s.SwitchWorkspace(name); err != nil {
+			workspaceID, _ := payload["name"].(string)
+			if err := s.SwitchWorkspace(workspaceID); err != nil {
 				return core.Result{}.New(err)
 			}
 			return core.Result{OK: true}
@@ -226,16 +226,16 @@ func joinPathWithinRoot(root string, parts ...string) (string, error) {
 	return "", fs.ErrPermission
 }
 
-func (s *Service) workspacePath(operation, workspaceName string) (string, error) {
-	if workspaceName == "" {
-		return "", core.E(operation, "workspace name is required", fs.ErrInvalid)
+func (s *Service) resolveWorkspaceDirectory(operation, workspaceID string) (string, error) {
+	if workspaceID == "" {
+		return "", core.E(operation, "workspace id is required", fs.ErrInvalid)
 	}
-	workspaceDirectory, err := joinPathWithinRoot(s.rootPath, workspaceName)
+	workspaceDirectory, err := joinPathWithinRoot(s.rootPath, workspaceID)
 	if err != nil {
 		return "", core.E(operation, "workspace path escapes root", err)
 	}
 	if core.PathDir(workspaceDirectory) != s.rootPath {
-		return "", core.E(operation, core.Concat("invalid workspace name: ", workspaceName), fs.ErrPermission)
+		return "", core.E(operation, core.Concat("invalid workspace id: ", workspaceID), fs.ErrPermission)
 	}
 	return workspaceDirectory, nil
 }

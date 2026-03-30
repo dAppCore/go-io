@@ -43,7 +43,7 @@ func TestStore_Get_NotFound_Bad(t *testing.T) {
 	s := newTestStore(t)
 
 	_, err := s.Get("config", "missing")
-	assert.Error(t, err)
+	assert.ErrorIs(t, err, NotFoundError)
 }
 
 func TestStore_Delete_Good(t *testing.T) {
@@ -54,7 +54,7 @@ func TestStore_Delete_Good(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = s.Get("config", "key")
-	assert.Error(t, err)
+	assert.ErrorIs(t, err, NotFoundError)
 }
 
 func TestStore_Count_Good(t *testing.T) {

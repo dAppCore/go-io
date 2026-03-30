@@ -34,18 +34,18 @@ func newTestService(t *testing.T) (*Service, string) {
 func TestService_Workspace_RoundTrip_Good(t *testing.T) {
 	s, tempHome := newTestService(t)
 
-	id, err := s.CreateWorkspace("test-user", "pass123")
+	workspaceID, err := s.CreateWorkspace("test-user", "pass123")
 	require.NoError(t, err)
-	assert.NotEmpty(t, id)
+	assert.NotEmpty(t, workspaceID)
 
-	wsPath := core.Path(tempHome, ".core", "workspaces", id)
-	assert.DirExists(t, wsPath)
-	assert.DirExists(t, core.Path(wsPath, "keys"))
-	assert.FileExists(t, core.Path(wsPath, "keys", "private.key"))
+	workspacePath := core.Path(tempHome, ".core", "workspaces", workspaceID)
+	assert.DirExists(t, workspacePath)
+	assert.DirExists(t, core.Path(workspacePath, "keys"))
+	assert.FileExists(t, core.Path(workspacePath, "keys", "private.key"))
 
-	err = s.SwitchWorkspace(id)
+	err = s.SwitchWorkspace(workspaceID)
 	require.NoError(t, err)
-	assert.Equal(t, id, s.activeWorkspace)
+	assert.Equal(t, workspaceID, s.activeWorkspaceID)
 
 	err = s.WorkspaceFileSet("secret.txt", "top secret info")
 	require.NoError(t, err)
@@ -63,17 +63,17 @@ func TestService_SwitchWorkspace_TraversalBlocked_Bad(t *testing.T) {
 
 	err := s.SwitchWorkspace("../escaped")
 	require.Error(t, err)
-	assert.Empty(t, s.activeWorkspace)
+	assert.Empty(t, s.activeWorkspaceID)
 }
 
 func TestService_WorkspaceFileSet_TraversalBlocked_Bad(t *testing.T) {
 	s, tempHome := newTestService(t)
 
-	id, err := s.CreateWorkspace("test-user", "pass123")
+	workspaceID, err := s.CreateWorkspace("test-user", "pass123")
 	require.NoError(t, err)
-	require.NoError(t, s.SwitchWorkspace(id))
+	require.NoError(t, s.SwitchWorkspace(workspaceID))
 
-	keyPath := core.Path(tempHome, ".core", "workspaces", id, "keys", "private.key")
+	keyPath := core.Path(tempHome, ".core", "workspaces", workspaceID, "keys", "private.key")
 	before, err := s.medium.Read(keyPath)
 	require.NoError(t, err)
 
@@ -98,16 +98,16 @@ func TestService_HandleIPCEvents_Good(t *testing.T) {
 	})
 	assert.True(t, create.OK)
 
-	id, ok := create.Value.(string)
+	workspaceID, ok := create.Value.(string)
 	require.True(t, ok)
-	require.NotEmpty(t, id)
+	require.NotEmpty(t, workspaceID)
 
 	switchResult := s.HandleIPCEvents(core.New(), map[string]any{
 		"action": "workspace.switch",
-		"name":   id,
+		"name":   workspaceID,
 	})
 	assert.True(t, switchResult.OK)
-	assert.Equal(t, id, s.activeWorkspace)
+	assert.Equal(t, workspaceID, s.activeWorkspaceID)
 
 	failedSwitch := s.HandleIPCEvents(core.New(), map[string]any{
 		"action": "workspace.switch",

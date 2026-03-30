@@ -23,14 +23,29 @@ import (
 )
 
 var (
-	// ErrInvalidKey is returned when the encryption key is invalid.
-	ErrInvalidKey = core.E("sigil.ErrInvalidKey", "invalid key size, must be 32 bytes", nil)
-	// ErrCiphertextTooShort is returned when the ciphertext is too short to decrypt.
-	ErrCiphertextTooShort = core.E("sigil.ErrCiphertextTooShort", "ciphertext too short", nil)
-	// ErrDecryptionFailed is returned when decryption or authentication fails.
-	ErrDecryptionFailed = core.E("sigil.ErrDecryptionFailed", "decryption failed", nil)
-	// ErrNoKeyConfigured is returned when no encryption key has been set.
-	ErrNoKeyConfigured = core.E("sigil.ErrNoKeyConfigured", "no encryption key configured", nil)
+	// InvalidKeyError is returned when the encryption key is not 32 bytes.
+	InvalidKeyError = core.E("sigil.InvalidKeyError", "invalid key size, must be 32 bytes", nil)
+	// ErrInvalidKey is kept for compatibility with older callers.
+	// Deprecated: use InvalidKeyError.
+	ErrInvalidKey = InvalidKeyError
+
+	// CiphertextTooShortError is returned when the ciphertext is too short to decrypt.
+	CiphertextTooShortError = core.E("sigil.CiphertextTooShortError", "ciphertext too short", nil)
+	// ErrCiphertextTooShort is kept for compatibility with older callers.
+	// Deprecated: use CiphertextTooShortError.
+	ErrCiphertextTooShort = CiphertextTooShortError
+
+	// DecryptionFailedError is returned when decryption or authentication fails.
+	DecryptionFailedError = core.E("sigil.DecryptionFailedError", "decryption failed", nil)
+	// ErrDecryptionFailed is kept for compatibility with older callers.
+	// Deprecated: use DecryptionFailedError.
+	ErrDecryptionFailed = DecryptionFailedError
+
+	// NoKeyConfiguredError is returned when no encryption key has been set.
+	NoKeyConfiguredError = core.E("sigil.NoKeyConfiguredError", "no encryption key configured", nil)
+	// ErrNoKeyConfigured is kept for compatibility with older callers.
+	// Deprecated: use NoKeyConfiguredError.
+	ErrNoKeyConfigured = NoKeyConfiguredError
 )
 
 // PreObfuscator applies a reversible transformation to data before encryption.
@@ -253,7 +268,7 @@ type ChaChaPolySigil struct {
 //	plaintext, _ := cipherSigil.Out(ciphertext)
 func NewChaChaPolySigil(key []byte) (*ChaChaPolySigil, error) {
 	if len(key) != 32 {
-		return nil, ErrInvalidKey
+		return nil, InvalidKeyError
 	}
 
 	keyCopy := make([]byte, 32)
@@ -289,7 +304,7 @@ func NewChaChaPolySigilWithObfuscator(key []byte, obfuscator PreObfuscator) (*Ch
 // The flow is: plaintext -> obfuscate -> encrypt
 func (s *ChaChaPolySigil) In(data []byte) ([]byte, error) {
 	if s.Key == nil {
-		return nil, ErrNoKeyConfigured
+		return nil, NoKeyConfiguredError
 	}
 	if data == nil {
 		return nil, nil
@@ -328,7 +343,7 @@ func (s *ChaChaPolySigil) In(data []byte) ([]byte, error) {
 // The flow is: decrypt -> deobfuscate -> plaintext
 func (s *ChaChaPolySigil) Out(data []byte) ([]byte, error) {
 	if s.Key == nil {
-		return nil, ErrNoKeyConfigured
+		return nil, NoKeyConfiguredError
 	}
 	if data == nil {
 		return nil, nil
@@ -341,7 +356,7 @@ func (s *ChaChaPolySigil) Out(data []byte) ([]byte, error) {
 
 	minLen := aead.NonceSize() + aead.Overhead()
 	if len(data) < minLen {
-		return nil, ErrCiphertextTooShort
+		return nil, CiphertextTooShortError
 	}
 
 	// Extract nonce from ciphertext
@@ -351,7 +366,7 @@ func (s *ChaChaPolySigil) Out(data []byte) ([]byte, error) {
 	// Decrypt
 	obfuscated, err := aead.Open(nil, nonce, ciphertext, nil)
 	if err != nil {
-		return nil, core.E("sigil.ChaChaPolySigil.Out", "decrypt ciphertext", ErrDecryptionFailed)
+		return nil, core.E("sigil.ChaChaPolySigil.Out", "decrypt ciphertext", DecryptionFailedError)
 	}
 
 	// Deobfuscate using the same nonce as entropy
@@ -373,7 +388,7 @@ func (s *ChaChaPolySigil) Out(data []byte) ([]byte, error) {
 func GetNonceFromCiphertext(ciphertext []byte) ([]byte, error) {
 	nonceSize := chacha20poly1305.NonceSizeX
 	if len(ciphertext) < nonceSize {
-		return nil, ErrCiphertextTooShort
+		return nil, CiphertextTooShortError
 	}
 	nonceCopy := make([]byte, nonceSize)
 	copy(nonceCopy, ciphertext[:nonceSize])

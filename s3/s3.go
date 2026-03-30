@@ -109,8 +109,8 @@ func New(options Options) (*Medium, error) {
 	return m, nil
 }
 
-// key returns the full S3 object key for a given path.
-func (m *Medium) key(filePath string) string {
+// objectKey maps a virtual path to the full S3 object key.
+func (m *Medium) objectKey(filePath string) string {
 	// Clean the path using a leading "/" to sandbox traversal attempts,
 	// then strip the "/" prefix. This ensures ".." can't escape.
 	clean := path.Clean("/" + filePath)
@@ -129,7 +129,7 @@ func (m *Medium) key(filePath string) string {
 }
 
 func (m *Medium) Read(filePath string) (string, error) {
-	key := m.key(filePath)
+	key := m.objectKey(filePath)
 	if key == "" {
 		return "", core.E("s3.Read", "path is required", fs.ErrInvalid)
 	}
@@ -151,7 +151,7 @@ func (m *Medium) Read(filePath string) (string, error) {
 }
 
 func (m *Medium) Write(filePath, content string) error {
-	key := m.key(filePath)
+	key := m.objectKey(filePath)
 	if key == "" {
 		return core.E("s3.Write", "path is required", fs.ErrInvalid)
 	}
@@ -179,7 +179,7 @@ func (m *Medium) EnsureDir(_ string) error {
 
 // IsFile checks if a path exists and is a regular file (not a "directory" prefix).
 func (m *Medium) IsFile(filePath string) bool {
-	key := m.key(filePath)
+	key := m.objectKey(filePath)
 	if key == "" {
 		return false
 	}
@@ -203,7 +203,7 @@ func (m *Medium) FileSet(filePath, content string) error {
 }
 
 func (m *Medium) Delete(filePath string) error {
-	key := m.key(filePath)
+	key := m.objectKey(filePath)
 	if key == "" {
 		return core.E("s3.Delete", "path is required", fs.ErrInvalid)
 	}
@@ -220,7 +220,7 @@ func (m *Medium) Delete(filePath string) error {
 
 // DeleteAll removes all objects under the given prefix.
 func (m *Medium) DeleteAll(filePath string) error {
-	key := m.key(filePath)
+	key := m.objectKey(filePath)
 	if key == "" {
 		return core.E("s3.DeleteAll", "path is required", fs.ErrInvalid)
 	}
@@ -285,8 +285,8 @@ func (m *Medium) DeleteAll(filePath string) error {
 
 // Rename moves an object by copying then deleting the original.
 func (m *Medium) Rename(oldPath, newPath string) error {
-	oldKey := m.key(oldPath)
-	newKey := m.key(newPath)
+	oldKey := m.objectKey(oldPath)
+	newKey := m.objectKey(newPath)
 	if oldKey == "" || newKey == "" {
 		return core.E("s3.Rename", "both old and new paths are required", fs.ErrInvalid)
 	}
@@ -315,7 +315,7 @@ func (m *Medium) Rename(oldPath, newPath string) error {
 
 // List returns directory entries for the given path using ListObjectsV2 with delimiter.
 func (m *Medium) List(filePath string) ([]fs.DirEntry, error) {
-	prefix := m.key(filePath)
+	prefix := m.objectKey(filePath)
 	if prefix != "" && !core.HasSuffix(prefix, "/") {
 		prefix += "/"
 	}
@@ -388,7 +388,7 @@ func (m *Medium) List(filePath string) ([]fs.DirEntry, error) {
 
 // Stat returns file information for the given path using HeadObject.
 func (m *Medium) Stat(filePath string) (fs.FileInfo, error) {
-	key := m.key(filePath)
+	key := m.objectKey(filePath)
 	if key == "" {
 		return nil, core.E("s3.Stat", "path is required", fs.ErrInvalid)
 	}
@@ -420,7 +420,7 @@ func (m *Medium) Stat(filePath string) (fs.FileInfo, error) {
 }
 
 func (m *Medium) Open(filePath string) (fs.File, error) {
-	key := m.key(filePath)
+	key := m.objectKey(filePath)
 	if key == "" {
 		return nil, core.E("s3.Open", "path is required", fs.ErrInvalid)
 	}
@@ -459,7 +459,7 @@ func (m *Medium) Open(filePath string) (fs.File, error) {
 // Create creates or truncates the named file. Returns a writer that
 // uploads the content on Close.
 func (m *Medium) Create(filePath string) (goio.WriteCloser, error) {
-	key := m.key(filePath)
+	key := m.objectKey(filePath)
 	if key == "" {
 		return nil, core.E("s3.Create", "path is required", fs.ErrInvalid)
 	}
@@ -472,7 +472,7 @@ func (m *Medium) Create(filePath string) (goio.WriteCloser, error) {
 // Append opens the named file for appending. It downloads the existing
 // content (if any) and re-uploads the combined content on Close.
 func (m *Medium) Append(filePath string) (goio.WriteCloser, error) {
-	key := m.key(filePath)
+	key := m.objectKey(filePath)
 	if key == "" {
 		return nil, core.E("s3.Append", "path is required", fs.ErrInvalid)
 	}
@@ -495,7 +495,7 @@ func (m *Medium) Append(filePath string) (goio.WriteCloser, error) {
 }
 
 func (m *Medium) ReadStream(filePath string) (goio.ReadCloser, error) {
-	key := m.key(filePath)
+	key := m.objectKey(filePath)
 	if key == "" {
 		return nil, core.E("s3.ReadStream", "path is required", fs.ErrInvalid)
 	}
@@ -516,7 +516,7 @@ func (m *Medium) WriteStream(filePath string) (goio.WriteCloser, error) {
 
 // Exists checks if a path exists (file or directory prefix).
 func (m *Medium) Exists(filePath string) bool {
-	key := m.key(filePath)
+	key := m.objectKey(filePath)
 	if key == "" {
 		return false
 	}
@@ -548,7 +548,7 @@ func (m *Medium) Exists(filePath string) bool {
 
 // IsDir checks if a path exists and is a directory (has objects under it as a prefix).
 func (m *Medium) IsDir(filePath string) bool {
-	key := m.key(filePath)
+	key := m.objectKey(filePath)
 	if key == "" {
 		return false
 	}
