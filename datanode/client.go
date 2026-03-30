@@ -70,10 +70,8 @@ func FromTar(data []byte) (*Medium, error) {
 	}, nil
 }
 
-// Snapshot serialises the entire filesystem to a tarball.
+// Example: snapshot, _ := medium.Snapshot()
 // Use this for crash reports, workspace packaging, or TIM creation.
-//
-//	result := m.Snapshot(...)
 func (m *Medium) Snapshot() ([]byte, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -84,9 +82,7 @@ func (m *Medium) Snapshot() ([]byte, error) {
 	return data, nil
 }
 
-// Restore replaces the filesystem contents from a tarball.
-//
-//	result := m.Restore(...)
+// Example: _ = medium.Restore(snapshot)
 func (m *Medium) Restore(data []byte) error {
 	dataNode, err := borgdatanode.FromTar(data)
 	if err != nil {
@@ -99,10 +95,8 @@ func (m *Medium) Restore(data []byte) error {
 	return nil
 }
 
-// DataNode returns the underlying Borg DataNode.
+// Example: dataNode := medium.DataNode()
 // Use this to wrap the filesystem in a TIM container.
-//
-//	result := m.DataNode(...)
 func (m *Medium) DataNode() *borgdatanode.DataNode {
 	m.mu.RLock()
 	defer m.mu.RUnlock()

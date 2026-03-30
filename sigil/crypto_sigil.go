@@ -62,8 +62,6 @@ type PreObfuscator interface {
 type XORObfuscator struct{}
 
 // Obfuscate XORs the data with a key stream derived from the entropy.
-//
-//	result := x.Obfuscate(...)
 func (x *XORObfuscator) Obfuscate(data []byte, entropy []byte) []byte {
 	if len(data) == 0 {
 		return data
@@ -72,8 +70,6 @@ func (x *XORObfuscator) Obfuscate(data []byte, entropy []byte) []byte {
 }
 
 // Deobfuscate reverses the XOR transformation (XOR is symmetric).
-//
-//	result := x.Deobfuscate(...)
 func (x *XORObfuscator) Deobfuscate(data []byte, entropy []byte) []byte {
 	if len(data) == 0 {
 		return data
@@ -128,8 +124,6 @@ func (x *XORObfuscator) deriveKeyStream(entropy []byte, length int) []byte {
 type ShuffleMaskObfuscator struct{}
 
 // Obfuscate shuffles bytes and applies a mask derived from entropy.
-//
-//	result := s.Obfuscate(...)
 func (s *ShuffleMaskObfuscator) Obfuscate(data []byte, entropy []byte) []byte {
 	if len(data) == 0 {
 		return data
@@ -157,8 +151,6 @@ func (s *ShuffleMaskObfuscator) Obfuscate(data []byte, entropy []byte) []byte {
 }
 
 // Deobfuscate reverses the shuffle and mask operations.
-//
-//	result := s.Deobfuscate(...)
 func (s *ShuffleMaskObfuscator) Deobfuscate(data []byte, entropy []byte) []byte {
 	if len(data) == 0 {
 		return data
@@ -291,8 +283,6 @@ func NewChaChaPolySigilWithObfuscator(key []byte, obfuscator PreObfuscator) (*Ch
 
 // In encrypts the data with pre-obfuscation.
 // The flow is: plaintext -> obfuscate -> encrypt
-//
-//	result := s.In(...)
 func (s *ChaChaPolySigil) In(data []byte) ([]byte, error) {
 	if s.Key == nil {
 		return nil, ErrNoKeyConfigured
@@ -332,8 +322,6 @@ func (s *ChaChaPolySigil) In(data []byte) ([]byte, error) {
 
 // Out decrypts the data and reverses obfuscation.
 // The flow is: decrypt -> deobfuscate -> plaintext
-//
-//	result := s.Out(...)
 func (s *ChaChaPolySigil) Out(data []byte) ([]byte, error) {
 	if s.Key == nil {
 		return nil, ErrNoKeyConfigured
@@ -378,8 +366,6 @@ func (s *ChaChaPolySigil) Out(data []byte) ([]byte, error) {
 // GetNonceFromCiphertext extracts the nonce from encrypted output.
 // This is provided for debugging/logging purposes only.
 // The nonce should NOT be stored separately in headers.
-//
-//	result := sigil.GetNonceFromCiphertext(...)
 func GetNonceFromCiphertext(ciphertext []byte) ([]byte, error) {
 	nonceSize := chacha20poly1305.NonceSizeX
 	if len(ciphertext) < nonceSize {

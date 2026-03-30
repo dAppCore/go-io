@@ -128,8 +128,6 @@ func (m *Medium) key(filePath string) string {
 }
 
 // Read retrieves the content of a file as a string.
-//
-//	result := m.Read(...)
 func (m *Medium) Read(filePath string) (string, error) {
 	key := m.key(filePath)
 	if key == "" {
@@ -153,8 +151,6 @@ func (m *Medium) Read(filePath string) (string, error) {
 }
 
 // Write saves the given content to a file, overwriting it if it exists.
-//
-//	result := m.Write(...)
 func (m *Medium) Write(filePath, content string) error {
 	key := m.key(filePath)
 	if key == "" {
@@ -173,22 +169,16 @@ func (m *Medium) Write(filePath, content string) error {
 }
 
 // WriteMode ignores the requested mode because S3 objects do not store POSIX permissions.
-//
-//	result := m.WriteMode(...)
 func (m *Medium) WriteMode(filePath, content string, _ fs.FileMode) error {
 	return m.Write(filePath, content)
 }
 
 // EnsureDir is a no-op for S3 (S3 has no real directories).
-//
-//	result := m.EnsureDir(...)
 func (m *Medium) EnsureDir(_ string) error {
 	return nil
 }
 
 // IsFile checks if a path exists and is a regular file (not a "directory" prefix).
-//
-//	result := m.IsFile(...)
 func (m *Medium) IsFile(filePath string) bool {
 	key := m.key(filePath)
 	if key == "" {
@@ -206,22 +196,16 @@ func (m *Medium) IsFile(filePath string) bool {
 }
 
 // FileGet is a convenience function that reads a file from the medium.
-//
-//	result := m.FileGet(...)
 func (m *Medium) FileGet(filePath string) (string, error) {
 	return m.Read(filePath)
 }
 
 // FileSet is a convenience function that writes a file to the medium.
-//
-//	result := m.FileSet(...)
 func (m *Medium) FileSet(filePath, content string) error {
 	return m.Write(filePath, content)
 }
 
 // Delete removes a single object.
-//
-//	result := m.Delete(...)
 func (m *Medium) Delete(filePath string) error {
 	key := m.key(filePath)
 	if key == "" {
@@ -239,8 +223,6 @@ func (m *Medium) Delete(filePath string) error {
 }
 
 // DeleteAll removes all objects under the given prefix.
-//
-//	result := m.DeleteAll(...)
 func (m *Medium) DeleteAll(filePath string) error {
 	key := m.key(filePath)
 	if key == "" {
@@ -306,8 +288,6 @@ func (m *Medium) DeleteAll(filePath string) error {
 }
 
 // Rename moves an object by copying then deleting the original.
-//
-//	result := m.Rename(...)
 func (m *Medium) Rename(oldPath, newPath string) error {
 	oldKey := m.key(oldPath)
 	newKey := m.key(newPath)
@@ -338,8 +318,6 @@ func (m *Medium) Rename(oldPath, newPath string) error {
 }
 
 // List returns directory entries for the given path using ListObjectsV2 with delimiter.
-//
-//	result := m.List(...)
 func (m *Medium) List(filePath string) ([]fs.DirEntry, error) {
 	prefix := m.key(filePath)
 	if prefix != "" && !core.HasSuffix(prefix, "/") {
@@ -413,8 +391,6 @@ func (m *Medium) List(filePath string) ([]fs.DirEntry, error) {
 }
 
 // Stat returns file information for the given path using HeadObject.
-//
-//	result := m.Stat(...)
 func (m *Medium) Stat(filePath string) (fs.FileInfo, error) {
 	key := m.key(filePath)
 	if key == "" {
@@ -448,8 +424,6 @@ func (m *Medium) Stat(filePath string) (fs.FileInfo, error) {
 }
 
 // Open opens the named file for reading.
-//
-//	result := m.Open(...)
 func (m *Medium) Open(filePath string) (fs.File, error) {
 	key := m.key(filePath)
 	if key == "" {
@@ -489,8 +463,6 @@ func (m *Medium) Open(filePath string) (fs.File, error) {
 
 // Create creates or truncates the named file. Returns a writer that
 // uploads the content on Close.
-//
-//	result := m.Create(...)
 func (m *Medium) Create(filePath string) (goio.WriteCloser, error) {
 	key := m.key(filePath)
 	if key == "" {
@@ -504,8 +476,6 @@ func (m *Medium) Create(filePath string) (goio.WriteCloser, error) {
 
 // Append opens the named file for appending. It downloads the existing
 // content (if any) and re-uploads the combined content on Close.
-//
-//	result := m.Append(...)
 func (m *Medium) Append(filePath string) (goio.WriteCloser, error) {
 	key := m.key(filePath)
 	if key == "" {
@@ -530,8 +500,6 @@ func (m *Medium) Append(filePath string) (goio.WriteCloser, error) {
 }
 
 // ReadStream returns a reader for the file content.
-//
-//	result := m.ReadStream(...)
 func (m *Medium) ReadStream(filePath string) (goio.ReadCloser, error) {
 	key := m.key(filePath)
 	if key == "" {
@@ -549,15 +517,11 @@ func (m *Medium) ReadStream(filePath string) (goio.ReadCloser, error) {
 }
 
 // WriteStream returns a writer for the file content. Content is uploaded on Close.
-//
-//	result := m.WriteStream(...)
 func (m *Medium) WriteStream(filePath string) (goio.WriteCloser, error) {
 	return m.Create(filePath)
 }
 
 // Exists checks if a path exists (file or directory prefix).
-//
-//	result := m.Exists(...)
 func (m *Medium) Exists(filePath string) bool {
 	key := m.key(filePath)
 	if key == "" {
@@ -590,8 +554,6 @@ func (m *Medium) Exists(filePath string) bool {
 }
 
 // IsDir checks if a path exists and is a directory (has objects under it as a prefix).
-//
-//	result := m.IsDir(...)
 func (m *Medium) IsDir(filePath string) bool {
 	key := m.key(filePath)
 	if key == "" {

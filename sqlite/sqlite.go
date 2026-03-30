@@ -81,8 +81,6 @@ func New(options Options) (*Medium, error) {
 }
 
 // Close closes the underlying database connection.
-//
-//	result := m.Close(...)
 func (m *Medium) Close() error {
 	if m.database != nil {
 		return m.database.Close()
@@ -101,8 +99,6 @@ func cleanPath(filePath string) string {
 }
 
 // Read retrieves the content of a file as a string.
-//
-//	result := m.Read(...)
 func (m *Medium) Read(filePath string) (string, error) {
 	key := cleanPath(filePath)
 	if key == "" {
@@ -127,15 +123,11 @@ func (m *Medium) Read(filePath string) (string, error) {
 }
 
 // Write saves the given content to a file, overwriting it if it exists.
-//
-//	result := m.Write(...)
 func (m *Medium) Write(filePath, content string) error {
 	return m.WriteMode(filePath, content, 0644)
 }
 
 // WriteMode saves the given content with explicit permissions.
-//
-//	result := m.WriteMode(...)
 func (m *Medium) WriteMode(filePath, content string, mode fs.FileMode) error {
 	key := cleanPath(filePath)
 	if key == "" {
@@ -154,8 +146,6 @@ func (m *Medium) WriteMode(filePath, content string, mode fs.FileMode) error {
 }
 
 // EnsureDir makes sure a directory exists, creating it if necessary.
-//
-//	result := m.EnsureDir(...)
 func (m *Medium) EnsureDir(filePath string) error {
 	key := cleanPath(filePath)
 	if key == "" {
@@ -175,8 +165,6 @@ func (m *Medium) EnsureDir(filePath string) error {
 }
 
 // IsFile checks if a path exists and is a regular file.
-//
-//	result := m.IsFile(...)
 func (m *Medium) IsFile(filePath string) bool {
 	key := cleanPath(filePath)
 	if key == "" {
@@ -194,22 +182,16 @@ func (m *Medium) IsFile(filePath string) bool {
 }
 
 // FileGet is a convenience function that reads a file from the medium.
-//
-//	result := m.FileGet(...)
 func (m *Medium) FileGet(filePath string) (string, error) {
 	return m.Read(filePath)
 }
 
 // FileSet is a convenience function that writes a file to the medium.
-//
-//	result := m.FileSet(...)
 func (m *Medium) FileSet(filePath, content string) error {
 	return m.Write(filePath, content)
 }
 
 // Delete removes a file or empty directory.
-//
-//	result := m.Delete(...)
 func (m *Medium) Delete(filePath string) error {
 	key := cleanPath(filePath)
 	if key == "" {
@@ -255,8 +237,6 @@ func (m *Medium) Delete(filePath string) error {
 }
 
 // DeleteAll removes a file or directory and all its contents recursively.
-//
-//	result := m.DeleteAll(...)
 func (m *Medium) DeleteAll(filePath string) error {
 	key := cleanPath(filePath)
 	if key == "" {
@@ -281,8 +261,6 @@ func (m *Medium) DeleteAll(filePath string) error {
 }
 
 // Rename moves a file or directory from oldPath to newPath.
-//
-//	result := m.Rename(...)
 func (m *Medium) Rename(oldPath, newPath string) error {
 	oldKey := cleanPath(oldPath)
 	newKey := cleanPath(newPath)
@@ -381,8 +359,6 @@ func (m *Medium) Rename(oldPath, newPath string) error {
 }
 
 // List returns the directory entries for the given path.
-//
-//	result := m.List(...)
 func (m *Medium) List(filePath string) ([]fs.DirEntry, error) {
 	prefix := cleanPath(filePath)
 	if prefix != "" {
@@ -459,8 +435,6 @@ func (m *Medium) List(filePath string) ([]fs.DirEntry, error) {
 }
 
 // Stat returns file information for the given path.
-//
-//	result := m.Stat(...)
 func (m *Medium) Stat(filePath string) (fs.FileInfo, error) {
 	key := cleanPath(filePath)
 	if key == "" {
@@ -492,8 +466,6 @@ func (m *Medium) Stat(filePath string) (fs.FileInfo, error) {
 }
 
 // Open opens the named file for reading.
-//
-//	result := m.Open(...)
 func (m *Medium) Open(filePath string) (fs.File, error) {
 	key := cleanPath(filePath)
 	if key == "" {
@@ -526,8 +498,6 @@ func (m *Medium) Open(filePath string) (fs.File, error) {
 }
 
 // Create creates or truncates the named file.
-//
-//	result := m.Create(...)
 func (m *Medium) Create(filePath string) (goio.WriteCloser, error) {
 	key := cleanPath(filePath)
 	if key == "" {
@@ -540,8 +510,6 @@ func (m *Medium) Create(filePath string) (goio.WriteCloser, error) {
 }
 
 // Append opens the named file for appending, creating it if it doesn't exist.
-//
-//	result := m.Append(...)
 func (m *Medium) Append(filePath string) (goio.WriteCloser, error) {
 	key := cleanPath(filePath)
 	if key == "" {
@@ -564,8 +532,6 @@ func (m *Medium) Append(filePath string) (goio.WriteCloser, error) {
 }
 
 // ReadStream returns a reader for the file content.
-//
-//	result := m.ReadStream(...)
 func (m *Medium) ReadStream(filePath string) (goio.ReadCloser, error) {
 	key := cleanPath(filePath)
 	if key == "" {
@@ -591,15 +557,11 @@ func (m *Medium) ReadStream(filePath string) (goio.ReadCloser, error) {
 }
 
 // WriteStream returns a writer for the file content. Content is stored on Close.
-//
-//	result := m.WriteStream(...)
 func (m *Medium) WriteStream(filePath string) (goio.WriteCloser, error) {
 	return m.Create(filePath)
 }
 
 // Exists checks if a path exists (file or directory).
-//
-//	result := m.Exists(...)
 func (m *Medium) Exists(filePath string) bool {
 	key := cleanPath(filePath)
 	if key == "" {
@@ -618,8 +580,6 @@ func (m *Medium) Exists(filePath string) bool {
 }
 
 // IsDir checks if a path exists and is a directory.
-//
-//	result := m.IsDir(...)
 func (m *Medium) IsDir(filePath string) bool {
 	key := cleanPath(filePath)
 	if key == "" {

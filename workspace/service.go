@@ -77,11 +77,9 @@ func New(options Options) (*Service, error) {
 	return s, nil
 }
 
-// CreateWorkspace creates a new encrypted workspace.
+// Example: workspaceID, _ := service.CreateWorkspace("alice", "pass123")
 // Identifier is hashed (SHA-256) to create the directory name.
 // A PGP keypair is generated using the password.
-//
-//	result := s.CreateWorkspace(...)
 func (s *Service) CreateWorkspace(identifier, password string) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -119,9 +117,7 @@ func (s *Service) CreateWorkspace(identifier, password string) (string, error) {
 	return workspaceID, nil
 }
 
-// SwitchWorkspace changes the active workspace.
-//
-//	result := s.SwitchWorkspace(...)
+// Example: _ = service.SwitchWorkspace(workspaceID)
 func (s *Service) SwitchWorkspace(name string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -155,9 +151,7 @@ func (s *Service) activeFilePath(operation, filename string) (string, error) {
 	return filePath, nil
 }
 
-// WorkspaceFileGet retrieves the content of a file from the active workspace.
-//
-//	result := s.WorkspaceFileGet(...)
+// Example: content, _ := service.WorkspaceFileGet("notes/todo.txt")
 func (s *Service) WorkspaceFileGet(filename string) (string, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -169,9 +163,7 @@ func (s *Service) WorkspaceFileGet(filename string) (string, error) {
 	return s.medium.Read(filePath)
 }
 
-// WorkspaceFileSet saves content to a file in the active workspace.
-//
-//	result := s.WorkspaceFileSet(...)
+// Example: _ = service.WorkspaceFileSet("notes/todo.txt", "ship it")
 func (s *Service) WorkspaceFileSet(filename, content string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -186,12 +178,12 @@ func (s *Service) WorkspaceFileSet(filename, content string) error {
 // HandleIPCEvents handles workspace-related IPC messages.
 //
 //	service, _ := workspace.New(workspace.Options{Core: core.New(), Crypt: myCryptProvider})
-//	result := service.HandleIPCEvents(core.New(), map[string]any{
+//	ipcResult := service.HandleIPCEvents(core.New(), map[string]any{
 //		"action":     "workspace.create",
 //		"identifier": "alice",
 //		"password":   "pass123",
 //	})
-//	_ = result.OK
+//	_ = ipcResult.OK
 func (s *Service) HandleIPCEvents(_ *core.Core, message core.Message) core.Result {
 	switch payload := message.(type) {
 	case map[string]any:

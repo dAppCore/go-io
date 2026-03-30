@@ -45,8 +45,6 @@ type Sigil interface {
 // stops immediately and returns nil with that error.
 //
 // To reverse a transmutation, call each sigil's Out method in reverse order.
-//
-//	result := sigil.Transmute(...)
 func Transmute(data []byte, sigils []Sigil) ([]byte, error) {
 	var err error
 	for _, s := range sigils {
@@ -63,8 +61,6 @@ func Transmute(data []byte, sigils []Sigil) ([]byte, error) {
 // Each sigil's Out method is called in reverse order, with the output of one sigil
 // becoming the input of the next. If any sigil returns an error, Untransmute
 // stops immediately and returns nil with that error.
-//
-//	result := sigil.Untransmute(...)
 func Untransmute(data []byte, sigils []Sigil) ([]byte, error) {
 	var err error
 	for i := len(sigils) - 1; i >= 0; i-- {

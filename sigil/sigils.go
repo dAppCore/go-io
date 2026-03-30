@@ -25,8 +25,6 @@ import (
 type ReverseSigil struct{}
 
 // In reverses the bytes of the data.
-//
-//	result := s.In(...)
 func (s *ReverseSigil) In(data []byte) ([]byte, error) {
 	if data == nil {
 		return nil, nil
@@ -39,8 +37,6 @@ func (s *ReverseSigil) In(data []byte) ([]byte, error) {
 }
 
 // Out reverses the bytes of the data.
-//
-//	result := s.Out(...)
 func (s *ReverseSigil) Out(data []byte) ([]byte, error) {
 	return s.In(data)
 }
@@ -50,8 +46,6 @@ func (s *ReverseSigil) Out(data []byte) ([]byte, error) {
 type HexSigil struct{}
 
 // In encodes the data to hexadecimal.
-//
-//	result := s.In(...)
 func (s *HexSigil) In(data []byte) ([]byte, error) {
 	if data == nil {
 		return nil, nil
@@ -62,8 +56,6 @@ func (s *HexSigil) In(data []byte) ([]byte, error) {
 }
 
 // Out decodes the data from hexadecimal.
-//
-//	result := s.Out(...)
 func (s *HexSigil) Out(data []byte) ([]byte, error) {
 	if data == nil {
 		return nil, nil
@@ -78,8 +70,6 @@ func (s *HexSigil) Out(data []byte) ([]byte, error) {
 type Base64Sigil struct{}
 
 // In encodes the data to base64.
-//
-//	result := s.In(...)
 func (s *Base64Sigil) In(data []byte) ([]byte, error) {
 	if data == nil {
 		return nil, nil
@@ -90,8 +80,6 @@ func (s *Base64Sigil) In(data []byte) ([]byte, error) {
 }
 
 // Out decodes the data from base64.
-//
-//	result := s.Out(...)
 func (s *Base64Sigil) Out(data []byte) ([]byte, error) {
 	if data == nil {
 		return nil, nil
@@ -108,8 +96,6 @@ type GzipSigil struct {
 }
 
 // In compresses the data using gzip.
-//
-//	result := s.In(...)
 func (s *GzipSigil) In(data []byte) ([]byte, error) {
 	if data == nil {
 		return nil, nil
@@ -130,8 +116,6 @@ func (s *GzipSigil) In(data []byte) ([]byte, error) {
 }
 
 // Out decompresses the data using gzip.
-//
-//	result := s.Out(...)
 func (s *GzipSigil) Out(data []byte) ([]byte, error) {
 	if data == nil {
 		return nil, nil
@@ -153,8 +137,6 @@ func (s *GzipSigil) Out(data []byte) ([]byte, error) {
 type JSONSigil struct{ Indent bool }
 
 // In compacts or indents the JSON data.
-//
-//	result := s.In(...)
 func (s *JSONSigil) In(data []byte) ([]byte, error) {
 	if data == nil {
 		return nil, nil
@@ -177,8 +159,6 @@ func (s *JSONSigil) In(data []byte) ([]byte, error) {
 }
 
 // Out is a no-op for JSONSigil.
-//
-//	result := s.Out(...)
 func (s *JSONSigil) Out(data []byte) ([]byte, error) {
 	// For simplicity, Out is a no-op. The primary use is formatting.
 	return data, nil
@@ -199,8 +179,6 @@ func NewHashSigil(h crypto.Hash) *HashSigil {
 }
 
 // In hashes the data.
-//
-//	result := s.In(...)
 func (s *HashSigil) In(data []byte) ([]byte, error) {
 	var h io.Writer
 	switch s.Hash {
@@ -250,16 +228,12 @@ func (s *HashSigil) In(data []byte) ([]byte, error) {
 }
 
 // Out is a no-op for HashSigil.
-//
-//	result := s.Out(...)
 func (s *HashSigil) Out(data []byte) ([]byte, error) {
 	return data, nil
 }
 
 // NewSigil is a factory function that returns a Sigil based on a string name.
 // It is the primary way to create Sigil instances.
-//
-//	result := sigil.NewSigil(...)
 func NewSigil(name string) (Sigil, error) {
 	switch name {
 	case "reverse":

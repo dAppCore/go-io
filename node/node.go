@@ -41,8 +41,6 @@ func New() *Node {
 // ---------- Node-specific methods ----------
 
 // AddData stages content in the in-memory filesystem.
-//
-//	result := n.AddData(...)
 func (n *Node) AddData(name string, content []byte) {
 	name = core.TrimPrefix(name, "/")
 	if name == "" {
@@ -60,8 +58,6 @@ func (n *Node) AddData(name string, content []byte) {
 }
 
 // ToTar serialises the entire in-memory tree to a tar archive.
-//
-//	result := n.ToTar(...)
 func (n *Node) ToTar() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	tw := tar.NewWriter(buf)
@@ -89,8 +85,6 @@ func (n *Node) ToTar() ([]byte, error) {
 }
 
 // FromTar creates a new Node from a tar archive.
-//
-//	result := node.FromTar(...)
 func FromTar(data []byte) (*Node, error) {
 	n := New()
 	if err := n.LoadTar(data); err != nil {
@@ -100,8 +94,6 @@ func FromTar(data []byte) (*Node, error) {
 }
 
 // LoadTar replaces the in-memory tree with the contents of a tar archive.
-//
-//	result := n.LoadTar(...)
 func (n *Node) LoadTar(data []byte) error {
 	newFiles := make(map[string]*dataFile)
 	tr := tar.NewReader(bytes.NewReader(data))
@@ -137,8 +129,6 @@ func (n *Node) LoadTar(data []byte) error {
 }
 
 // WalkNode walks the in-memory tree, calling fn for each entry.
-//
-//	result := n.WalkNode(...)
 func (n *Node) WalkNode(root string, fn fs.WalkDirFunc) error {
 	return fs.WalkDir(n, root, fn)
 }
@@ -156,8 +146,6 @@ type WalkOptions struct {
 }
 
 // Walk walks the in-memory tree with optional WalkOptions.
-//
-//	result := n.Walk(...)
 func (n *Node) Walk(root string, fn fs.WalkDirFunc, opts ...WalkOptions) error {
 	var opt WalkOptions
 	if len(opts) > 0 {
@@ -200,8 +188,6 @@ func (n *Node) Walk(root string, fn fs.WalkDirFunc, opts ...WalkOptions) error {
 
 // ReadFile returns the content of the named file as a byte slice.
 // Implements fs.ReadFileFS.
-//
-//	result := n.ReadFile(...)
 func (n *Node) ReadFile(name string) ([]byte, error) {
 	name = core.TrimPrefix(name, "/")
 	f, ok := n.files[name]
@@ -215,8 +201,6 @@ func (n *Node) ReadFile(name string) ([]byte, error) {
 }
 
 // CopyFile copies a file from the in-memory tree to the local filesystem.
-//
-//	result := n.CopyFile(...)
 func (n *Node) CopyFile(sourcePath, destinationPath string, perm fs.FileMode) error {
 	sourcePath = core.TrimPrefix(sourcePath, "/")
 	f, ok := n.files[sourcePath]
@@ -285,8 +269,6 @@ func (n *Node) CopyTo(target coreio.Medium, sourcePath, destPath string) error {
 // ---------- Medium interface: fs.FS methods ----------
 
 // Open opens a file from the Node. Implements fs.FS.
-//
-//	result := n.Open(...)
 func (n *Node) Open(name string) (fs.File, error) {
 	name = core.TrimPrefix(name, "/")
 	if file, ok := n.files[name]; ok {
@@ -306,8 +288,6 @@ func (n *Node) Open(name string) (fs.File, error) {
 }
 
 // Stat returns file information for the given path.
-//
-//	result := n.Stat(...)
 func (n *Node) Stat(name string) (fs.FileInfo, error) {
 	name = core.TrimPrefix(name, "/")
 	if file, ok := n.files[name]; ok {
@@ -327,8 +307,6 @@ func (n *Node) Stat(name string) (fs.FileInfo, error) {
 }
 
 // ReadDir reads and returns all directory entries for the named directory.
-//
-//	result := n.ReadDir(...)
 func (n *Node) ReadDir(name string) ([]fs.DirEntry, error) {
 	name = core.TrimPrefix(name, "/")
 	if name == "." {
@@ -381,8 +359,6 @@ func (n *Node) ReadDir(name string) ([]fs.DirEntry, error) {
 // ---------- Medium interface: read/write ----------
 
 // Read retrieves the content of a file as a string.
-//
-//	result := n.Read(...)
 func (n *Node) Read(filePath string) (string, error) {
 	filePath = core.TrimPrefix(filePath, "/")
 	f, ok := n.files[filePath]
@@ -393,16 +369,12 @@ func (n *Node) Read(filePath string) (string, error) {
 }
 
 // Write saves the given content to a file, overwriting it if it exists.
-//
-//	result := n.Write(...)
 func (n *Node) Write(filePath, content string) error {
 	n.AddData(filePath, []byte(content))
 	return nil
 }
 
 // WriteMode saves content with explicit permissions (no-op for in-memory node).
-//
-//	result := n.WriteMode(...)
 func (n *Node) WriteMode(filePath, content string, mode fs.FileMode) error {
 	return n.Write(filePath, content)
 }
@@ -416,8 +388,6 @@ func (n *Node) FileSet(filePath, content string) error {
 }
 
 // EnsureDir is a no-op because directories are implicit in Node.
-//
-//	result := n.EnsureDir(...)
 func (n *Node) EnsureDir(_ string) error {
 	return nil
 }
@@ -425,16 +395,12 @@ func (n *Node) EnsureDir(_ string) error {
 // ---------- Medium interface: existence checks ----------
 
 // Exists checks if a path exists (file or directory).
-//
-//	result := n.Exists(...)
 func (n *Node) Exists(filePath string) bool {
 	_, err := n.Stat(filePath)
 	return err == nil
 }
 
 // IsFile checks if a path exists and is a regular file.
-//
-//	result := n.IsFile(...)
 func (n *Node) IsFile(filePath string) bool {
 	filePath = core.TrimPrefix(filePath, "/")
 	_, ok := n.files[filePath]
@@ -442,8 +408,6 @@ func (n *Node) IsFile(filePath string) bool {
 }
 
 // IsDir checks if a path exists and is a directory.
-//
-//	result := n.IsDir(...)
 func (n *Node) IsDir(filePath string) bool {
 	info, err := n.Stat(filePath)
 	if err != nil {
@@ -455,8 +419,6 @@ func (n *Node) IsDir(filePath string) bool {
 // ---------- Medium interface: mutations ----------
 
 // Delete removes a single file.
-//
-//	result := n.Delete(...)
 func (n *Node) Delete(filePath string) error {
 	filePath = core.TrimPrefix(filePath, "/")
 	if _, ok := n.files[filePath]; ok {
@@ -467,8 +429,6 @@ func (n *Node) Delete(filePath string) error {
 }
 
 // DeleteAll removes a file or directory and all children.
-//
-//	result := n.DeleteAll(...)
 func (n *Node) DeleteAll(filePath string) error {
 	filePath = core.TrimPrefix(filePath, "/")
 
@@ -493,8 +453,6 @@ func (n *Node) DeleteAll(filePath string) error {
 }
 
 // Rename moves a file from oldPath to newPath.
-//
-//	result := n.Rename(...)
 func (n *Node) Rename(oldPath, newPath string) error {
 	oldPath = core.TrimPrefix(oldPath, "/")
 	newPath = core.TrimPrefix(newPath, "/")
@@ -511,8 +469,6 @@ func (n *Node) Rename(oldPath, newPath string) error {
 }
 
 // List returns directory entries for the given path.
-//
-//	result := n.List(...)
 func (n *Node) List(filePath string) ([]fs.DirEntry, error) {
 	filePath = core.TrimPrefix(filePath, "/")
 	if filePath == "" || filePath == "." {
@@ -525,8 +481,6 @@ func (n *Node) List(filePath string) ([]fs.DirEntry, error) {
 
 // Create creates or truncates the named file, returning a WriteCloser.
 // Content is committed to the Node on Close.
-//
-//	result := n.Create(...)
 func (n *Node) Create(filePath string) (goio.WriteCloser, error) {
 	filePath = core.TrimPrefix(filePath, "/")
 	return &nodeWriter{node: n, path: filePath}, nil
@@ -534,8 +488,6 @@ func (n *Node) Create(filePath string) (goio.WriteCloser, error) {
 
 // Append opens the named file for appending, creating it if needed.
 // Content is committed to the Node on Close.
-//
-//	result := n.Append(...)
 func (n *Node) Append(filePath string) (goio.WriteCloser, error) {
 	filePath = core.TrimPrefix(filePath, "/")
 	var existing []byte
@@ -547,8 +499,6 @@ func (n *Node) Append(filePath string) (goio.WriteCloser, error) {
 }
 
 // ReadStream returns a ReadCloser for the file content.
-//
-//	result := n.ReadStream(...)
 func (n *Node) ReadStream(filePath string) (goio.ReadCloser, error) {
 	f, err := n.Open(filePath)
 	if err != nil {
@@ -558,8 +508,6 @@ func (n *Node) ReadStream(filePath string) (goio.ReadCloser, error) {
 }
 
 // WriteStream returns a WriteCloser for the file content.
-//
-//	result := n.WriteStream(...)
 func (n *Node) WriteStream(filePath string) (goio.WriteCloser, error) {
 	return n.Create(filePath)
 }

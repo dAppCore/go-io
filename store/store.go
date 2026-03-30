@@ -43,16 +43,12 @@ func New(dbPath string) (*Store, error) {
 	return &Store{database: database}, nil
 }
 
-// Close closes the underlying database.
-//
-//	result := s.Close(...)
+// Example: _ = kvStore.Close()
 func (s *Store) Close() error {
 	return s.database.Close()
 }
 
-// Get retrieves a value by group and key.
-//
-//	result := s.Get(...)
+// Example: theme, _ := kvStore.Get("app", "theme")
 func (s *Store) Get(group, key string) (string, error) {
 	var value string
 	err := s.database.QueryRow("SELECT value FROM kv WHERE grp = ? AND key = ?", group, key).Scan(&value)
@@ -65,9 +61,7 @@ func (s *Store) Get(group, key string) (string, error) {
 	return value, nil
 }
 
-// Set stores a value by group and key, overwriting if exists.
-//
-//	result := s.Set(...)
+// Example: _ = kvStore.Set("app", "theme", "midnight")
 func (s *Store) Set(group, key, value string) error {
 	_, err := s.database.Exec(
 		`INSERT INTO kv (grp, key, value) VALUES (?, ?, ?)
@@ -80,9 +74,7 @@ func (s *Store) Set(group, key, value string) error {
 	return nil
 }
 
-// Delete removes a single key from a group.
-//
-//	result := s.Delete(...)
+// Example: _ = kvStore.Delete("app", "theme")
 func (s *Store) Delete(group, key string) error {
 	_, err := s.database.Exec("DELETE FROM kv WHERE grp = ? AND key = ?", group, key)
 	if err != nil {
@@ -91,9 +83,7 @@ func (s *Store) Delete(group, key string) error {
 	return nil
 }
 
-// Count returns the number of keys in a group.
-//
-//	result := s.Count(...)
+// Example: count, _ := kvStore.Count("app")
 func (s *Store) Count(group string) (int, error) {
 	var count int
 	err := s.database.QueryRow("SELECT COUNT(*) FROM kv WHERE grp = ?", group).Scan(&count)
@@ -103,9 +93,7 @@ func (s *Store) Count(group string) (int, error) {
 	return count, nil
 }
 
-// DeleteGroup removes all keys in a group.
-//
-//	result := s.DeleteGroup(...)
+// Example: _ = kvStore.DeleteGroup("app")
 func (s *Store) DeleteGroup(group string) error {
 	_, err := s.database.Exec("DELETE FROM kv WHERE grp = ?", group)
 	if err != nil {
@@ -114,9 +102,7 @@ func (s *Store) DeleteGroup(group string) error {
 	return nil
 }
 
-// GetAll returns all key-value pairs in a group.
-//
-//	result := s.GetAll(...)
+// Example: values, _ := kvStore.GetAll("app")
 func (s *Store) GetAll(group string) (map[string]string, error) {
 	rows, err := s.database.Query("SELECT key, value FROM kv WHERE grp = ?", group)
 	if err != nil {
