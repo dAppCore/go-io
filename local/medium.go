@@ -25,10 +25,7 @@ var unrestrictedFileSystem = (&core.Fs{}).NewUnrestricted()
 // _ = medium.Write("config/app.yaml", "port: 8080")
 func New(root string) (*Medium, error) {
 	absoluteRoot := absolutePath(root)
-	// Resolve symlinks so sandbox checks compare like-for-like.
-	// On macOS, /var is a symlink to /private/var — without this,
-	// resolving child paths resolves to /private/var/... while
-	// root stays /var/..., causing false sandbox escape detections.
+	// Example: local.New("/srv/app") resolves macOS "/var" to "/private/var" before sandbox checks.
 	if resolvedRoot, err := resolveSymlinksPath(absoluteRoot); err == nil {
 		absoluteRoot = resolvedRoot
 	}
