@@ -7,12 +7,31 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestStore_SetGet_Good(t *testing.T) {
-	s, err := New(":memory:")
-	require.NoError(t, err)
-	defer s.Close()
+func newTestStore(t *testing.T) *Store {
+	t.Helper()
 
-	err = s.Set("config", "theme", "dark")
+	s, err := New(Options{Path: ":memory:"})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, s.Close())
+	})
+	return s
+}
+
+func TestStore_New_Options_Good(t *testing.T) {
+	s := newTestStore(t)
+	assert.NotNil(t, s)
+}
+
+func TestStore_New_Options_Bad(t *testing.T) {
+	_, err := New(Options{})
+	assert.Error(t, err)
+}
+
+func TestStore_SetGet_Good(t *testing.T) {
+	s := newTestStore(t)
+
+	err := s.Set("config", "theme", "dark")
 	require.NoError(t, err)
 
 	val, err := s.Get("config", "theme")
@@ -21,16 +40,14 @@ func TestStore_SetGet_Good(t *testing.T) {
 }
 
 func TestStore_Get_NotFound_Bad(t *testing.T) {
-	s, _ := New(":memory:")
-	defer s.Close()
+	s := newTestStore(t)
 
 	_, err := s.Get("config", "missing")
 	assert.Error(t, err)
 }
 
 func TestStore_Delete_Good(t *testing.T) {
-	s, _ := New(":memory:")
-	defer s.Close()
+	s := newTestStore(t)
 
 	_ = s.Set("config", "key", "val")
 	err := s.Delete("config", "key")
@@ -41,8 +58,7 @@ func TestStore_Delete_Good(t *testing.T) {
 }
 
 func TestStore_Count_Good(t *testing.T) {
-	s, _ := New(":memory:")
-	defer s.Close()
+	s := newTestStore(t)
 
 	_ = s.Set("grp", "a", "1")
 	_ = s.Set("grp", "b", "2")
@@ -54,8 +70,7 @@ func TestStore_Count_Good(t *testing.T) {
 }
 
 func TestStore_DeleteGroup_Good(t *testing.T) {
-	s, _ := New(":memory:")
-	defer s.Close()
+	s := newTestStore(t)
 
 	_ = s.Set("grp", "a", "1")
 	_ = s.Set("grp", "b", "2")
@@ -67,8 +82,7 @@ func TestStore_DeleteGroup_Good(t *testing.T) {
 }
 
 func TestStore_GetAll_Good(t *testing.T) {
-	s, _ := New(":memory:")
-	defer s.Close()
+	s := newTestStore(t)
 
 	_ = s.Set("grp", "a", "1")
 	_ = s.Set("grp", "b", "2")
@@ -80,8 +94,7 @@ func TestStore_GetAll_Good(t *testing.T) {
 }
 
 func TestStore_GetAll_Empty_Good(t *testing.T) {
-	s, _ := New(":memory:")
-	defer s.Close()
+	s := newTestStore(t)
 
 	all, err := s.GetAll("empty")
 	require.NoError(t, err)
@@ -89,8 +102,7 @@ func TestStore_GetAll_Empty_Good(t *testing.T) {
 }
 
 func TestStore_Render_Good(t *testing.T) {
-	s, _ := New(":memory:")
-	defer s.Close()
+	s := newTestStore(t)
 
 	_ = s.Set("user", "pool", "pool.lthn.io:3333")
 	_ = s.Set("user", "wallet", "iz...")

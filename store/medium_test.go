@@ -11,7 +11,7 @@ import (
 
 func newTestMedium(t *testing.T) *Medium {
 	t.Helper()
-	m, err := NewMedium(":memory:")
+	m, err := NewMedium(Options{Path: ":memory:"})
 	require.NoError(t, err)
 	t.Cleanup(func() { m.Close() })
 	return m
@@ -185,9 +185,7 @@ func TestMedium_Medium_Append_Good(t *testing.T) {
 }
 
 func TestMedium_Medium_AsMedium_Good(t *testing.T) {
-	s, err := New(":memory:")
-	require.NoError(t, err)
-	defer s.Close()
+	s := newTestStore(t)
 
 	m := s.AsMedium()
 	require.NoError(t, m.Write("grp/key", "val"))

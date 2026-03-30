@@ -187,17 +187,6 @@ func (n *Node) WalkWithOptions(root string, fn fs.WalkDirFunc, options WalkOptio
 	})
 }
 
-// Walk preserves the historic varargs call shape for compatibility.
-//
-// For new code, prefer WalkWithOptions so the configuration stays explicit.
-func (n *Node) Walk(root string, fn fs.WalkDirFunc, opts ...WalkOptions) error {
-	var opt WalkOptions
-	if len(opts) > 0 {
-		opt = opts[0]
-	}
-	return n.WalkWithOptions(root, fn, opt)
-}
-
 func (n *Node) ReadFile(name string) ([]byte, error) {
 	name = core.TrimPrefix(name, "/")
 	f, ok := n.files[name]

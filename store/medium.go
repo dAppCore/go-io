@@ -22,10 +22,10 @@ var _ coreio.Medium = (*Medium)(nil)
 
 // NewMedium exposes a Store as an io.Medium.
 //
-//	medium, _ := store.NewMedium("config.db")
+//	medium, _ := store.NewMedium(store.Options{Path: "config.db"})
 //	_ = medium.Write("app/theme", "midnight")
-func NewMedium(dbPath string) (*Medium, error) {
-	store, err := New(dbPath)
+func NewMedium(options Options) (*Medium, error) {
+	store, err := New(options)
 	if err != nil {
 		return nil, err
 	}

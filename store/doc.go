@@ -1,6 +1,6 @@
 // Package store provides a SQLite-backed group-namespaced key-value store.
 //
-//	kvStore, _ := store.New(":memory:")
+//	kvStore, _ := store.New(store.Options{Path: ":memory:"})
 //	_ = kvStore.Set("app", "theme", "midnight")
 //	medium := kvStore.AsMedium()
 //	_ = medium.Write("app/theme", "midnight")

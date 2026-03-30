@@ -259,41 +259,41 @@ func TestNode_Exists_Ugly(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// Walk
+// WalkWithOptions
 // ---------------------------------------------------------------------------
 
-func TestNode_Walk_Good(t *testing.T) {
+func TestNode_WalkWithOptions_Default_Good(t *testing.T) {
 	n := New()
 	n.AddData("foo.txt", []byte("foo"))
 	n.AddData("bar/baz.txt", []byte("baz"))
 	n.AddData("bar/qux.txt", []byte("qux"))
 
 	var paths []string
-	err := n.Walk(".", func(p string, d fs.DirEntry, err error) error {
+	err := n.WalkWithOptions(".", func(p string, d fs.DirEntry, err error) error {
 		paths = append(paths, p)
 		return nil
-	})
+	}, WalkOptions{})
 	require.NoError(t, err)
 
 	sort.Strings(paths)
 	assert.Equal(t, []string{".", "bar", "bar/baz.txt", "bar/qux.txt", "foo.txt"}, paths)
 }
 
-func TestNode_Walk_Bad(t *testing.T) {
+func TestNode_WalkWithOptions_Default_Bad(t *testing.T) {
 	n := New()
 
 	var called bool
-	err := n.Walk("nonexistent", func(p string, d fs.DirEntry, err error) error {
+	err := n.WalkWithOptions("nonexistent", func(p string, d fs.DirEntry, err error) error {
 		called = true
 		assert.Error(t, err)
 		assert.ErrorIs(t, err, fs.ErrNotExist)
 		return err
-	})
+	}, WalkOptions{})
 	assert.True(t, called, "walk function must be called for nonexistent root")
 	assert.ErrorIs(t, err, fs.ErrNotExist)
 }
 
-func TestNode_Walk_Ugly(t *testing.T) {
+func TestNode_WalkWithOptions_Default_Ugly(t *testing.T) {
 	n := New()
 	n.AddData("a/b.txt", []byte("b"))
 	n.AddData("a/c.txt", []byte("c"))
@@ -301,13 +301,13 @@ func TestNode_Walk_Ugly(t *testing.T) {
 	// Stop walk early with a custom error.
 	walkErr := core.NewError("stop walking")
 	var paths []string
-	err := n.Walk(".", func(p string, d fs.DirEntry, err error) error {
+	err := n.WalkWithOptions(".", func(p string, d fs.DirEntry, err error) error {
 		if p == "a/b.txt" {
 			return walkErr
 		}
 		paths = append(paths, p)
 		return nil
-	})
+	}, WalkOptions{})
 
 	assert.Equal(t, walkErr, err, "Walk must propagate the callback error")
 }

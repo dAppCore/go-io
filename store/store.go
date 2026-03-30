@@ -2,6 +2,8 @@ package store
 
 import (
 	"database/sql"
+	"errors"
+	"io/fs"
 	"text/template"
 
 	core "dappco.re/go/core"
@@ -9,22 +11,29 @@ import (
 )
 
 // ErrNotFound is returned when a key does not exist in the store.
-var ErrNotFound = core.E("store.ErrNotFound", "key not found", nil)
+var ErrNotFound = errors.New("key not found")
 
 // Store is a group-namespaced key-value store backed by SQLite.
 type Store struct {
 	database *sql.DB
 }
 
-// Use New to open a SQLite-backed key-value store.
-// Use ":memory:" for tests.
+// Options configures a Store.
+type Options struct {
+	// Path is the SQLite database path. Use ":memory:" for tests.
+	Path string
+}
+
+// New opens a SQLite-backed key-value store.
 //
-// Example usage:
-//
-//	kvStore, _ := store.New(":memory:")
+//	kvStore, _ := store.New(store.Options{Path: ":memory:"})
 //	_ = kvStore.Set("app", "theme", "midnight")
-func New(dbPath string) (*Store, error) {
-	database, err := sql.Open("sqlite", dbPath)
+func New(options Options) (*Store, error) {
+	if options.Path == "" {
+		return nil, core.E("store.New", "database path is required", fs.ErrInvalid)
+	}
+
+	database, err := sql.Open("sqlite", options.Path)
 	if err != nil {
 		return nil, core.E("store.New", "open db", err)
 	}
@@ -129,7 +138,7 @@ func (s *Store) GetAll(group string) (map[string]string, error) {
 //
 // Example usage:
 //
-//	kvStore, _ := store.New(":memory:")
+//	kvStore, _ := store.New(store.Options{Path: ":memory:"})
 //	_ = kvStore.Set("user", "name", "alice")
 //	out, _ := kvStore.Render("hello {{ .name }}", "user")
 func (s *Store) Render(templateText, group string) (string, error) {
