@@ -17,8 +17,8 @@ import (
 
 // Medium is a SQLite-backed storage backend implementing the io.Medium interface.
 type Medium struct {
-	db    *sql.DB
-	table string
+	database *sql.DB
+	table    string
 }
 
 var _ coreio.Medium = (*Medium)(nil)
@@ -43,49 +43,49 @@ func normaliseTableName(table string) string {
 //
 // Example usage:
 //
-//	m, _ := sqlite.New(sqlite.Options{Path: ":memory:", Table: "files"})
-//	_ = m.Write("config/app.yaml", "port: 8080")
+//	medium, _ := sqlite.New(sqlite.Options{Path: ":memory:", Table: "files"})
+//	_ = medium.Write("config/app.yaml", "port: 8080")
 func New(options Options) (*Medium, error) {
 	if options.Path == "" {
 		return nil, core.E("sqlite.New", "database path is required", nil)
 	}
 
-	m := &Medium{table: normaliseTableName(options.Table)}
+	medium := &Medium{table: normaliseTableName(options.Table)}
 
-	db, err := sql.Open("sqlite", options.Path)
+	database, err := sql.Open("sqlite", options.Path)
 	if err != nil {
 		return nil, core.E("sqlite.New", "failed to open database", err)
 	}
 
 	// Enable WAL mode for better concurrency
-	if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
-		db.Close()
+	if _, err := database.Exec("PRAGMA journal_mode=WAL"); err != nil {
+		database.Close()
 		return nil, core.E("sqlite.New", "failed to set WAL mode", err)
 	}
 
 	// Create the schema
-	createSQL := `CREATE TABLE IF NOT EXISTS ` + m.table + ` (
+	createSQL := `CREATE TABLE IF NOT EXISTS ` + medium.table + ` (
 		path    TEXT PRIMARY KEY,
 		content BLOB NOT NULL,
 		mode    INTEGER DEFAULT 420,
 		is_dir  BOOLEAN DEFAULT FALSE,
 		mtime   DATETIME DEFAULT CURRENT_TIMESTAMP
 	)`
-	if _, err := db.Exec(createSQL); err != nil {
-		db.Close()
+	if _, err := database.Exec(createSQL); err != nil {
+		database.Close()
 		return nil, core.E("sqlite.New", "failed to create table", err)
 	}
 
-	m.db = db
-	return m, nil
+	medium.database = database
+	return medium, nil
 }
 
 // Close closes the underlying database connection.
 //
 //	result := m.Close(...)
 func (m *Medium) Close() error {
-	if m.db != nil {
-		return m.db.Close()
+	if m.database != nil {
+		return m.database.Close()
 	}
 	return nil
 }
@@ -111,7 +111,7 @@ func (m *Medium) Read(p string) (string, error) {
 
 	var content []byte
 	var isDir bool
-	err := m.db.QueryRow(
+	err := m.database.QueryRow(
 		`SELECT content, is_dir FROM `+m.table+` WHERE path = ?`, key,
 	).Scan(&content, &isDir)
 	if err == sql.ErrNoRows {
@@ -142,7 +142,7 @@ func (m *Medium) WriteMode(p, content string, mode fs.FileMode) error {
 		return core.E("sqlite.WriteMode", "path is required", fs.ErrInvalid)
 	}
 
-	_, err := m.db.Exec(
+	_, err := m.database.Exec(
 		`INSERT INTO `+m.table+` (path, content, mode, is_dir, mtime) VALUES (?, ?, ?, FALSE, ?)
 		 ON CONFLICT(path) DO UPDATE SET content = excluded.content, mode = excluded.mode, is_dir = FALSE, mtime = excluded.mtime`,
 		key, []byte(content), int(mode), time.Now().UTC(),
@@ -163,7 +163,7 @@ func (m *Medium) EnsureDir(p string) error {
 		return nil
 	}
 
-	_, err := m.db.Exec(
+	_, err := m.database.Exec(
 		`INSERT INTO `+m.table+` (path, content, mode, is_dir, mtime) VALUES (?, '', 493, TRUE, ?)
 		 ON CONFLICT(path) DO NOTHING`,
 		key, time.Now().UTC(),
@@ -184,7 +184,7 @@ func (m *Medium) IsFile(p string) bool {
 	}
 
 	var isDir bool
-	err := m.db.QueryRow(
+	err := m.database.QueryRow(
 		`SELECT is_dir FROM `+m.table+` WHERE path = ?`, key,
 	).Scan(&isDir)
 	if err != nil {
@@ -218,7 +218,7 @@ func (m *Medium) Delete(p string) error {
 
 	// Check if it's a directory with children
 	var isDir bool
-	err := m.db.QueryRow(
+	err := m.database.QueryRow(
 		`SELECT is_dir FROM `+m.table+` WHERE path = ?`, key,
 	).Scan(&isDir)
 	if err == sql.ErrNoRows {
@@ -232,7 +232,7 @@ func (m *Medium) Delete(p string) error {
 		// Check for children
 		prefix := key + "/"
 		var count int
-		err := m.db.QueryRow(
+		err := m.database.QueryRow(
 			`SELECT COUNT(*) FROM `+m.table+` WHERE path LIKE ? AND path != ?`, prefix+"%", key,
 		).Scan(&count)
 		if err != nil {
@@ -243,7 +243,7 @@ func (m *Medium) Delete(p string) error {
 		}
 	}
 
-	res, err := m.db.Exec(`DELETE FROM `+m.table+` WHERE path = ?`, key)
+	res, err := m.database.Exec(`DELETE FROM `+m.table+` WHERE path = ?`, key)
 	if err != nil {
 		return core.E("sqlite.Delete", core.Concat("delete failed: ", key), err)
 	}
@@ -266,7 +266,7 @@ func (m *Medium) DeleteAll(p string) error {
 	prefix := key + "/"
 
 	// Delete the exact path and all children
-	res, err := m.db.Exec(
+	res, err := m.database.Exec(
 		`DELETE FROM `+m.table+` WHERE path = ? OR path LIKE ?`,
 		key, prefix+"%",
 	)
@@ -290,7 +290,7 @@ func (m *Medium) Rename(oldPath, newPath string) error {
 		return core.E("sqlite.Rename", "both old and new paths are required", fs.ErrInvalid)
 	}
 
-	tx, err := m.db.Begin()
+	tx, err := m.database.Begin()
 	if err != nil {
 		return core.E("sqlite.Rename", "begin tx failed", err)
 	}
@@ -390,7 +390,7 @@ func (m *Medium) List(p string) ([]fs.DirEntry, error) {
 	}
 
 	// Query all paths under the prefix
-	rows, err := m.db.Query(
+	rows, err := m.database.Query(
 		`SELECT path, content, mode, is_dir, mtime FROM `+m.table+` WHERE path LIKE ? OR path LIKE ?`,
 		prefix+"%", prefix+"%",
 	)
@@ -471,7 +471,7 @@ func (m *Medium) Stat(p string) (fs.FileInfo, error) {
 	var mode int
 	var isDir bool
 	var mtime time.Time
-	err := m.db.QueryRow(
+	err := m.database.QueryRow(
 		`SELECT content, mode, is_dir, mtime FROM `+m.table+` WHERE path = ?`, key,
 	).Scan(&content, &mode, &isDir, &mtime)
 	if err == sql.ErrNoRows {
@@ -504,7 +504,7 @@ func (m *Medium) Open(p string) (fs.File, error) {
 	var mode int
 	var isDir bool
 	var mtime time.Time
-	err := m.db.QueryRow(
+	err := m.database.QueryRow(
 		`SELECT content, mode, is_dir, mtime FROM `+m.table+` WHERE path = ?`, key,
 	).Scan(&content, &mode, &isDir, &mtime)
 	if err == sql.ErrNoRows {
@@ -549,7 +549,7 @@ func (m *Medium) Append(p string) (goio.WriteCloser, error) {
 	}
 
 	var existing []byte
-	err := m.db.QueryRow(
+	err := m.database.QueryRow(
 		`SELECT content FROM `+m.table+` WHERE path = ? AND is_dir = FALSE`, key,
 	).Scan(&existing)
 	if err != nil && err != sql.ErrNoRows {
@@ -574,7 +574,7 @@ func (m *Medium) ReadStream(p string) (goio.ReadCloser, error) {
 
 	var content []byte
 	var isDir bool
-	err := m.db.QueryRow(
+	err := m.database.QueryRow(
 		`SELECT content, is_dir FROM `+m.table+` WHERE path = ?`, key,
 	).Scan(&content, &isDir)
 	if err == sql.ErrNoRows {
@@ -608,7 +608,7 @@ func (m *Medium) Exists(p string) bool {
 	}
 
 	var count int
-	err := m.db.QueryRow(
+	err := m.database.QueryRow(
 		`SELECT COUNT(*) FROM `+m.table+` WHERE path = ?`, key,
 	).Scan(&count)
 	if err != nil {
@@ -627,7 +627,7 @@ func (m *Medium) IsDir(p string) bool {
 	}
 
 	var isDir bool
-	err := m.db.QueryRow(
+	err := m.database.QueryRow(
 		`SELECT is_dir FROM `+m.table+` WHERE path = ?`, key,
 	).Scan(&isDir)
 	if err != nil {
@@ -764,7 +764,7 @@ func (w *sqliteWriteCloser) Write(p []byte) (int, error) {
 //
 //	result := w.Close(...)
 func (w *sqliteWriteCloser) Close() error {
-	_, err := w.medium.db.Exec(
+	_, err := w.medium.database.Exec(
 		`INSERT INTO `+w.medium.table+` (path, content, mode, is_dir, mtime) VALUES (?, ?, 420, FALSE, ?)
 		 ON CONFLICT(path) DO UPDATE SET content = excluded.content, is_dir = FALSE, mtime = excluded.mtime`,
 		w.path, w.data, time.Now().UTC(),

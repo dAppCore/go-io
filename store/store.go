@@ -13,63 +13,63 @@ var ErrNotFound = core.E("store.ErrNotFound", "key not found", nil)
 
 // Store is a group-namespaced key-value store backed by SQLite.
 type Store struct {
-	db *sql.DB
+	database *sql.DB
 }
 
 // New creates a Store at the given SQLite path. Use ":memory:" for tests.
 //
 // Example usage:
 //
-//	s, _ := store.New(":memory:")
-//	_ = s.Set("app", "theme", "midnight")
+//	kvStore, _ := store.New(":memory:")
+//	_ = kvStore.Set("app", "theme", "midnight")
 func New(dbPath string) (*Store, error) {
-	db, err := sql.Open("sqlite", dbPath)
+	database, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		return nil, core.E("store.New", "open db", err)
 	}
-	if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
-		db.Close()
+	if _, err := database.Exec("PRAGMA journal_mode=WAL"); err != nil {
+		database.Close()
 		return nil, core.E("store.New", "WAL mode", err)
 	}
-	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS kv (
+	if _, err := database.Exec(`CREATE TABLE IF NOT EXISTS kv (
 		grp   TEXT NOT NULL,
 		key   TEXT NOT NULL,
 		value TEXT NOT NULL,
 		PRIMARY KEY (grp, key)
 	)`); err != nil {
-		db.Close()
+		database.Close()
 		return nil, core.E("store.New", "create schema", err)
 	}
-	return &Store{db: db}, nil
+	return &Store{database: database}, nil
 }
 
 // Close closes the underlying database.
 //
 //	result := s.Close(...)
 func (s *Store) Close() error {
-	return s.db.Close()
+	return s.database.Close()
 }
 
 // Get retrieves a value by group and key.
 //
 //	result := s.Get(...)
 func (s *Store) Get(group, key string) (string, error) {
-	var val string
-	err := s.db.QueryRow("SELECT value FROM kv WHERE grp = ? AND key = ?", group, key).Scan(&val)
+	var value string
+	err := s.database.QueryRow("SELECT value FROM kv WHERE grp = ? AND key = ?", group, key).Scan(&value)
 	if err == sql.ErrNoRows {
 		return "", core.E("store.Get", core.Concat("not found: ", group, "/", key), ErrNotFound)
 	}
 	if err != nil {
 		return "", core.E("store.Get", "query", err)
 	}
-	return val, nil
+	return value, nil
 }
 
 // Set stores a value by group and key, overwriting if exists.
 //
 //	result := s.Set(...)
 func (s *Store) Set(group, key, value string) error {
-	_, err := s.db.Exec(
+	_, err := s.database.Exec(
 		`INSERT INTO kv (grp, key, value) VALUES (?, ?, ?)
 		 ON CONFLICT(grp, key) DO UPDATE SET value = excluded.value`,
 		group, key, value,
@@ -84,7 +84,7 @@ func (s *Store) Set(group, key, value string) error {
 //
 //	result := s.Delete(...)
 func (s *Store) Delete(group, key string) error {
-	_, err := s.db.Exec("DELETE FROM kv WHERE grp = ? AND key = ?", group, key)
+	_, err := s.database.Exec("DELETE FROM kv WHERE grp = ? AND key = ?", group, key)
 	if err != nil {
 		return core.E("store.Delete", "exec", err)
 	}
@@ -96,7 +96,7 @@ func (s *Store) Delete(group, key string) error {
 //	result := s.Count(...)
 func (s *Store) Count(group string) (int, error) {
 	var n int
-	err := s.db.QueryRow("SELECT COUNT(*) FROM kv WHERE grp = ?", group).Scan(&n)
+	err := s.database.QueryRow("SELECT COUNT(*) FROM kv WHERE grp = ?", group).Scan(&n)
 	if err != nil {
 		return 0, core.E("store.Count", "query", err)
 	}
@@ -107,7 +107,7 @@ func (s *Store) Count(group string) (int, error) {
 //
 //	result := s.DeleteGroup(...)
 func (s *Store) DeleteGroup(group string) error {
-	_, err := s.db.Exec("DELETE FROM kv WHERE grp = ?", group)
+	_, err := s.database.Exec("DELETE FROM kv WHERE grp = ?", group)
 	if err != nil {
 		return core.E("store.DeleteGroup", "exec", err)
 	}
@@ -118,7 +118,7 @@ func (s *Store) DeleteGroup(group string) error {
 //
 //	result := s.GetAll(...)
 func (s *Store) GetAll(group string) (map[string]string, error) {
-	rows, err := s.db.Query("SELECT key, value FROM kv WHERE grp = ?", group)
+	rows, err := s.database.Query("SELECT key, value FROM kv WHERE grp = ?", group)
 	if err != nil {
 		return nil, core.E("store.GetAll", "query", err)
 	}
@@ -142,10 +142,11 @@ func (s *Store) GetAll(group string) (map[string]string, error) {
 //
 // Example usage:
 //
-//	_ = s.Set("user", "name", "alice")
-//	out, _ := s.Render("hello {{ .name }}", "user")
+//	kvStore, _ := store.New(":memory:")
+//	_ = kvStore.Set("user", "name", "alice")
+//	out, _ := kvStore.Render("hello {{ .name }}", "user")
 func (s *Store) Render(tmplStr, group string) (string, error) {
-	rows, err := s.db.Query("SELECT key, value FROM kv WHERE grp = ?", group)
+	rows, err := s.database.Query("SELECT key, value FROM kv WHERE grp = ?", group)
 	if err != nil {
 		return "", core.E("store.Render", "query", err)
 	}

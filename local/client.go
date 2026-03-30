@@ -21,8 +21,8 @@ var rawFS = (&core.Fs{}).NewUnrestricted()
 //
 // Example usage:
 //
-//	m, _ := local.New("/srv/app")
-//	_ = m.Write("config/app.yaml", "port: 8080")
+//	medium, _ := local.New("/srv/app")
+//	_ = medium.Write("config/app.yaml", "port: 8080")
 func New(root string) (*Medium, error) {
 	abs := absolutePath(root)
 	// Resolve symlinks so sandbox checks compare like-for-like.

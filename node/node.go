@@ -32,8 +32,8 @@ var _ fs.ReadFileFS = (*Node)(nil)
 //
 // Example usage:
 //
-//	n := node.New()
-//	n.AddData("config/app.yaml", []byte("port: 8080"))
+//	nodeTree := node.New()
+//	nodeTree.AddData("config/app.yaml", []byte("port: 8080"))
 func New() *Node {
 	return &Node{files: make(map[string]*dataFile)}
 }

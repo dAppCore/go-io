@@ -192,7 +192,8 @@ type HashSigil struct {
 
 // NewHashSigil creates a new HashSigil.
 //
-//	result := sigil.NewHashSigil(...)
+//	hashSigil := sigil.NewHashSigil(crypto.SHA256)
+//	_ = hashSigil
 func NewHashSigil(h crypto.Hash) *HashSigil {
 	return &HashSigil{Hash: h}
 }

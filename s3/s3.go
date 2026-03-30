@@ -90,8 +90,9 @@ func normalisePrefix(prefix string) string {
 //
 // Example usage:
 //
-//	awsClient := awss3.NewFromConfig(cfg)
-//	m, _ := s3.New(s3.Options{Bucket: "backups", Client: awsClient, Prefix: "daily/"})
+//	config := aws.Config{}
+//	awsClient := awss3.NewFromConfig(config)
+//	medium, _ := s3.New(s3.Options{Bucket: "backups", Client: awsClient, Prefix: "daily/"})
 func New(options Options) (*Medium, error) {
 	if options.Bucket == "" {
 		return nil, core.E("s3.New", "bucket name is required", nil)

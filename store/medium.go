@@ -15,7 +15,7 @@ import (
 // the rest is the key. List("") returns groups as directories,
 // List("group") returns keys as files.
 type Medium struct {
-	s *Store
+	store *Store
 }
 
 var _ coreio.Medium = (*Medium)(nil)
@@ -24,35 +24,35 @@ var _ coreio.Medium = (*Medium)(nil)
 //
 // Example usage:
 //
-//	m, _ := store.NewMedium("config.db")
-//	_ = m.Write("app/theme", "midnight")
+//	medium, _ := store.NewMedium("config.db")
+//	_ = medium.Write("app/theme", "midnight")
 func NewMedium(dbPath string) (*Medium, error) {
-	s, err := New(dbPath)
+	store, err := New(dbPath)
 	if err != nil {
 		return nil, err
 	}
-	return &Medium{s: s}, nil
+	return &Medium{store: store}, nil
 }
 
 // AsMedium returns a Medium adapter for an existing Store.
 //
 //	result := s.AsMedium(...)
 func (s *Store) AsMedium() *Medium {
-	return &Medium{s: s}
+	return &Medium{store: s}
 }
 
 // Store returns the underlying KV store for direct access.
 //
 //	result := m.Store(...)
 func (m *Medium) Store() *Store {
-	return m.s
+	return m.store
 }
 
 // Close closes the underlying store.
 //
 //	result := m.Close(...)
 func (m *Medium) Close() error {
-	return m.s.Close()
+	return m.store.Close()
 }
 
 // splitPath splits a medium-style path into group and key.
@@ -78,7 +78,7 @@ func (m *Medium) Read(p string) (string, error) {
 	if key == "" {
 		return "", core.E("store.Read", "path must include group/key", fs.ErrInvalid)
 	}
-	return m.s.Get(group, key)
+	return m.store.Get(group, key)
 }
 
 // Write stores a value at group/key.
@@ -89,7 +89,7 @@ func (m *Medium) Write(p, content string) error {
 	if key == "" {
 		return core.E("store.Write", "path must include group/key", fs.ErrInvalid)
 	}
-	return m.s.Set(group, key, content)
+	return m.store.Set(group, key, content)
 }
 
 // WriteMode ignores the requested mode because key-value entries do not store POSIX permissions.
@@ -114,7 +114,7 @@ func (m *Medium) IsFile(p string) bool {
 	if key == "" {
 		return false
 	}
-	_, err := m.s.Get(group, key)
+	_, err := m.store.Get(group, key)
 	return err == nil
 }
 
@@ -141,7 +141,7 @@ func (m *Medium) Delete(p string) error {
 		return core.E("store.Delete", "path is required", fs.ErrInvalid)
 	}
 	if key == "" {
-		n, err := m.s.Count(group)
+		n, err := m.store.Count(group)
 		if err != nil {
 			return err
 		}
@@ -150,7 +150,7 @@ func (m *Medium) Delete(p string) error {
 		}
 		return nil
 	}
-	return m.s.Delete(group, key)
+	return m.store.Delete(group, key)
 }
 
 // DeleteAll removes a key, or all keys in a group.
@@ -162,9 +162,9 @@ func (m *Medium) DeleteAll(p string) error {
 		return core.E("store.DeleteAll", "path is required", fs.ErrInvalid)
 	}
 	if key == "" {
-		return m.s.DeleteGroup(group)
+		return m.store.DeleteGroup(group)
 	}
-	return m.s.Delete(group, key)
+	return m.store.Delete(group, key)
 }
 
 // Rename moves a key from one path to another.
@@ -176,14 +176,14 @@ func (m *Medium) Rename(oldPath, newPath string) error {
 	if oldKey == "" || newKey == "" {
 		return core.E("store.Rename", "both paths must include group/key", fs.ErrInvalid)
 	}
-	val, err := m.s.Get(oldGroup, oldKey)
+	val, err := m.store.Get(oldGroup, oldKey)
 	if err != nil {
 		return err
 	}
-	if err := m.s.Set(newGroup, newKey, val); err != nil {
+	if err := m.store.Set(newGroup, newKey, val); err != nil {
 		return err
 	}
-	return m.s.Delete(oldGroup, oldKey)
+	return m.store.Delete(oldGroup, oldKey)
 }
 
 // List returns directory entries. Empty path returns groups.
@@ -194,7 +194,7 @@ func (m *Medium) List(p string) ([]fs.DirEntry, error) {
 	group, key := splitPath(p)
 
 	if group == "" {
-		rows, err := m.s.db.Query("SELECT DISTINCT grp FROM kv ORDER BY grp")
+		rows, err := m.store.database.Query("SELECT DISTINCT grp FROM kv ORDER BY grp")
 		if err != nil {
 			return nil, core.E("store.List", "query groups", err)
 		}
@@ -215,7 +215,7 @@ func (m *Medium) List(p string) ([]fs.DirEntry, error) {
 		return nil, nil // leaf node, nothing beneath
 	}
 
-	all, err := m.s.GetAll(group)
+	all, err := m.store.GetAll(group)
 	if err != nil {
 		return nil, err
 	}
@@ -235,7 +235,7 @@ func (m *Medium) Stat(p string) (fs.FileInfo, error) {
 		return nil, core.E("store.Stat", "path is required", fs.ErrInvalid)
 	}
 	if key == "" {
-		n, err := m.s.Count(group)
+		n, err := m.store.Count(group)
 		if err != nil {
 			return nil, err
 		}
@@ -244,7 +244,7 @@ func (m *Medium) Stat(p string) (fs.FileInfo, error) {
 		}
 		return &kvFileInfo{name: group, isDir: true}, nil
 	}
-	val, err := m.s.Get(group, key)
+	val, err := m.store.Get(group, key)
 	if err != nil {
 		return nil, err
 	}
@@ -259,7 +259,7 @@ func (m *Medium) Open(p string) (fs.File, error) {
 	if key == "" {
 		return nil, core.E("store.Open", "path must include group/key", fs.ErrInvalid)
 	}
-	val, err := m.s.Get(group, key)
+	val, err := m.store.Get(group, key)
 	if err != nil {
 		return nil, err
 	}
@@ -274,7 +274,7 @@ func (m *Medium) Create(p string) (goio.WriteCloser, error) {
 	if key == "" {
 		return nil, core.E("store.Create", "path must include group/key", fs.ErrInvalid)
 	}
-	return &kvWriteCloser{s: m.s, group: group, key: key}, nil
+	return &kvWriteCloser{store: m.store, group: group, key: key}, nil
 }
 
 // Append opens a key for appending. Content is stored on Close.
@@ -285,8 +285,8 @@ func (m *Medium) Append(p string) (goio.WriteCloser, error) {
 	if key == "" {
 		return nil, core.E("store.Append", "path must include group/key", fs.ErrInvalid)
 	}
-	existing, _ := m.s.Get(group, key)
-	return &kvWriteCloser{s: m.s, group: group, key: key, data: []byte(existing)}, nil
+	existing, _ := m.store.Get(group, key)
+	return &kvWriteCloser{store: m.store, group: group, key: key, data: []byte(existing)}, nil
 }
 
 // ReadStream returns a reader for the value.
@@ -297,7 +297,7 @@ func (m *Medium) ReadStream(p string) (goio.ReadCloser, error) {
 	if key == "" {
 		return nil, core.E("store.ReadStream", "path must include group/key", fs.ErrInvalid)
 	}
-	val, err := m.s.Get(group, key)
+	val, err := m.store.Get(group, key)
 	if err != nil {
 		return nil, err
 	}
@@ -320,10 +320,10 @@ func (m *Medium) Exists(p string) bool {
 		return false
 	}
 	if key == "" {
-		n, err := m.s.Count(group)
+		n, err := m.store.Count(group)
 		return err == nil && n > 0
 	}
-	_, err := m.s.Get(group, key)
+	_, err := m.store.Get(group, key)
 	return err == nil
 }
 
@@ -335,7 +335,7 @@ func (m *Medium) IsDir(p string) bool {
 	if key != "" || group == "" {
 		return false
 	}
-	n, err := m.s.Count(group)
+	n, err := m.store.Count(group)
 	return err == nil && n > 0
 }
 
@@ -446,7 +446,7 @@ func (f *kvFile) Read(b []byte) (int, error) {
 func (f *kvFile) Close() error { return nil }
 
 type kvWriteCloser struct {
-	s     *Store
+	store *Store
 	group string
 	key   string
 	data  []byte
@@ -464,5 +464,5 @@ func (w *kvWriteCloser) Write(p []byte) (int, error) {
 //
 //	result := w.Close(...)
 func (w *kvWriteCloser) Close() error {
-	return w.s.Set(w.group, w.key, string(w.data))
+	return w.store.Set(w.group, w.key, string(w.data))
 }

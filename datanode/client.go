@@ -34,21 +34,21 @@ var (
 // Medium is an in-memory storage backend backed by a Borg DataNode.
 // All paths are relative (no leading slash). Thread-safe via RWMutex.
 type Medium struct {
-	dn   *borgdatanode.DataNode
-	dirs map[string]bool // explicit directory tracking
-	mu   sync.RWMutex
+	dataNode *borgdatanode.DataNode
+	dirs     map[string]bool // explicit directory tracking
+	mu       sync.RWMutex
 }
 
 // New creates a new empty DataNode Medium.
 //
 // Example usage:
 //
-//	m := datanode.New()
-//	_ = m.Write("jobs/run.log", "started")
+//	medium := datanode.New()
+//	_ = medium.Write("jobs/run.log", "started")
 func New() *Medium {
 	return &Medium{
-		dn:   borgdatanode.New(),
-		dirs: make(map[string]bool),
+		dataNode: borgdatanode.New(),
+		dirs:     make(map[string]bool),
 	}
 }
 
@@ -56,16 +56,17 @@ func New() *Medium {
 //
 // Example usage:
 //
-//	snapshot, _ := m.Snapshot()
+//	sourceMedium := datanode.New()
+//	snapshot, _ := sourceMedium.Snapshot()
 //	restored, _ := datanode.FromTar(snapshot)
 func FromTar(data []byte) (*Medium, error) {
-	dn, err := borgdatanode.FromTar(data)
+	dataNode, err := borgdatanode.FromTar(data)
 	if err != nil {
 		return nil, core.E("datanode.FromTar", "failed to restore", err)
 	}
 	return &Medium{
-		dn:   dn,
-		dirs: make(map[string]bool),
+		dataNode: dataNode,
+		dirs:     make(map[string]bool),
 	}, nil
 }
 
@@ -76,7 +77,7 @@ func FromTar(data []byte) (*Medium, error) {
 func (m *Medium) Snapshot() ([]byte, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	data, err := m.dn.ToTar()
+	data, err := m.dataNode.ToTar()
 	if err != nil {
 		return nil, core.E("datanode.Snapshot", "tar failed", err)
 	}
@@ -87,13 +88,13 @@ func (m *Medium) Snapshot() ([]byte, error) {
 //
 //	result := m.Restore(...)
 func (m *Medium) Restore(data []byte) error {
-	dn, err := borgdatanode.FromTar(data)
+	dataNode, err := borgdatanode.FromTar(data)
 	if err != nil {
 		return core.E("datanode.Restore", "tar failed", err)
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.dn = dn
+	m.dataNode = dataNode
 	m.dirs = make(map[string]bool)
 	return nil
 }
@@ -105,7 +106,7 @@ func (m *Medium) Restore(data []byte) error {
 func (m *Medium) DataNode() *borgdatanode.DataNode {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	return m.dn
+	return m.dataNode
 }
 
 // clean normalises a path: strips leading slash, cleans traversal.
@@ -128,7 +129,7 @@ func (m *Medium) Read(p string) (string, error) {
 	defer m.mu.RUnlock()
 
 	p = clean(p)
-	f, err := m.dn.Open(p)
+	f, err := m.dataNode.Open(p)
 	if err != nil {
 		return "", core.E("datanode.Read", core.Concat("not found: ", p), fs.ErrNotExist)
 	}
@@ -160,7 +161,7 @@ func (m *Medium) Write(p, content string) error {
 	if p == "" {
 		return core.E("datanode.Write", "empty path", fs.ErrInvalid)
 	}
-	m.dn.AddData(p, []byte(content))
+	m.dataNode.AddData(p, []byte(content))
 
 	// ensure parent dirs are tracked
 	m.ensureDirsLocked(path.Dir(p))
@@ -209,7 +210,7 @@ func (m *Medium) IsFile(p string) bool {
 	defer m.mu.RUnlock()
 
 	p = clean(p)
-	info, err := m.dn.Stat(p)
+	info, err := m.dataNode.Stat(p)
 	return err == nil && !info.IsDir()
 }
 
@@ -240,7 +241,7 @@ func (m *Medium) Delete(p string) error {
 	}
 
 	// Check if it's a file in the DataNode
-	info, err := m.dn.Stat(p)
+	info, err := m.dataNode.Stat(p)
 	if err != nil {
 		// Check explicit dirs
 		if m.dirs[p] {
@@ -293,7 +294,7 @@ func (m *Medium) DeleteAll(p string) error {
 	found := false
 
 	// Check if p itself is a file
-	info, err := m.dn.Stat(p)
+	info, err := m.dataNode.Stat(p)
 	if err == nil && !info.IsDir() {
 		if err := m.removeFileLocked(p); err != nil {
 			return core.E("datanode.DeleteAll", core.Concat("failed to delete file: ", p), err)
@@ -340,7 +341,7 @@ func (m *Medium) Rename(oldPath, newPath string) error {
 	newPath = clean(newPath)
 
 	// Check if source is a file
-	info, err := m.dn.Stat(oldPath)
+	info, err := m.dataNode.Stat(oldPath)
 	if err != nil {
 		return core.E("datanode.Rename", core.Concat("not found: ", oldPath), fs.ErrNotExist)
 	}
@@ -351,7 +352,7 @@ func (m *Medium) Rename(oldPath, newPath string) error {
 		if err != nil {
 			return core.E("datanode.Rename", core.Concat("failed to read source file: ", oldPath), err)
 		}
-		m.dn.AddData(newPath, data)
+		m.dataNode.AddData(newPath, data)
 		m.ensureDirsLocked(path.Dir(newPath))
 		if err := m.removeFileLocked(oldPath); err != nil {
 			return core.E("datanode.Rename", core.Concat("failed to remove source file: ", oldPath), err)
@@ -374,7 +375,7 @@ func (m *Medium) Rename(oldPath, newPath string) error {
 			if err != nil {
 				return core.E("datanode.Rename", core.Concat("failed to read source file: ", name), err)
 			}
-			m.dn.AddData(newName, data)
+			m.dataNode.AddData(newName, data)
 			if err := m.removeFileLocked(name); err != nil {
 				return core.E("datanode.Rename", core.Concat("failed to remove source file: ", name), err)
 			}
@@ -406,7 +407,7 @@ func (m *Medium) List(p string) ([]fs.DirEntry, error) {
 
 	p = clean(p)
 
-	entries, err := m.dn.ReadDir(p)
+	entries, err := m.dataNode.ReadDir(p)
 	if err != nil {
 		// Check explicit dirs
 		if p == "" || m.dirs[p] {
@@ -459,7 +460,7 @@ func (m *Medium) Stat(p string) (fs.FileInfo, error) {
 		return &fileInfo{name: ".", isDir: true, mode: fs.ModeDir | 0755}, nil
 	}
 
-	info, err := m.dn.Stat(p)
+	info, err := m.dataNode.Stat(p)
 	if err == nil {
 		return info, nil
 	}
@@ -478,7 +479,7 @@ func (m *Medium) Open(p string) (fs.File, error) {
 	defer m.mu.RUnlock()
 
 	p = clean(p)
-	return m.dn.Open(p)
+	return m.dataNode.Open(p)
 }
 
 // Create documents the Create operation.
@@ -489,7 +490,7 @@ func (m *Medium) Create(p string) (goio.WriteCloser, error) {
 	if p == "" {
 		return nil, core.E("datanode.Create", "empty path", fs.ErrInvalid)
 	}
-	return &writeCloser{m: m, path: p}, nil
+	return &writeCloser{medium: m, path: p}, nil
 }
 
 // Append documents the Append operation.
@@ -514,7 +515,7 @@ func (m *Medium) Append(p string) (goio.WriteCloser, error) {
 	}
 	m.mu.RUnlock()
 
-	return &writeCloser{m: m, path: p, buf: existing}, nil
+	return &writeCloser{medium: m, path: p, buf: existing}, nil
 }
 
 // ReadStream documents the ReadStream operation.
@@ -525,7 +526,7 @@ func (m *Medium) ReadStream(p string) (goio.ReadCloser, error) {
 	defer m.mu.RUnlock()
 
 	p = clean(p)
-	f, err := m.dn.Open(p)
+	f, err := m.dataNode.Open(p)
 	if err != nil {
 		return nil, core.E("datanode.ReadStream", core.Concat("not found: ", p), fs.ErrNotExist)
 	}
@@ -550,7 +551,7 @@ func (m *Medium) Exists(p string) bool {
 	if p == "" {
 		return true // root always exists
 	}
-	_, err := m.dn.Stat(p)
+	_, err := m.dataNode.Stat(p)
 	if err == nil {
 		return true
 	}
@@ -568,7 +569,7 @@ func (m *Medium) IsDir(p string) bool {
 	if p == "" {
 		return true
 	}
-	info, err := m.dn.Stat(p)
+	info, err := m.dataNode.Stat(p)
 	if err == nil {
 		return info.IsDir()
 	}
@@ -599,7 +600,7 @@ func (m *Medium) hasPrefixLocked(prefix string) (bool, error) {
 // collectAllLocked returns all file paths in the DataNode. Caller holds lock.
 func (m *Medium) collectAllLocked() ([]string, error) {
 	var names []string
-	err := dataNodeWalkDir(m.dn, ".", func(p string, d fs.DirEntry, err error) error {
+	err := dataNodeWalkDir(m.dataNode, ".", func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -612,7 +613,7 @@ func (m *Medium) collectAllLocked() ([]string, error) {
 }
 
 func (m *Medium) readFileLocked(name string) ([]byte, error) {
-	f, err := dataNodeOpen(m.dn, name)
+	f, err := dataNodeOpen(m.dataNode, name)
 	if err != nil {
 		return nil, err
 	}
@@ -646,16 +647,16 @@ func (m *Medium) removeFileLocked(target string) error {
 		}
 		newDN.AddData(name, data)
 	}
-	m.dn = newDN
+	m.dataNode = newDN
 	return nil
 }
 
 // --- writeCloser buffers writes and flushes to DataNode on Close ---
 
 type writeCloser struct {
-	m    *Medium
-	path string
-	buf  []byte
+	medium *Medium
+	path   string
+	buf    []byte
 }
 
 // Write documents the Write operation.
@@ -670,11 +671,11 @@ func (w *writeCloser) Write(p []byte) (int, error) {
 //
 //	result := w.Close(...)
 func (w *writeCloser) Close() error {
-	w.m.mu.Lock()
-	defer w.m.mu.Unlock()
+	w.medium.mu.Lock()
+	defer w.medium.mu.Unlock()
 
-	w.m.dn.AddData(w.path, w.buf)
-	w.m.ensureDirsLocked(path.Dir(w.path))
+	w.medium.dataNode.AddData(w.path, w.buf)
+	w.medium.ensureDirsLocked(path.Dir(w.path))
 	return nil
 }
 

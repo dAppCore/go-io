@@ -164,8 +164,8 @@ func init() {
 //
 // Example usage:
 //
-//	m, _ := io.NewSandboxed("/srv/app")
-//	_ = m.Write("config/app.yaml", "port: 8080")
+//	medium, _ := io.NewSandboxed("/srv/app")
+//	_ = medium.Write("config/app.yaml", "port: 8080")
 func NewSandboxed(root string) (Medium, error) {
 	return local.New(root)
 }
@@ -241,7 +241,7 @@ var _ Medium = (*MockMedium)(nil)
 
 // NewMockMedium creates a new MockMedium instance.
 //
-//	result := io.NewMockMedium(...)
+//	medium := io.NewMockMedium()
 func NewMockMedium() *MockMedium {
 	return &MockMedium{
 		Files:    make(map[string]string),
