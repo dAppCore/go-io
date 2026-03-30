@@ -120,7 +120,7 @@ For SQLite-backed tests, use `:memory:`:
 
 ```go
 func TestWithSQLite(t *testing.T) {
-    m, err := sqlite.New(":memory:")
+    m, err := sqlite.New(sqlite.Options{Path: ":memory:"})
     require.NoError(t, err)
     defer m.Close()
 

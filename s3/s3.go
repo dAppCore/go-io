@@ -10,29 +10,42 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
+	awss3 "github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 
 	core "dappco.re/go/core"
+	coreio "dappco.re/go/core/io"
 )
 
-// s3API is the subset of the S3 client API used by this package.
-// This allows for interface-based mocking in tests.
-type s3API interface {
-	GetObject(ctx context.Context, params *s3.GetObjectInput, optFns ...func(*s3.Options)) (*s3.GetObjectOutput, error)
-	PutObject(ctx context.Context, params *s3.PutObjectInput, optFns ...func(*s3.Options)) (*s3.PutObjectOutput, error)
-	DeleteObject(ctx context.Context, params *s3.DeleteObjectInput, optFns ...func(*s3.Options)) (*s3.DeleteObjectOutput, error)
-	DeleteObjects(ctx context.Context, params *s3.DeleteObjectsInput, optFns ...func(*s3.Options)) (*s3.DeleteObjectsOutput, error)
-	HeadObject(ctx context.Context, params *s3.HeadObjectInput, optFns ...func(*s3.Options)) (*s3.HeadObjectOutput, error)
-	ListObjectsV2(ctx context.Context, params *s3.ListObjectsV2Input, optFns ...func(*s3.Options)) (*s3.ListObjectsV2Output, error)
-	CopyObject(ctx context.Context, params *s3.CopyObjectInput, optFns ...func(*s3.Options)) (*s3.CopyObjectOutput, error)
+// Client is the subset of the AWS S3 client API used by this package.
+// Tests can provide any mock that satisfies the same method set.
+type Client interface {
+	GetObject(ctx context.Context, params *awss3.GetObjectInput, optFns ...func(*awss3.Options)) (*awss3.GetObjectOutput, error)
+	PutObject(ctx context.Context, params *awss3.PutObjectInput, optFns ...func(*awss3.Options)) (*awss3.PutObjectOutput, error)
+	DeleteObject(ctx context.Context, params *awss3.DeleteObjectInput, optFns ...func(*awss3.Options)) (*awss3.DeleteObjectOutput, error)
+	DeleteObjects(ctx context.Context, params *awss3.DeleteObjectsInput, optFns ...func(*awss3.Options)) (*awss3.DeleteObjectsOutput, error)
+	HeadObject(ctx context.Context, params *awss3.HeadObjectInput, optFns ...func(*awss3.Options)) (*awss3.HeadObjectOutput, error)
+	ListObjectsV2(ctx context.Context, params *awss3.ListObjectsV2Input, optFns ...func(*awss3.Options)) (*awss3.ListObjectsV2Output, error)
+	CopyObject(ctx context.Context, params *awss3.CopyObjectInput, optFns ...func(*awss3.Options)) (*awss3.CopyObjectOutput, error)
 }
 
 // Medium is an S3-backed storage backend implementing the io.Medium interface.
 type Medium struct {
-	client s3API
+	client Client
 	bucket string
 	prefix string
+}
+
+var _ coreio.Medium = (*Medium)(nil)
+
+// Options configures a Medium.
+type Options struct {
+	// Bucket is the target S3 bucket name.
+	Bucket string
+	// Client is the AWS S3 client or test double used for requests.
+	Client Client
+	// Prefix is prepended to every object key.
+	Prefix string
 }
 
 func deleteObjectsError(prefix string, errs []types.Error) error {
@@ -58,36 +71,19 @@ func deleteObjectsError(prefix string, errs []types.Error) error {
 	return core.E("s3.DeleteAll", core.Concat("partial delete failed under ", prefix, ": ", core.Join("; ", details...)), nil)
 }
 
-// Option configures a Medium.
-type Option func(*Medium)
-
-// WithPrefix sets an optional key prefix for all operations.
-//
-//	result := s3.WithPrefix(...)
-func WithPrefix(prefix string) Option {
-	return func(m *Medium) {
-		// Ensure prefix ends with "/" if non-empty
-		if prefix != "" && !core.HasSuffix(prefix, "/") {
-			prefix += "/"
-		}
-		m.prefix = prefix
+func normalisePrefix(prefix string) string {
+	if prefix == "" {
+		return ""
 	}
-}
-
-// WithClient sets the S3 client for dependency injection.
-//
-//	result := s3.WithClient(...)
-func WithClient(client *s3.Client) Option {
-	return func(m *Medium) {
-		m.client = client
+	clean := path.Clean("/" + prefix)
+	if clean == "/" {
+		return ""
 	}
-}
-
-// withAPI sets the s3API interface directly (for testing with mocks).
-func withAPI(api s3API) Option {
-	return func(m *Medium) {
-		m.client = api
+	clean = core.TrimPrefix(clean, "/")
+	if clean != "" && !core.HasSuffix(clean, "/") {
+		clean += "/"
 	}
+	return clean
 }
 
 // New creates a new S3 Medium for the given bucket.
@@ -95,17 +91,18 @@ func withAPI(api s3API) Option {
 // Example usage:
 //
 //	awsClient := awss3.NewFromConfig(cfg)
-//	m, _ := s3.New("backups", s3.WithClient(awsClient), s3.WithPrefix("daily"))
-func New(bucket string, opts ...Option) (*Medium, error) {
-	if bucket == "" {
+//	m, _ := s3.New(s3.Options{Bucket: "backups", Client: awsClient, Prefix: "daily/"})
+func New(options Options) (*Medium, error) {
+	if options.Bucket == "" {
 		return nil, core.E("s3.New", "bucket name is required", nil)
 	}
-	m := &Medium{bucket: bucket}
-	for _, opt := range opts {
-		opt(m)
+	if options.Client == nil {
+		return nil, core.E("s3.New", "client is required", nil)
 	}
-	if m.client == nil {
-		return nil, core.E("s3.New", "S3 client is required (use WithClient option)", nil)
+	m := &Medium{
+		client: options.Client,
+		bucket: options.Bucket,
+		prefix: normalisePrefix(options.Prefix),
 	}
 	return m, nil
 }
@@ -138,7 +135,7 @@ func (m *Medium) Read(p string) (string, error) {
 		return "", core.E("s3.Read", "path is required", fs.ErrInvalid)
 	}
 
-	out, err := m.client.GetObject(context.Background(), &s3.GetObjectInput{
+	out, err := m.client.GetObject(context.Background(), &awss3.GetObjectInput{
 		Bucket: aws.String(m.bucket),
 		Key:    aws.String(key),
 	})
@@ -163,7 +160,7 @@ func (m *Medium) Write(p, content string) error {
 		return core.E("s3.Write", "path is required", fs.ErrInvalid)
 	}
 
-	_, err := m.client.PutObject(context.Background(), &s3.PutObjectInput{
+	_, err := m.client.PutObject(context.Background(), &awss3.PutObjectInput{
 		Bucket: aws.String(m.bucket),
 		Key:    aws.String(key),
 		Body:   core.NewReader(content),
@@ -172,6 +169,13 @@ func (m *Medium) Write(p, content string) error {
 		return core.E("s3.Write", core.Concat("failed to put object: ", key), err)
 	}
 	return nil
+}
+
+// WriteMode ignores the requested mode because S3 objects do not store POSIX permissions.
+//
+//	result := m.WriteMode(...)
+func (m *Medium) WriteMode(p, content string, _ fs.FileMode) error {
+	return m.Write(p, content)
 }
 
 // EnsureDir is a no-op for S3 (S3 has no real directories).
@@ -193,7 +197,7 @@ func (m *Medium) IsFile(p string) bool {
 	if core.HasSuffix(key, "/") {
 		return false
 	}
-	_, err := m.client.HeadObject(context.Background(), &s3.HeadObjectInput{
+	_, err := m.client.HeadObject(context.Background(), &awss3.HeadObjectInput{
 		Bucket: aws.String(m.bucket),
 		Key:    aws.String(key),
 	})
@@ -223,7 +227,7 @@ func (m *Medium) Delete(p string) error {
 		return core.E("s3.Delete", "path is required", fs.ErrInvalid)
 	}
 
-	_, err := m.client.DeleteObject(context.Background(), &s3.DeleteObjectInput{
+	_, err := m.client.DeleteObject(context.Background(), &awss3.DeleteObjectInput{
 		Bucket: aws.String(m.bucket),
 		Key:    aws.String(key),
 	})
@@ -243,7 +247,7 @@ func (m *Medium) DeleteAll(p string) error {
 	}
 
 	// First, try deleting the exact key
-	_, err := m.client.DeleteObject(context.Background(), &s3.DeleteObjectInput{
+	_, err := m.client.DeleteObject(context.Background(), &awss3.DeleteObjectInput{
 		Bucket: aws.String(m.bucket),
 		Key:    aws.String(key),
 	})
@@ -261,7 +265,7 @@ func (m *Medium) DeleteAll(p string) error {
 	var continuationToken *string
 
 	for paginator {
-		listOut, err := m.client.ListObjectsV2(context.Background(), &s3.ListObjectsV2Input{
+		listOut, err := m.client.ListObjectsV2(context.Background(), &awss3.ListObjectsV2Input{
 			Bucket:            aws.String(m.bucket),
 			Prefix:            aws.String(prefix),
 			ContinuationToken: continuationToken,
@@ -279,7 +283,7 @@ func (m *Medium) DeleteAll(p string) error {
 			objects[i] = types.ObjectIdentifier{Key: obj.Key}
 		}
 
-		deleteOut, err := m.client.DeleteObjects(context.Background(), &s3.DeleteObjectsInput{
+		deleteOut, err := m.client.DeleteObjects(context.Background(), &awss3.DeleteObjectsInput{
 			Bucket: aws.String(m.bucket),
 			Delete: &types.Delete{Objects: objects, Quiet: aws.Bool(true)},
 		})
@@ -312,7 +316,7 @@ func (m *Medium) Rename(oldPath, newPath string) error {
 
 	copySource := m.bucket + "/" + oldKey
 
-	_, err := m.client.CopyObject(context.Background(), &s3.CopyObjectInput{
+	_, err := m.client.CopyObject(context.Background(), &awss3.CopyObjectInput{
 		Bucket:     aws.String(m.bucket),
 		CopySource: aws.String(copySource),
 		Key:        aws.String(newKey),
@@ -321,7 +325,7 @@ func (m *Medium) Rename(oldPath, newPath string) error {
 		return core.E("s3.Rename", core.Concat("failed to copy object: ", oldKey, " -> ", newKey), err)
 	}
 
-	_, err = m.client.DeleteObject(context.Background(), &s3.DeleteObjectInput{
+	_, err = m.client.DeleteObject(context.Background(), &awss3.DeleteObjectInput{
 		Bucket: aws.String(m.bucket),
 		Key:    aws.String(oldKey),
 	})
@@ -343,7 +347,7 @@ func (m *Medium) List(p string) ([]fs.DirEntry, error) {
 
 	var entries []fs.DirEntry
 
-	listOut, err := m.client.ListObjectsV2(context.Background(), &s3.ListObjectsV2Input{
+	listOut, err := m.client.ListObjectsV2(context.Background(), &awss3.ListObjectsV2Input{
 		Bucket:    aws.String(m.bucket),
 		Prefix:    aws.String(prefix),
 		Delimiter: aws.String("/"),
@@ -416,7 +420,7 @@ func (m *Medium) Stat(p string) (fs.FileInfo, error) {
 		return nil, core.E("s3.Stat", "path is required", fs.ErrInvalid)
 	}
 
-	out, err := m.client.HeadObject(context.Background(), &s3.HeadObjectInput{
+	out, err := m.client.HeadObject(context.Background(), &awss3.HeadObjectInput{
 		Bucket: aws.String(m.bucket),
 		Key:    aws.String(key),
 	})
@@ -451,7 +455,7 @@ func (m *Medium) Open(p string) (fs.File, error) {
 		return nil, core.E("s3.Open", "path is required", fs.ErrInvalid)
 	}
 
-	out, err := m.client.GetObject(context.Background(), &s3.GetObjectInput{
+	out, err := m.client.GetObject(context.Background(), &awss3.GetObjectInput{
 		Bucket: aws.String(m.bucket),
 		Key:    aws.String(key),
 	})
@@ -508,7 +512,7 @@ func (m *Medium) Append(p string) (goio.WriteCloser, error) {
 	}
 
 	var existing []byte
-	out, err := m.client.GetObject(context.Background(), &s3.GetObjectInput{
+	out, err := m.client.GetObject(context.Background(), &awss3.GetObjectInput{
 		Bucket: aws.String(m.bucket),
 		Key:    aws.String(key),
 	})
@@ -533,7 +537,7 @@ func (m *Medium) ReadStream(p string) (goio.ReadCloser, error) {
 		return nil, core.E("s3.ReadStream", "path is required", fs.ErrInvalid)
 	}
 
-	out, err := m.client.GetObject(context.Background(), &s3.GetObjectInput{
+	out, err := m.client.GetObject(context.Background(), &awss3.GetObjectInput{
 		Bucket: aws.String(m.bucket),
 		Key:    aws.String(key),
 	})
@@ -560,7 +564,7 @@ func (m *Medium) Exists(p string) bool {
 	}
 
 	// Check as an exact object
-	_, err := m.client.HeadObject(context.Background(), &s3.HeadObjectInput{
+	_, err := m.client.HeadObject(context.Background(), &awss3.HeadObjectInput{
 		Bucket: aws.String(m.bucket),
 		Key:    aws.String(key),
 	})
@@ -573,7 +577,7 @@ func (m *Medium) Exists(p string) bool {
 	if !core.HasSuffix(prefix, "/") {
 		prefix += "/"
 	}
-	listOut, err := m.client.ListObjectsV2(context.Background(), &s3.ListObjectsV2Input{
+	listOut, err := m.client.ListObjectsV2(context.Background(), &awss3.ListObjectsV2Input{
 		Bucket:  aws.String(m.bucket),
 		Prefix:  aws.String(prefix),
 		MaxKeys: aws.Int32(1),
@@ -598,7 +602,7 @@ func (m *Medium) IsDir(p string) bool {
 		prefix += "/"
 	}
 
-	listOut, err := m.client.ListObjectsV2(context.Background(), &s3.ListObjectsV2Input{
+	listOut, err := m.client.ListObjectsV2(context.Background(), &awss3.ListObjectsV2Input{
 		Bucket:  aws.String(m.bucket),
 		Prefix:  aws.String(prefix),
 		MaxKeys: aws.Int32(1),
@@ -737,7 +741,7 @@ func (w *s3WriteCloser) Write(p []byte) (int, error) {
 //
 //	result := w.Close(...)
 func (w *s3WriteCloser) Close() error {
-	_, err := w.medium.client.PutObject(context.Background(), &s3.PutObjectInput{
+	_, err := w.medium.client.PutObject(context.Background(), &awss3.PutObjectInput{
 		Bucket: aws.String(w.medium.bucket),
 		Key:    aws.String(w.key),
 		Body:   bytes.NewReader(w.data),

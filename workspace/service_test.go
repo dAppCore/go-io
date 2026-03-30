@@ -26,9 +26,9 @@ func newTestService(t *testing.T) (*Service, string) {
 	tempHome := t.TempDir()
 	t.Setenv("HOME", tempHome)
 
-	svc, err := New(core.New(), stubCrypt{key: "private-key"})
+	svc, err := New(Options{Core: core.New(), Crypt: stubCrypt{key: "private-key"}})
 	require.NoError(t, err)
-	return svc.(*Service), tempHome
+	return svc, tempHome
 }
 
 func TestService_Workspace_RoundTrip_Good(t *testing.T) {

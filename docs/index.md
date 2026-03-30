@@ -31,8 +31,8 @@ mem := node.New()
 mem.AddData("hello.txt", []byte("world"))
 tarball, _ := mem.ToTar()
 
-// S3 backend (requires an *s3.Client from the AWS SDK).
-bucket, _ := s3.New("my-bucket", s3.WithClient(awsClient), s3.WithPrefix("uploads/"))
+// S3 backend (requires an *awss3.Client from the AWS SDK).
+bucket, _ := s3.New(s3.Options{Bucket: "my-bucket", Client: awsClient, Prefix: "uploads/"})
 _ = bucket.Write("photo.jpg", rawData)
 ```
 

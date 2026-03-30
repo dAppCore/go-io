@@ -10,6 +10,7 @@ import (
 	"time"
 
 	core "dappco.re/go/core"
+	coreio "dappco.re/go/core/io"
 
 	_ "modernc.org/sqlite" // Pure Go SQLite driver
 )
@@ -20,16 +21,21 @@ type Medium struct {
 	table string
 }
 
-// Option configures a Medium.
-type Option func(*Medium)
+var _ coreio.Medium = (*Medium)(nil)
 
-// WithTable sets the table name (default: "files").
-//
-//	result := sqlite.WithTable(...)
-func WithTable(table string) Option {
-	return func(m *Medium) {
-		m.table = table
+// Options configures a Medium.
+type Options struct {
+	// Path is the SQLite database path. Use ":memory:" for tests.
+	Path string
+	// Table is the table name used for file storage. Empty defaults to "files".
+	Table string
+}
+
+func normaliseTableName(table string) string {
+	if table == "" {
+		return "files"
 	}
+	return table
 }
 
 // New creates a new SQLite Medium at the given database path.
@@ -37,19 +43,16 @@ func WithTable(table string) Option {
 //
 // Example usage:
 //
-//	m, _ := sqlite.New(":memory:", sqlite.WithTable("files"))
+//	m, _ := sqlite.New(sqlite.Options{Path: ":memory:", Table: "files"})
 //	_ = m.Write("config/app.yaml", "port: 8080")
-func New(dbPath string, opts ...Option) (*Medium, error) {
-	if dbPath == "" {
+func New(options Options) (*Medium, error) {
+	if options.Path == "" {
 		return nil, core.E("sqlite.New", "database path is required", nil)
 	}
 
-	m := &Medium{table: "files"}
-	for _, opt := range opts {
-		opt(m)
-	}
+	m := &Medium{table: normaliseTableName(options.Table)}
 
-	db, err := sql.Open("sqlite", dbPath)
+	db, err := sql.Open("sqlite", options.Path)
 	if err != nil {
 		return nil, core.E("sqlite.New", "failed to open database", err)
 	}
@@ -127,18 +130,25 @@ func (m *Medium) Read(p string) (string, error) {
 //
 //	result := m.Write(...)
 func (m *Medium) Write(p, content string) error {
+	return m.WriteMode(p, content, 0644)
+}
+
+// WriteMode saves the given content with explicit permissions.
+//
+//	result := m.WriteMode(...)
+func (m *Medium) WriteMode(p, content string, mode fs.FileMode) error {
 	key := cleanPath(p)
 	if key == "" {
-		return core.E("sqlite.Write", "path is required", fs.ErrInvalid)
+		return core.E("sqlite.WriteMode", "path is required", fs.ErrInvalid)
 	}
 
 	_, err := m.db.Exec(
-		`INSERT INTO `+m.table+` (path, content, mode, is_dir, mtime) VALUES (?, ?, 420, FALSE, ?)
-		 ON CONFLICT(path) DO UPDATE SET content = excluded.content, is_dir = FALSE, mtime = excluded.mtime`,
-		key, []byte(content), time.Now().UTC(),
+		`INSERT INTO `+m.table+` (path, content, mode, is_dir, mtime) VALUES (?, ?, ?, FALSE, ?)
+		 ON CONFLICT(path) DO UPDATE SET content = excluded.content, mode = excluded.mode, is_dir = FALSE, mtime = excluded.mtime`,
+		key, []byte(content), int(mode), time.Now().UTC(),
 	)
 	if err != nil {
-		return core.E("sqlite.Write", core.Concat("insert failed: ", key), err)
+		return core.E("sqlite.WriteMode", core.Concat("insert failed: ", key), err)
 	}
 	return nil
 }

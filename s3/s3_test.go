@@ -12,13 +12,13 @@ import (
 
 	core "dappco.re/go/core"
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
+	awss3 "github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// mockS3 is an in-memory mock implementing the s3API interface.
+// mockS3 is an in-memory mock implementing the Client interface.
 type mockS3 struct {
 	mu                 sync.RWMutex
 	objects            map[string][]byte
@@ -36,7 +36,7 @@ func newMockS3() *mockS3 {
 	}
 }
 
-func (m *mockS3) GetObject(_ context.Context, params *s3.GetObjectInput, _ ...func(*s3.Options)) (*s3.GetObjectOutput, error) {
+func (m *mockS3) GetObject(_ context.Context, params *awss3.GetObjectInput, _ ...func(*awss3.Options)) (*awss3.GetObjectOutput, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -46,14 +46,14 @@ func (m *mockS3) GetObject(_ context.Context, params *s3.GetObjectInput, _ ...fu
 		return nil, core.E("s3test.mockS3.GetObject", core.Sprintf("NoSuchKey: key %q not found", key), fs.ErrNotExist)
 	}
 	mtime := m.mtimes[key]
-	return &s3.GetObjectOutput{
+	return &awss3.GetObjectOutput{
 		Body:          goio.NopCloser(bytes.NewReader(data)),
 		ContentLength: aws.Int64(int64(len(data))),
 		LastModified:  &mtime,
 	}, nil
 }
 
-func (m *mockS3) PutObject(_ context.Context, params *s3.PutObjectInput, _ ...func(*s3.Options)) (*s3.PutObjectOutput, error) {
+func (m *mockS3) PutObject(_ context.Context, params *awss3.PutObjectInput, _ ...func(*awss3.Options)) (*awss3.PutObjectOutput, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -64,10 +64,10 @@ func (m *mockS3) PutObject(_ context.Context, params *s3.PutObjectInput, _ ...fu
 	}
 	m.objects[key] = data
 	m.mtimes[key] = time.Now()
-	return &s3.PutObjectOutput{}, nil
+	return &awss3.PutObjectOutput{}, nil
 }
 
-func (m *mockS3) DeleteObject(_ context.Context, params *s3.DeleteObjectInput, _ ...func(*s3.Options)) (*s3.DeleteObjectOutput, error) {
+func (m *mockS3) DeleteObject(_ context.Context, params *awss3.DeleteObjectInput, _ ...func(*awss3.Options)) (*awss3.DeleteObjectOutput, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -77,10 +77,10 @@ func (m *mockS3) DeleteObject(_ context.Context, params *s3.DeleteObjectInput, _
 	}
 	delete(m.objects, key)
 	delete(m.mtimes, key)
-	return &s3.DeleteObjectOutput{}, nil
+	return &awss3.DeleteObjectOutput{}, nil
 }
 
-func (m *mockS3) DeleteObjects(_ context.Context, params *s3.DeleteObjectsInput, _ ...func(*s3.Options)) (*s3.DeleteObjectsOutput, error) {
+func (m *mockS3) DeleteObjects(_ context.Context, params *awss3.DeleteObjectsInput, _ ...func(*awss3.Options)) (*awss3.DeleteObjectsOutput, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -94,10 +94,10 @@ func (m *mockS3) DeleteObjects(_ context.Context, params *s3.DeleteObjectsInput,
 		delete(m.objects, key)
 		delete(m.mtimes, key)
 	}
-	return &s3.DeleteObjectsOutput{Errors: outErrs}, nil
+	return &awss3.DeleteObjectsOutput{Errors: outErrs}, nil
 }
 
-func (m *mockS3) HeadObject(_ context.Context, params *s3.HeadObjectInput, _ ...func(*s3.Options)) (*s3.HeadObjectOutput, error) {
+func (m *mockS3) HeadObject(_ context.Context, params *awss3.HeadObjectInput, _ ...func(*awss3.Options)) (*awss3.HeadObjectOutput, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -107,13 +107,13 @@ func (m *mockS3) HeadObject(_ context.Context, params *s3.HeadObjectInput, _ ...
 		return nil, core.E("s3test.mockS3.HeadObject", core.Sprintf("NotFound: key %q not found", key), fs.ErrNotExist)
 	}
 	mtime := m.mtimes[key]
-	return &s3.HeadObjectOutput{
+	return &awss3.HeadObjectOutput{
 		ContentLength: aws.Int64(int64(len(data))),
 		LastModified:  &mtime,
 	}, nil
 }
 
-func (m *mockS3) ListObjectsV2(_ context.Context, params *s3.ListObjectsV2Input, _ ...func(*s3.Options)) (*s3.ListObjectsV2Output, error) {
+func (m *mockS3) ListObjectsV2(_ context.Context, params *awss3.ListObjectsV2Input, _ ...func(*awss3.Options)) (*awss3.ListObjectsV2Output, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -173,14 +173,14 @@ func (m *mockS3) ListObjectsV2(_ context.Context, params *s3.ListObjectsV2Input,
 		cpSlice = append(cpSlice, types.CommonPrefix{Prefix: aws.String(cp)})
 	}
 
-	return &s3.ListObjectsV2Output{
+	return &awss3.ListObjectsV2Output{
 		Contents:       contents,
 		CommonPrefixes: cpSlice,
 		IsTruncated:    aws.Bool(false),
 	}, nil
 }
 
-func (m *mockS3) CopyObject(_ context.Context, params *s3.CopyObjectInput, _ ...func(*s3.Options)) (*s3.CopyObjectOutput, error) {
+func (m *mockS3) CopyObject(_ context.Context, params *awss3.CopyObjectInput, _ ...func(*awss3.Options)) (*awss3.CopyObjectOutput, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -201,7 +201,7 @@ func (m *mockS3) CopyObject(_ context.Context, params *s3.CopyObjectInput, _ ...
 	m.objects[destKey] = append([]byte{}, data...)
 	m.mtimes[destKey] = time.Now()
 
-	return &s3.CopyObjectOutput{}, nil
+	return &awss3.CopyObjectOutput{}, nil
 }
 
 // --- Helper ---
@@ -209,7 +209,7 @@ func (m *mockS3) CopyObject(_ context.Context, params *s3.CopyObjectInput, _ ...
 func newTestMedium(t *testing.T) (*Medium, *mockS3) {
 	t.Helper()
 	mock := newMockS3()
-	m, err := New("test-bucket", withAPI(mock))
+	m, err := New(Options{Bucket: "test-bucket", Client: mock})
 	require.NoError(t, err)
 	return m, mock
 }
@@ -218,32 +218,32 @@ func newTestMedium(t *testing.T) (*Medium, *mockS3) {
 
 func TestS3_New_Good(t *testing.T) {
 	mock := newMockS3()
-	m, err := New("my-bucket", withAPI(mock))
+	m, err := New(Options{Bucket: "my-bucket", Client: mock})
 	require.NoError(t, err)
 	assert.Equal(t, "my-bucket", m.bucket)
 	assert.Equal(t, "", m.prefix)
 }
 
 func TestS3_New_NoBucket_Bad(t *testing.T) {
-	_, err := New("")
+	_, err := New(Options{Client: newMockS3()})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "bucket name is required")
 }
 
 func TestS3_New_NoClient_Bad(t *testing.T) {
-	_, err := New("bucket")
+	_, err := New(Options{Bucket: "bucket"})
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "S3 client is required")
+	assert.Contains(t, err.Error(), "client is required")
 }
 
-func TestS3_WithPrefix_Good(t *testing.T) {
+func TestS3_New_Options_Good(t *testing.T) {
 	mock := newMockS3()
-	m, err := New("bucket", withAPI(mock), WithPrefix("data/"))
+	m, err := New(Options{Bucket: "bucket", Client: mock, Prefix: "data/"})
 	require.NoError(t, err)
 	assert.Equal(t, "data/", m.prefix)
 
 	// Prefix without trailing slash gets one added
-	m2, err := New("bucket", withAPI(mock), WithPrefix("data"))
+	m2, err := New(Options{Bucket: "bucket", Client: mock, Prefix: "data"})
 	require.NoError(t, err)
 	assert.Equal(t, "data/", m2.prefix)
 }
@@ -276,9 +276,9 @@ func TestS3_ReadWrite_EmptyPath_Bad(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestS3_ReadWrite_WithPrefix_Good(t *testing.T) {
+func TestS3_ReadWrite_Prefix_Good(t *testing.T) {
 	mock := newMockS3()
-	m, err := New("bucket", withAPI(mock), WithPrefix("pfx"))
+	m, err := New(Options{Bucket: "bucket", Client: mock, Prefix: "pfx"})
 	require.NoError(t, err)
 
 	err = m.Write("file.txt", "data")
@@ -641,7 +641,7 @@ func TestS3_Key_Good(t *testing.T) {
 	mock := newMockS3()
 
 	// No prefix
-	m, _ := New("bucket", withAPI(mock))
+	m, _ := New(Options{Bucket: "bucket", Client: mock})
 	assert.Equal(t, "file.txt", m.key("file.txt"))
 	assert.Equal(t, "dir/file.txt", m.key("dir/file.txt"))
 	assert.Equal(t, "", m.key(""))
@@ -649,7 +649,7 @@ func TestS3_Key_Good(t *testing.T) {
 	assert.Equal(t, "file.txt", m.key("../file.txt"))
 
 	// With prefix
-	m2, _ := New("bucket", withAPI(mock), WithPrefix("pfx"))
+	m2, _ := New(Options{Bucket: "bucket", Client: mock, Prefix: "pfx"})
 	assert.Equal(t, "pfx/file.txt", m2.key("file.txt"))
 	assert.Equal(t, "pfx/dir/file.txt", m2.key("dir/file.txt"))
 	assert.Equal(t, "pfx/", m2.key(""))
@@ -658,7 +658,7 @@ func TestS3_Key_Good(t *testing.T) {
 // Ugly: verify the Medium interface is satisfied at compile time.
 func TestS3_InterfaceCompliance_Ugly(t *testing.T) {
 	mock := newMockS3()
-	m, err := New("bucket", withAPI(mock))
+	m, err := New(Options{Bucket: "bucket", Client: mock})
 	require.NoError(t, err)
 
 	// Verify all methods exist by calling them in a way that

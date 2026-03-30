@@ -19,43 +19,55 @@ type Workspace interface {
 	WorkspaceFileSet(filename, content string) error
 }
 
-// cryptProvider is the interface for PGP key generation.
-type cryptProvider interface {
+// CryptProvider is the interface for PGP key generation.
+type CryptProvider interface {
 	CreateKeyPair(name, passphrase string) (string, error)
+}
+
+// Options configures the workspace service.
+type Options struct {
+	// Core is the Core runtime used by the service.
+	Core *core.Core
+	// Crypt is the PGP key generation dependency.
+	Crypt CryptProvider
 }
 
 // Service implements the Workspace interface.
 type Service struct {
 	core            *core.Core
-	crypt           cryptProvider
+	crypt           CryptProvider
 	activeWorkspace string
 	rootPath        string
 	medium          io.Medium
 	mu              sync.RWMutex
 }
 
+var _ Workspace = (*Service)(nil)
+
 // New creates a new Workspace service instance.
-// An optional cryptProvider can be passed to supply PGP key generation.
 //
 // Example usage:
 //
-//	svcAny, _ := workspace.New(core.New(), myCryptProvider)
-//	svc := svcAny.(*workspace.Service)
-func New(c *core.Core, crypt ...cryptProvider) (any, error) {
+//	svc, _ := workspace.New(workspace.Options{Core: core.New(), Crypt: myCryptProvider})
+func New(options Options) (*Service, error) {
 	home := workspaceHome()
 	if home == "" {
 		return nil, core.E("workspace.New", "failed to determine home directory", fs.ErrNotExist)
 	}
 	rootPath := core.Path(home, ".core", "workspaces")
 
+	if options.Core == nil {
+		return nil, core.E("workspace.New", "core is required", fs.ErrInvalid)
+	}
+
 	s := &Service{
-		core:     c,
+		core:     options.Core,
 		rootPath: rootPath,
 		medium:   io.Local,
 	}
 
-	if len(crypt) > 0 && crypt[0] != nil {
-		s.crypt = crypt[0]
+	if options.Crypt != nil {
+		s.crypt = options.Crypt
 	}
 
 	if err := s.medium.EnsureDir(rootPath); err != nil {
@@ -230,6 +242,3 @@ func (s *Service) workspacePath(op, name string) (string, error) {
 	}
 	return path, nil
 }
-
-// Ensure Service implements Workspace.
-var _ Workspace = (*Service)(nil)

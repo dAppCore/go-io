@@ -1396,17 +1396,17 @@ Functional option for configuring `Medium`.
 
 Example:
 ```go
-opt := sqlite.WithTable("files")
+opt := sqlite.Options{Path: ":memory:", Table: "files"}
 _ = opt
 ```
 
-### WithTable(table string) Option
+### Options
 
 Sets the table name used for storage (default: `files`).
 
 Example:
 ```go
-m, _ := sqlite.New(":memory:", sqlite.WithTable("files"))
+m, _ := sqlite.New(sqlite.Options{Path: ":memory:", Table: "files"})
 ```
 
 ### New(dbPath string, opts ...Option) (*Medium, error)
@@ -1415,7 +1415,7 @@ Creates a new SQLite-backed medium.
 
 Example:
 ```go
-m, _ := sqlite.New(":memory:")
+m, _ := sqlite.New(sqlite.Options{Path: ":memory:"})
 _ = m.Write("notes.txt", "hello")
 ```
 
@@ -1425,21 +1425,21 @@ SQLite-backed storage backend.
 
 Example:
 ```go
-m, _ := sqlite.New(":memory:")
+m, _ := sqlite.New(sqlite.Options{Path: ":memory:"})
 _ = m.Write("notes.txt", "hello")
 ```
 
 **Close() error**
 Example:
 ```go
-m, _ := sqlite.New(":memory:")
+m, _ := sqlite.New(sqlite.Options{Path: ":memory:"})
 _ = m.Close()
 ```
 
 **Read(p string) (string, error)**
 Example:
 ```go
-m, _ := sqlite.New(":memory:")
+m, _ := sqlite.New(sqlite.Options{Path: ":memory:"})
 _ = m.Write("notes.txt", "hello")
 value, _ := m.Read("notes.txt")
 ```
@@ -1447,21 +1447,21 @@ value, _ := m.Read("notes.txt")
 **Write(p, content string) error**
 Example:
 ```go
-m, _ := sqlite.New(":memory:")
+m, _ := sqlite.New(sqlite.Options{Path: ":memory:"})
 _ = m.Write("notes.txt", "hello")
 ```
 
 **EnsureDir(p string) error**
 Example:
 ```go
-m, _ := sqlite.New(":memory:")
+m, _ := sqlite.New(sqlite.Options{Path: ":memory:"})
 _ = m.EnsureDir("config")
 ```
 
 **IsFile(p string) bool**
 Example:
 ```go
-m, _ := sqlite.New(":memory:")
+m, _ := sqlite.New(sqlite.Options{Path: ":memory:"})
 _ = m.Write("notes.txt", "hello")
 ok := m.IsFile("notes.txt")
 ```
@@ -1469,7 +1469,7 @@ ok := m.IsFile("notes.txt")
 **FileGet(p string) (string, error)**
 Example:
 ```go
-m, _ := sqlite.New(":memory:")
+m, _ := sqlite.New(sqlite.Options{Path: ":memory:"})
 _ = m.FileSet("notes.txt", "hello")
 value, _ := m.FileGet("notes.txt")
 ```
@@ -1477,14 +1477,14 @@ value, _ := m.FileGet("notes.txt")
 **FileSet(p, content string) error**
 Example:
 ```go
-m, _ := sqlite.New(":memory:")
+m, _ := sqlite.New(sqlite.Options{Path: ":memory:"})
 _ = m.FileSet("notes.txt", "hello")
 ```
 
 **Delete(p string) error**
 Example:
 ```go
-m, _ := sqlite.New(":memory:")
+m, _ := sqlite.New(sqlite.Options{Path: ":memory:"})
 _ = m.Write("old.txt", "data")
 _ = m.Delete("old.txt")
 ```
@@ -1492,7 +1492,7 @@ _ = m.Delete("old.txt")
 **DeleteAll(p string) error**
 Example:
 ```go
-m, _ := sqlite.New(":memory:")
+m, _ := sqlite.New(sqlite.Options{Path: ":memory:"})
 _ = m.Write("logs/run.txt", "started")
 _ = m.DeleteAll("logs")
 ```
@@ -1500,7 +1500,7 @@ _ = m.DeleteAll("logs")
 **Rename(oldPath, newPath string) error**
 Example:
 ```go
-m, _ := sqlite.New(":memory:")
+m, _ := sqlite.New(sqlite.Options{Path: ":memory:"})
 _ = m.Write("old.txt", "data")
 _ = m.Rename("old.txt", "new.txt")
 ```
@@ -1508,7 +1508,7 @@ _ = m.Rename("old.txt", "new.txt")
 **List(p string) ([]fs.DirEntry, error)**
 Example:
 ```go
-m, _ := sqlite.New(":memory:")
+m, _ := sqlite.New(sqlite.Options{Path: ":memory:"})
 _ = m.Write("dir/file.txt", "data")
 entries, _ := m.List("dir")
 ```
@@ -1516,7 +1516,7 @@ entries, _ := m.List("dir")
 **Stat(p string) (fs.FileInfo, error)**
 Example:
 ```go
-m, _ := sqlite.New(":memory:")
+m, _ := sqlite.New(sqlite.Options{Path: ":memory:"})
 _ = m.Write("notes.txt", "hello")
 info, _ := m.Stat("notes.txt")
 ```
@@ -1524,7 +1524,7 @@ info, _ := m.Stat("notes.txt")
 **Open(p string) (fs.File, error)**
 Example:
 ```go
-m, _ := sqlite.New(":memory:")
+m, _ := sqlite.New(sqlite.Options{Path: ":memory:"})
 _ = m.Write("notes.txt", "hello")
 f, _ := m.Open("notes.txt")
 defer f.Close()
@@ -1533,7 +1533,7 @@ defer f.Close()
 **Create(p string) (io.WriteCloser, error)**
 Example:
 ```go
-m, _ := sqlite.New(":memory:")
+m, _ := sqlite.New(sqlite.Options{Path: ":memory:"})
 w, _ := m.Create("notes.txt")
 _, _ = w.Write([]byte("hello"))
 _ = w.Close()
@@ -1542,7 +1542,7 @@ _ = w.Close()
 **Append(p string) (io.WriteCloser, error)**
 Example:
 ```go
-m, _ := sqlite.New(":memory:")
+m, _ := sqlite.New(sqlite.Options{Path: ":memory:"})
 _ = m.Write("notes.txt", "hello")
 w, _ := m.Append("notes.txt")
 _, _ = w.Write([]byte(" world"))
@@ -1552,7 +1552,7 @@ _ = w.Close()
 **ReadStream(p string) (io.ReadCloser, error)**
 Example:
 ```go
-m, _ := sqlite.New(":memory:")
+m, _ := sqlite.New(sqlite.Options{Path: ":memory:"})
 _ = m.Write("notes.txt", "hello")
 r, _ := m.ReadStream("notes.txt")
 defer r.Close()
@@ -1561,7 +1561,7 @@ defer r.Close()
 **WriteStream(p string) (io.WriteCloser, error)**
 Example:
 ```go
-m, _ := sqlite.New(":memory:")
+m, _ := sqlite.New(sqlite.Options{Path: ":memory:"})
 w, _ := m.WriteStream("notes.txt")
 _, _ = w.Write([]byte("hello"))
 _ = w.Close()
@@ -1570,7 +1570,7 @@ _ = w.Close()
 **Exists(p string) bool**
 Example:
 ```go
-m, _ := sqlite.New(":memory:")
+m, _ := sqlite.New(sqlite.Options{Path: ":memory:"})
 _ = m.Write("notes.txt", "hello")
 ok := m.Exists("notes.txt")
 ```
@@ -1578,7 +1578,7 @@ ok := m.Exists("notes.txt")
 **IsDir(p string) bool**
 Example:
 ```go
-m, _ := sqlite.New(":memory:")
+m, _ := sqlite.New(sqlite.Options{Path: ":memory:"})
 _ = m.EnsureDir("config")
 ok := m.IsDir("config")
 ```
@@ -1593,27 +1593,27 @@ Functional option for configuring `Medium`.
 
 Example:
 ```go
-opt := s3.WithPrefix("daily/")
+opt := s3.Options{Prefix: "daily/"}
 _ = opt
 ```
 
-### WithPrefix(prefix string) Option
+### Options
 
 Sets a key prefix for all operations.
 
 Example:
 ```go
-m, _ := s3.New("bucket", s3.WithClient(awsClient), s3.WithPrefix("daily/"))
+m, _ := s3.New(s3.Options{Bucket: "bucket", Client: awsClient, Prefix: "daily/"})
 ```
 
-### WithClient(client *awss3.Client) Option
+### Client
 
 Supplies an AWS SDK S3 client.
 
 Example:
 ```go
 client := awss3.NewFromConfig(cfg)
-m, _ := s3.New("bucket", s3.WithClient(client))
+m, _ := s3.New(s3.Options{Bucket: "bucket", Client: client})
 ```
 
 ### New(bucket string, opts ...Option) (*Medium, error)
@@ -1623,7 +1623,7 @@ Creates a new S3-backed medium.
 Example:
 ```go
 client := awss3.NewFromConfig(cfg)
-m, _ := s3.New("bucket", s3.WithClient(client))
+m, _ := s3.New(s3.Options{Bucket: "bucket", Client: client})
 ```
 
 ### Medium
@@ -1633,14 +1633,14 @@ S3-backed storage backend.
 Example:
 ```go
 client := awss3.NewFromConfig(cfg)
-m, _ := s3.New("bucket", s3.WithClient(client))
+m, _ := s3.New(s3.Options{Bucket: "bucket", Client: client})
 ```
 
 **Read(p string) (string, error)**
 Example:
 ```go
 client := awss3.NewFromConfig(cfg)
-m, _ := s3.New("bucket", s3.WithClient(client))
+m, _ := s3.New(s3.Options{Bucket: "bucket", Client: client})
 value, _ := m.Read("notes.txt")
 ```
 
@@ -1648,7 +1648,7 @@ value, _ := m.Read("notes.txt")
 Example:
 ```go
 client := awss3.NewFromConfig(cfg)
-m, _ := s3.New("bucket", s3.WithClient(client))
+m, _ := s3.New(s3.Options{Bucket: "bucket", Client: client})
 _ = m.Write("notes.txt", "hello")
 ```
 
@@ -1657,7 +1657,7 @@ No-op (S3 has no directories).
 Example:
 ```go
 client := awss3.NewFromConfig(cfg)
-m, _ := s3.New("bucket", s3.WithClient(client))
+m, _ := s3.New(s3.Options{Bucket: "bucket", Client: client})
 _ = m.EnsureDir("config")
 ```
 
@@ -1665,7 +1665,7 @@ _ = m.EnsureDir("config")
 Example:
 ```go
 client := awss3.NewFromConfig(cfg)
-m, _ := s3.New("bucket", s3.WithClient(client))
+m, _ := s3.New(s3.Options{Bucket: "bucket", Client: client})
 ok := m.IsFile("notes.txt")
 ```
 
@@ -1673,7 +1673,7 @@ ok := m.IsFile("notes.txt")
 Example:
 ```go
 client := awss3.NewFromConfig(cfg)
-m, _ := s3.New("bucket", s3.WithClient(client))
+m, _ := s3.New(s3.Options{Bucket: "bucket", Client: client})
 value, _ := m.FileGet("notes.txt")
 ```
 
@@ -1681,7 +1681,7 @@ value, _ := m.FileGet("notes.txt")
 Example:
 ```go
 client := awss3.NewFromConfig(cfg)
-m, _ := s3.New("bucket", s3.WithClient(client))
+m, _ := s3.New(s3.Options{Bucket: "bucket", Client: client})
 _ = m.FileSet("notes.txt", "hello")
 ```
 
@@ -1689,7 +1689,7 @@ _ = m.FileSet("notes.txt", "hello")
 Example:
 ```go
 client := awss3.NewFromConfig(cfg)
-m, _ := s3.New("bucket", s3.WithClient(client))
+m, _ := s3.New(s3.Options{Bucket: "bucket", Client: client})
 _ = m.Delete("old.txt")
 ```
 
@@ -1697,7 +1697,7 @@ _ = m.Delete("old.txt")
 Example:
 ```go
 client := awss3.NewFromConfig(cfg)
-m, _ := s3.New("bucket", s3.WithClient(client))
+m, _ := s3.New(s3.Options{Bucket: "bucket", Client: client})
 _ = m.DeleteAll("logs")
 ```
 
@@ -1705,7 +1705,7 @@ _ = m.DeleteAll("logs")
 Example:
 ```go
 client := awss3.NewFromConfig(cfg)
-m, _ := s3.New("bucket", s3.WithClient(client))
+m, _ := s3.New(s3.Options{Bucket: "bucket", Client: client})
 _ = m.Rename("old.txt", "new.txt")
 ```
 
@@ -1713,7 +1713,7 @@ _ = m.Rename("old.txt", "new.txt")
 Example:
 ```go
 client := awss3.NewFromConfig(cfg)
-m, _ := s3.New("bucket", s3.WithClient(client))
+m, _ := s3.New(s3.Options{Bucket: "bucket", Client: client})
 entries, _ := m.List("dir")
 ```
 
@@ -1721,7 +1721,7 @@ entries, _ := m.List("dir")
 Example:
 ```go
 client := awss3.NewFromConfig(cfg)
-m, _ := s3.New("bucket", s3.WithClient(client))
+m, _ := s3.New(s3.Options{Bucket: "bucket", Client: client})
 info, _ := m.Stat("notes.txt")
 ```
 
@@ -1729,7 +1729,7 @@ info, _ := m.Stat("notes.txt")
 Example:
 ```go
 client := awss3.NewFromConfig(cfg)
-m, _ := s3.New("bucket", s3.WithClient(client))
+m, _ := s3.New(s3.Options{Bucket: "bucket", Client: client})
 f, _ := m.Open("notes.txt")
 defer f.Close()
 ```
@@ -1738,7 +1738,7 @@ defer f.Close()
 Example:
 ```go
 client := awss3.NewFromConfig(cfg)
-m, _ := s3.New("bucket", s3.WithClient(client))
+m, _ := s3.New(s3.Options{Bucket: "bucket", Client: client})
 w, _ := m.Create("notes.txt")
 _, _ = w.Write([]byte("hello"))
 _ = w.Close()
@@ -1748,7 +1748,7 @@ _ = w.Close()
 Example:
 ```go
 client := awss3.NewFromConfig(cfg)
-m, _ := s3.New("bucket", s3.WithClient(client))
+m, _ := s3.New(s3.Options{Bucket: "bucket", Client: client})
 w, _ := m.Append("notes.txt")
 _, _ = w.Write([]byte(" world"))
 _ = w.Close()
@@ -1758,7 +1758,7 @@ _ = w.Close()
 Example:
 ```go
 client := awss3.NewFromConfig(cfg)
-m, _ := s3.New("bucket", s3.WithClient(client))
+m, _ := s3.New(s3.Options{Bucket: "bucket", Client: client})
 r, _ := m.ReadStream("notes.txt")
 defer r.Close()
 ```
@@ -1767,7 +1767,7 @@ defer r.Close()
 Example:
 ```go
 client := awss3.NewFromConfig(cfg)
-m, _ := s3.New("bucket", s3.WithClient(client))
+m, _ := s3.New(s3.Options{Bucket: "bucket", Client: client})
 w, _ := m.WriteStream("notes.txt")
 _, _ = w.Write([]byte("hello"))
 _ = w.Close()
@@ -1777,7 +1777,7 @@ _ = w.Close()
 Example:
 ```go
 client := awss3.NewFromConfig(cfg)
-m, _ := s3.New("bucket", s3.WithClient(client))
+m, _ := s3.New(s3.Options{Bucket: "bucket", Client: client})
 ok := m.Exists("notes.txt")
 ```
 
@@ -1785,7 +1785,7 @@ ok := m.Exists("notes.txt")
 Example:
 ```go
 client := awss3.NewFromConfig(cfg)
-m, _ := s3.New("bucket", s3.WithClient(client))
+m, _ := s3.New(s3.Options{Bucket: "bucket", Client: client})
 ok := m.IsDir("logs")
 ```
 
@@ -2019,7 +2019,7 @@ _ = ws
 **CreateWorkspace(identifier, password string) (string, error)**
 Example:
 ```go
-svcAny, _ := workspace.New(core.New(), stubCrypt{})
+svcAny, _ := workspace.New(workspace.Options{Core: core.New(), Crypt: stubCrypt{}})
 svc := svcAny.(*workspace.Service)
 wsID, _ := svc.CreateWorkspace("user", "pass")
 ```
@@ -2027,7 +2027,7 @@ wsID, _ := svc.CreateWorkspace("user", "pass")
 **SwitchWorkspace(name string) error**
 Example:
 ```go
-svcAny, _ := workspace.New(core.New(), stubCrypt{})
+svcAny, _ := workspace.New(workspace.Options{Core: core.New(), Crypt: stubCrypt{}})
 svc := svcAny.(*workspace.Service)
 _ = svc.SwitchWorkspace("workspace-id")
 ```
@@ -2035,7 +2035,7 @@ _ = svc.SwitchWorkspace("workspace-id")
 **WorkspaceFileGet(filename string) (string, error)**
 Example:
 ```go
-svcAny, _ := workspace.New(core.New(), stubCrypt{})
+svcAny, _ := workspace.New(workspace.Options{Core: core.New(), Crypt: stubCrypt{}})
 svc := svcAny.(*workspace.Service)
 value, _ := svc.WorkspaceFileGet("notes.txt")
 ```
@@ -2043,12 +2043,12 @@ value, _ := svc.WorkspaceFileGet("notes.txt")
 **WorkspaceFileSet(filename, content string) error**
 Example:
 ```go
-svcAny, _ := workspace.New(core.New(), stubCrypt{})
+svcAny, _ := workspace.New(workspace.Options{Core: core.New(), Crypt: stubCrypt{}})
 svc := svcAny.(*workspace.Service)
 _ = svc.WorkspaceFileSet("notes.txt", "hello")
 ```
 
-### New(c *core.Core, crypt ...cryptProvider) (any, error)
+### New(options Options) (any, error)
 
 Creates a new workspace service. Returns `*Service` as `any`.
 
@@ -2057,7 +2057,7 @@ Example:
 type stubCrypt struct{}
 func (stubCrypt) CreateKeyPair(name, passphrase string) (string, error) { return "key", nil }
 
-svcAny, _ := workspace.New(core.New(), stubCrypt{})
+svcAny, _ := workspace.New(workspace.Options{Core: core.New(), Crypt: stubCrypt{}})
 svc := svcAny.(*workspace.Service)
 _ = svc
 ```
@@ -2068,7 +2068,7 @@ Implements `Workspace` and handles IPC messages.
 
 Example:
 ```go
-svcAny, _ := workspace.New(core.New(), stubCrypt{})
+svcAny, _ := workspace.New(workspace.Options{Core: core.New(), Crypt: stubCrypt{}})
 svc := svcAny.(*workspace.Service)
 _ = svc
 ```
@@ -2076,7 +2076,7 @@ _ = svc
 **CreateWorkspace(identifier, password string) (string, error)**
 Example:
 ```go
-svcAny, _ := workspace.New(core.New(), stubCrypt{})
+svcAny, _ := workspace.New(workspace.Options{Core: core.New(), Crypt: stubCrypt{}})
 svc := svcAny.(*workspace.Service)
 wsID, _ := svc.CreateWorkspace("user", "pass")
 ```
@@ -2084,7 +2084,7 @@ wsID, _ := svc.CreateWorkspace("user", "pass")
 **SwitchWorkspace(name string) error**
 Example:
 ```go
-svcAny, _ := workspace.New(core.New(), stubCrypt{})
+svcAny, _ := workspace.New(workspace.Options{Core: core.New(), Crypt: stubCrypt{}})
 svc := svcAny.(*workspace.Service)
 _ = svc.SwitchWorkspace("workspace-id")
 ```
@@ -2092,7 +2092,7 @@ _ = svc.SwitchWorkspace("workspace-id")
 **WorkspaceFileGet(filename string) (string, error)**
 Example:
 ```go
-svcAny, _ := workspace.New(core.New(), stubCrypt{})
+svcAny, _ := workspace.New(workspace.Options{Core: core.New(), Crypt: stubCrypt{}})
 svc := svcAny.(*workspace.Service)
 value, _ := svc.WorkspaceFileGet("notes.txt")
 ```
@@ -2100,7 +2100,7 @@ value, _ := svc.WorkspaceFileGet("notes.txt")
 **WorkspaceFileSet(filename, content string) error**
 Example:
 ```go
-svcAny, _ := workspace.New(core.New(), stubCrypt{})
+svcAny, _ := workspace.New(workspace.Options{Core: core.New(), Crypt: stubCrypt{}})
 svc := svcAny.(*workspace.Service)
 _ = svc.WorkspaceFileSet("notes.txt", "hello")
 ```
@@ -2108,7 +2108,7 @@ _ = svc.WorkspaceFileSet("notes.txt", "hello")
 **HandleIPCEvents(c *core.Core, msg core.Message) core.Result**
 Example:
 ```go
-svcAny, _ := workspace.New(core.New(), stubCrypt{})
+svcAny, _ := workspace.New(workspace.Options{Core: core.New(), Crypt: stubCrypt{}})
 svc := svcAny.(*workspace.Service)
 result := svc.HandleIPCEvents(core.New(), map[string]any{
 	"action":     "workspace.create",

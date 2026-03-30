@@ -148,6 +148,8 @@ func (de DirEntry) Info() (fs.FileInfo, error) { return de.info, nil }
 // For sandboxed access, use NewSandboxed with a specific root path.
 var Local Medium
 
+var _ Medium = (*local.Medium)(nil)
+
 func init() {
 	var err error
 	Local, err = local.New("/")
@@ -234,6 +236,8 @@ type MockMedium struct {
 	Dirs     map[string]bool
 	ModTimes map[string]time.Time
 }
+
+var _ Medium = (*MockMedium)(nil)
 
 // NewMockMedium creates a new MockMedium instance.
 //

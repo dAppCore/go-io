@@ -12,7 +12,7 @@ import (
 
 func newTestMedium(t *testing.T) *Medium {
 	t.Helper()
-	m, err := New(":memory:")
+	m, err := New(Options{Path: ":memory:"})
 	require.NoError(t, err)
 	t.Cleanup(func() { m.Close() })
 	return m
@@ -21,21 +21,21 @@ func newTestMedium(t *testing.T) *Medium {
 // --- Constructor Tests ---
 
 func TestSqlite_New_Good(t *testing.T) {
-	m, err := New(":memory:")
+	m, err := New(Options{Path: ":memory:"})
 	require.NoError(t, err)
 	defer m.Close()
 	assert.Equal(t, "files", m.table)
 }
 
-func TestSqlite_New_WithTable_Good(t *testing.T) {
-	m, err := New(":memory:", WithTable("custom"))
+func TestSqlite_New_Options_Good(t *testing.T) {
+	m, err := New(Options{Path: ":memory:", Table: "custom"})
 	require.NoError(t, err)
 	defer m.Close()
 	assert.Equal(t, "custom", m.table)
 }
 
 func TestSqlite_New_EmptyPath_Bad(t *testing.T) {
-	_, err := New("")
+	_, err := New(Options{})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "database path is required")
 }
@@ -641,7 +641,7 @@ func TestSqlite_InterfaceCompliance_Ugly(t *testing.T) {
 // --- Custom Table ---
 
 func TestSqlite_CustomTable_Good(t *testing.T) {
-	m, err := New(":memory:", WithTable("my_files"))
+	m, err := New(Options{Path: ":memory:", Table: "my_files"})
 	require.NoError(t, err)
 	defer m.Close()
 

@@ -60,7 +60,7 @@ The S3 backend translates `Medium` operations into AWS SDK calls. Key design dec
 - **Directory semantics:** S3 has no real directories. `EnsureDir` is a no-op. `IsDir` and `Exists` for directory-like paths use `ListObjectsV2` with `MaxKeys: 1` to check for objects under the prefix.
 - **Rename:** Implemented as copy-then-delete, since S3 has no atomic rename.
 - **Append:** Downloads existing content, appends in memory, re-uploads on `Close()`. This is the only viable approach given S3's immutable-object model.
-- **Testability:** The `s3API` interface (unexported) abstracts the six SDK methods used. Tests inject a `mockS3` that stores objects in a `map[string][]byte` with a `sync.RWMutex`.
+- **Testability:** The `Client` interface abstracts the six SDK methods used. Tests inject a `mockS3` that stores objects in a `map[string][]byte` with a `sync.RWMutex`.
 
 ### sqlite.Medium
 
@@ -81,7 +81,7 @@ CREATE TABLE IF NOT EXISTS files (
 - **WAL mode** is enabled at connection time for better concurrent read performance.
 - **Path cleaning** uses the same `path.Clean("/" + p)` pattern as other backends.
 - **Rename** is transactional: it reads the source row, inserts at the destination, deletes the source, and moves all children (if it is a directory) within a single transaction.
-- **Custom tables** are supported via `WithTable("name")` to allow multiple logical filesystems in one database.
+- **Custom tables** are supported via `sqlite.Options{Path: ":memory:", Table: "name"}` to allow multiple logical filesystems in one database.
 - **`:memory:`** databases work out of the box for tests.
 
 ### node.Node

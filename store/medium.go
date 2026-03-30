@@ -7,6 +7,7 @@ import (
 	"time"
 
 	core "dappco.re/go/core"
+	coreio "dappco.re/go/core/io"
 )
 
 // Medium wraps a Store to satisfy the io.Medium interface.
@@ -16,6 +17,8 @@ import (
 type Medium struct {
 	s *Store
 }
+
+var _ coreio.Medium = (*Medium)(nil)
 
 // NewMedium creates an io.Medium backed by a KV store at the given SQLite path.
 //
@@ -87,6 +90,13 @@ func (m *Medium) Write(p, content string) error {
 		return core.E("store.Write", "path must include group/key", fs.ErrInvalid)
 	}
 	return m.s.Set(group, key, content)
+}
+
+// WriteMode ignores the requested mode because key-value entries do not store POSIX permissions.
+//
+//	result := m.WriteMode(...)
+func (m *Medium) WriteMode(p, content string, _ fs.FileMode) error {
+	return m.Write(p, content)
 }
 
 // EnsureDir is a no-op — groups are created implicitly on Set.
@@ -161,19 +171,19 @@ func (m *Medium) DeleteAll(p string) error {
 //
 //	result := m.Rename(...)
 func (m *Medium) Rename(oldPath, newPath string) error {
-	og, ok := splitPath(oldPath)
-	ng, nk := splitPath(newPath)
-	if ok == "" || nk == "" {
+	oldGroup, oldKey := splitPath(oldPath)
+	newGroup, newKey := splitPath(newPath)
+	if oldKey == "" || newKey == "" {
 		return core.E("store.Rename", "both paths must include group/key", fs.ErrInvalid)
 	}
-	val, err := m.s.Get(og, ok)
+	val, err := m.s.Get(oldGroup, oldKey)
 	if err != nil {
 		return err
 	}
-	if err := m.s.Set(ng, nk, val); err != nil {
+	if err := m.s.Set(newGroup, newKey, val); err != nil {
 		return err
 	}
-	return m.s.Delete(og, ok)
+	return m.s.Delete(oldGroup, oldKey)
 }
 
 // List returns directory entries. Empty path returns groups.
