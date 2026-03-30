@@ -1,4 +1,4 @@
-// Package local provides the local filesystem implementation of io.Medium.
+// Package local binds io.Medium to the local filesystem.
 //
 //	medium, _ := local.New("/srv/app")
 //	_ = medium.Write("config/app.yaml", "port: 8080")
@@ -13,18 +13,16 @@ import (
 	core "dappco.re/go/core"
 )
 
-// Medium is the local filesystem backend returned by New.
+// Example: medium, _ := local.New("/srv/app")
+// _ = medium.Write("config/app.yaml", "port: 8080")
 type Medium struct {
 	filesystemRoot string
 }
 
 var unrestrictedFileSystem = (&core.Fs{}).NewUnrestricted()
 
-// local.New("/") exposes the full filesystem.
-// local.New("/srv/app") confines access to a project root.
-//
-//	medium, _ := local.New("/srv/app")
-//	_ = medium.Write("config/app.yaml", "port: 8080")
+// Example: medium, _ := local.New("/srv/app")
+// _ = medium.Write("config/app.yaml", "port: 8080")
 func New(root string) (*Medium, error) {
 	absoluteRoot := absolutePath(root)
 	// Resolve symlinks so sandbox checks compare like-for-like.
@@ -179,7 +177,7 @@ func logSandboxEscape(root, path, attempted string) {
 	core.Security("sandbox escape detected", "root", root, "path", path, "attempted", attempted, "user", username)
 }
 
-// sandboxedPath sanitises and returns the full filesystem path.
+// sandboxedPath resolves a path inside the filesystem root.
 // Absolute paths are sandboxed under root (unless root is "/").
 func (m *Medium) sandboxedPath(path string) string {
 	if path == "" {

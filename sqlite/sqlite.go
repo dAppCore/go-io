@@ -1,4 +1,4 @@
-// Package sqlite persists io.Medium content in a SQLite database.
+// Package sqlite stores io.Medium content in SQLite.
 //
 //	medium, _ := sqlite.New(sqlite.Options{Path: ":memory:"})
 //	_ = medium.Write("config/app.yaml", "port: 8080")
@@ -18,10 +18,8 @@ import (
 	_ "modernc.org/sqlite" // Pure Go SQLite driver
 )
 
-// Medium stores filesystem-shaped content in SQLite.
-//
-//	medium, _ := sqlite.New(sqlite.Options{Path: ":memory:"})
-//	_ = medium.Write("config/app.yaml", "port: 8080")
+// Example: medium, _ := sqlite.New(sqlite.Options{Path: ":memory:"})
+// _ = medium.Write("config/app.yaml", "port: 8080")
 type Medium struct {
 	database *sql.DB
 	table    string
@@ -29,7 +27,6 @@ type Medium struct {
 
 var _ coreio.Medium = (*Medium)(nil)
 
-// Example: medium, _ := sqlite.New(sqlite.Options{Path: ":memory:", Table: "files"})
 type Options struct {
 	// Path is the SQLite database path. Use ":memory:" for tests.
 	Path string

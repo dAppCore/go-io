@@ -10,17 +10,15 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-// NotFoundError is returned when a key does not exist in the store.
+// Example: _, err := keyValueStore.Get("app", "theme")
+// err matches store.NotFoundError when the key is missing.
 var NotFoundError = errors.New("key not found")
 
-// Store is the grouped key/value database returned by New.
-//
-//	keyValueStore, _ := store.New(store.Options{Path: ":memory:"})
+// Example: keyValueStore, _ := store.New(store.Options{Path: ":memory:"})
 type Store struct {
 	database *sql.DB
 }
 
-// Example: keyValueStore, _ := store.New(store.Options{Path: ":memory:"})
 type Options struct {
 	// Path is the SQLite database path. Use ":memory:" for tests.
 	Path string
@@ -134,13 +132,9 @@ func (s *Store) GetAll(group string) (map[string]string, error) {
 	return result, nil
 }
 
-// Render loads all key-value pairs from a group and renders a Go template.
-//
-// Example usage:
-//
-//	keyValueStore, _ := store.New(store.Options{Path: ":memory:"})
-//	_ = keyValueStore.Set("user", "name", "alice")
-//	out, _ := keyValueStore.Render("hello {{ .name }}", "user")
+// Example: keyValueStore, _ := store.New(store.Options{Path: ":memory:"})
+// _ = keyValueStore.Set("user", "name", "alice")
+// out, _ := keyValueStore.Render("hello {{ .name }}", "user")
 func (s *Store) Render(templateText, group string) (string, error) {
 	rows, err := s.database.Query("SELECT key, value FROM kv WHERE grp = ?", group)
 	if err != nil {

@@ -11,9 +11,7 @@ import (
 	"dappco.re/go/core/io"
 )
 
-// Workspace is the workspace service interface returned by New.
-//
-//	service, _ := workspace.New(workspace.Options{Core: core.New(), Crypt: cryptProvider})
+// Example: service, _ := workspace.New(workspace.Options{Core: core.New(), Crypt: cryptProvider})
 type Workspace interface {
 	CreateWorkspace(identifier, password string) (string, error)
 	SwitchWorkspace(workspaceID string) error
@@ -34,7 +32,7 @@ type Options struct {
 	Crypt CryptProvider
 }
 
-// Service is the Workspace implementation returned by New.
+// Example: service, _ := workspace.New(workspace.Options{Core: core.New(), Crypt: cryptProvider})
 type Service struct {
 	core              *core.Core
 	crypt             CryptProvider
@@ -77,8 +75,6 @@ func New(options Options) (*Service, error) {
 }
 
 // Example: workspaceID, _ := service.CreateWorkspace("alice", "pass123")
-// Identifier is hashed (SHA-256) to create the directory name.
-// A PGP keypair is generated using the password.
 func (s *Service) CreateWorkspace(identifier, password string) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

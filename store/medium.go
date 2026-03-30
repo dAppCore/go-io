@@ -12,11 +12,8 @@ import (
 
 // Example: medium, _ := store.NewMedium(store.Options{Path: "config.db"})
 // _ = medium.Write("app/theme", "midnight")
+// entries, _ := medium.List("")
 // entries, _ := medium.List("app")
-//
-// Paths are mapped as group/key - the first segment is the group,
-// the rest is the key. List("") returns groups as directories,
-// List("group") returns keys as files.
 type Medium struct {
 	store *Store
 }

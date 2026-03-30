@@ -10,12 +10,10 @@ import (
 	"dappco.re/go/core/io/local"
 )
 
-// Medium is the storage boundary used across CoreGO.
-//
-//	medium, _ := io.NewSandboxed("/srv/app")
-//	_ = medium.Write("config/app.yaml", "port: 8080")
-//	backup, _ := io.NewSandboxed("/srv/backup")
-//	_ = io.Copy(medium, "data/report.json", backup, "daily/report.json")
+// Example: medium, _ := io.NewSandboxed("/srv/app")
+// _ = medium.Write("config/app.yaml", "port: 8080")
+// backup, _ := io.NewSandboxed("/srv/backup")
+// _ = io.Copy(medium, "data/report.json", backup, "daily/report.json")
 type Medium interface {
 	Read(path string) (string, error)
 
@@ -61,7 +59,7 @@ type Medium interface {
 	IsDir(path string) bool
 }
 
-// FileInfo provides a simple implementation of fs.FileInfo for mock testing.
+// FileInfo is a test helper that satisfies fs.FileInfo.
 type FileInfo struct {
 	name    string
 	size    int64
@@ -82,7 +80,7 @@ func (fi FileInfo) IsDir() bool { return fi.isDir }
 
 func (fi FileInfo) Sys() any { return nil }
 
-// DirEntry provides a simple implementation of fs.DirEntry for mock testing.
+// DirEntry is a test helper that satisfies fs.DirEntry.
 type DirEntry struct {
 	name  string
 	isDir bool
@@ -98,9 +96,7 @@ func (de DirEntry) Type() fs.FileMode { return de.mode.Type() }
 
 func (de DirEntry) Info() (fs.FileInfo, error) { return de.info, nil }
 
-// Local is the unsandboxed filesystem medium rooted at "/".
-//
-//	io.Local.Read("/etc/hostname")
+// Example: io.Local.Read("/etc/hostname")
 var Local Medium
 
 var _ Medium = (*local.Medium)(nil)
@@ -113,14 +109,8 @@ func init() {
 	}
 }
 
-// Use NewSandboxed to confine file operations to a root directory.
-// All file operations are restricted to paths within the root, and the root
-// directory will be created if it does not exist.
-//
-// Example usage:
-//
-//	medium, _ := io.NewSandboxed("/srv/app")
-//	_ = medium.Write("config/app.yaml", "port: 8080")
+// Example: medium, _ := io.NewSandboxed("/srv/app")
+// _ = medium.Write("config/app.yaml", "port: 8080")
 func NewSandboxed(root string) (Medium, error) {
 	return local.New(root)
 }
@@ -171,10 +161,8 @@ func Copy(source Medium, sourcePath string, destination Medium, destinationPath 
 
 // --- MockMedium ---
 
-// MockMedium is an in-memory Medium for tests.
-//
-//	medium := io.NewMockMedium()
-//	_ = medium.Write("config/app.yaml", "port: 8080")
+// Example: medium := io.NewMockMedium()
+// _ = medium.Write("config/app.yaml", "port: 8080")
 type MockMedium struct {
 	Files    map[string]string
 	Dirs     map[string]bool
@@ -183,10 +171,8 @@ type MockMedium struct {
 
 var _ Medium = (*MockMedium)(nil)
 
-// Use NewMockMedium when tests need an in-memory Medium.
-//
-//	medium := io.NewMockMedium()
-//	_ = medium.Write("config/app.yaml", "port: 8080")
+// Example: medium := io.NewMockMedium()
+// _ = medium.Write("config/app.yaml", "port: 8080")
 func NewMockMedium() *MockMedium {
 	return &MockMedium{
 		Files:    make(map[string]string),

@@ -1,4 +1,4 @@
-// Package s3 provides an S3-backed io.Medium.
+// Package s3 stores io.Medium data in S3 objects.
 //
 //	client := awss3.NewFromConfig(aws.Config{Region: "us-east-1"})
 //	medium, _ := s3.New(s3.Options{Bucket: "backups", Client: client, Prefix: "daily/"})
@@ -21,8 +21,8 @@ import (
 	coreio "dappco.re/go/core/io"
 )
 
-// Client is the subset of the AWS S3 client API used by this package.
-// Tests can provide any mock that satisfies the same method set.
+// Example: client := awss3.NewFromConfig(aws.Config{Region: "us-east-1"})
+// medium, _ := s3.New(s3.Options{Bucket: "backups", Client: client, Prefix: "daily/"})
 type Client interface {
 	GetObject(ctx context.Context, params *awss3.GetObjectInput, optFns ...func(*awss3.Options)) (*awss3.GetObjectOutput, error)
 	PutObject(ctx context.Context, params *awss3.PutObjectInput, optFns ...func(*awss3.Options)) (*awss3.PutObjectOutput, error)
@@ -33,10 +33,8 @@ type Client interface {
 	CopyObject(ctx context.Context, params *awss3.CopyObjectInput, optFns ...func(*awss3.Options)) (*awss3.CopyObjectOutput, error)
 }
 
-// Medium is the S3-backed io.Medium returned by New.
-//
-//	medium, _ := s3.New(s3.Options{Bucket: "backups", Client: client, Prefix: "daily/"})
-//	_ = medium.Write("reports/daily.txt", "done")
+// Example: medium, _ := s3.New(s3.Options{Bucket: "backups", Client: client, Prefix: "daily/"})
+// _ = medium.Write("reports/daily.txt", "done")
 type Medium struct {
 	client Client
 	bucket string

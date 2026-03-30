@@ -1,12 +1,9 @@
-// Package node provides an in-memory filesystem implementation of io.Medium.
+// Package node keeps io.Medium data in memory.
 //
 //	nodeTree := node.New()
 //	nodeTree.AddData("config/app.yaml", []byte("port: 8080"))
 //	snapshot, _ := nodeTree.ToTar()
 //	restored, _ := node.FromTar(snapshot)
-//
-// It stores files in memory with implicit directory structure and supports
-// tar serialisation.
 package node
 
 import (
@@ -27,18 +24,14 @@ import (
 // nodeTree.AddData("config/app.yaml", []byte("port: 8080"))
 // snapshot, _ := nodeTree.ToTar()
 // restored, _ := node.FromTar(snapshot)
-//
-// Directories are implicit: they exist whenever a file path contains a "/".
 type Node struct {
 	files map[string]*dataFile
 }
 
-// compile-time interface checks
+// Compile-time interface checks.
 var _ coreio.Medium = (*Node)(nil)
 var _ fs.ReadFileFS = (*Node)(nil)
 
-// Example: nodeTree := node.New()
-// nodeTree.AddData("config/app.yaml", []byte("port: 8080"))
 func New() *Node {
 	return &Node{files: make(map[string]*dataFile)}
 }
@@ -89,7 +82,7 @@ func (n *Node) ToTar() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// Use FromTar(data) to restore an in-memory tree from tar bytes.
+// Example: restored, _ := node.FromTar(snapshot)
 func FromTar(data []byte) (*Node, error) {
 	n := New()
 	if err := n.LoadTar(data); err != nil {

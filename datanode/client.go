@@ -1,14 +1,9 @@
-// Package datanode provides an in-memory io.Medium backed by Borg's DataNode.
+// Package datanode keeps io.Medium data in Borg's DataNode.
 //
 //	medium := datanode.New()
 //	_ = medium.Write("jobs/run.log", "started")
 //	snapshot, _ := medium.Snapshot()
 //	restored, _ := datanode.FromTar(snapshot)
-//
-// DataNode is an in-memory fs.FS that serialises to tar. Wrapping it as a
-// Medium lets any code that works with io.Medium transparently operate on an
-// in-memory filesystem that can be snapshotted, shipped as a crash report, or
-// wrapped in a TIM container for runc execution.
 package datanode
 
 import (
@@ -39,16 +34,12 @@ var (
 // Example: medium := datanode.New()
 // _ = medium.Write("jobs/run.log", "started")
 // snapshot, _ := medium.Snapshot()
-//
-// All paths are relative (no leading slash). Thread-safe via RWMutex.
 type Medium struct {
 	dataNode     *borgdatanode.DataNode
 	directorySet map[string]bool // explicit directories that exist without file contents
 	mu           sync.RWMutex
 }
 
-// Example: medium := datanode.New()
-// _ = medium.Write("jobs/run.log", "started")
 func New() *Medium {
 	return &Medium{
 		dataNode:     borgdatanode.New(),
@@ -56,11 +47,9 @@ func New() *Medium {
 	}
 }
 
-// FromTar restores a Medium from tar bytes.
-//
-//	sourceMedium := datanode.New()
-//	snapshot, _ := sourceMedium.Snapshot()
-//	restored, _ := datanode.FromTar(snapshot)
+// Example: sourceMedium := datanode.New()
+// snapshot, _ := sourceMedium.Snapshot()
+// restored, _ := datanode.FromTar(snapshot)
 func FromTar(data []byte) (*Medium, error) {
 	dataNode, err := borgdatanode.FromTar(data)
 	if err != nil {
@@ -73,7 +62,6 @@ func FromTar(data []byte) (*Medium, error) {
 }
 
 // Example: snapshot, _ := medium.Snapshot()
-// Use this for crash reports, workspace packaging, or TIM creation.
 func (m *Medium) Snapshot() ([]byte, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -98,7 +86,6 @@ func (m *Medium) Restore(data []byte) error {
 }
 
 // Example: dataNode := medium.DataNode()
-// Use this to wrap the filesystem in a TIM container.
 func (m *Medium) DataNode() *borgdatanode.DataNode {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
