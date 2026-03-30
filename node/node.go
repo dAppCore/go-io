@@ -31,6 +31,8 @@ type Node struct {
 var _ coreio.Medium = (*Node)(nil)
 var _ fs.ReadFileFS = (*Node)(nil)
 
+// Example: nodeTree := node.New()
+// Example: _ = nodeTree.Write("config/app.yaml", "port: 8080")
 func New() *Node {
 	return &Node{files: make(map[string]*dataFile)}
 }
@@ -123,6 +125,7 @@ func (node *Node) LoadTar(data []byte) error {
 	return nil
 }
 
+// Example: _ = nodeTree.WalkNode("config", func(_ string, _ fs.DirEntry, _ error) error { return nil })
 func (node *Node) WalkNode(root string, fn fs.WalkDirFunc) error {
 	return fs.WalkDir(node, root, fn)
 }
@@ -175,6 +178,7 @@ func (node *Node) WalkWithOptions(root string, fn fs.WalkDirFunc, options WalkOp
 	})
 }
 
+// Example: content, _ := nodeTree.ReadFile("config/app.yaml")
 func (node *Node) ReadFile(name string) ([]byte, error) {
 	name = core.TrimPrefix(name, "/")
 	file, ok := node.files[name]

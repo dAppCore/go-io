@@ -11,7 +11,7 @@ import (
 	"dappco.re/go/core/io"
 )
 
-// Example: service, _ := workspace.New(workspace.Options{Core: core.New(), Crypt: cryptProvider})
+// Example: service, _ := workspace.New(workspace.Options{Core: core.New(), CryptProvider: cryptProvider})
 type Workspace interface {
 	CreateWorkspace(identifier, password string) (string, error)
 	SwitchWorkspace(workspaceID string) error
@@ -41,26 +41,24 @@ type WorkspaceCommand struct {
 	WorkspaceID string
 }
 
-// Example: service, _ := workspace.New(workspace.Options{Core: core.New(), Crypt: cryptProvider})
+// Example: service, _ := workspace.New(workspace.Options{Core: core.New(), CryptProvider: cryptProvider})
 type Options struct {
-	// Core is the Core runtime used by the service.
 	Core *core.Core
-	// Crypt is the PGP key generation dependency.
-	Crypt CryptProvider
+	CryptProvider CryptProvider
 }
 
-// Example: service, _ := workspace.New(workspace.Options{Core: core.New(), Crypt: cryptProvider})
+// Example: service, _ := workspace.New(workspace.Options{Core: core.New(), CryptProvider: cryptProvider})
 type Service struct {
-	crypt             CryptProvider
+	cryptProvider     CryptProvider
 	activeWorkspaceID string
 	rootPath          string
 	medium            io.Medium
-	lock              sync.RWMutex
+	stateLock         sync.RWMutex
 }
 
 var _ Workspace = (*Service)(nil)
 
-// Example: service, _ := workspace.New(workspace.Options{Core: core.New(), Crypt: cryptProvider})
+// Example: service, _ := workspace.New(workspace.Options{Core: core.New(), CryptProvider: cryptProvider})
 // workspaceID, _ := service.CreateWorkspace("alice", "pass123")
 func New(options Options) (*Service, error) {
 	home := resolveWorkspaceHomeDirectory()
@@ -72,14 +70,14 @@ func New(options Options) (*Service, error) {
 	if options.Core == nil {
 		return nil, core.E("workspace.New", "core is required", fs.ErrInvalid)
 	}
-
-	service := &Service{
-		rootPath: rootPath,
-		medium:   io.Local,
+	if options.CryptProvider == nil {
+		return nil, core.E("workspace.New", "crypt provider is required", fs.ErrInvalid)
 	}
 
-	if options.Crypt != nil {
-		service.crypt = options.Crypt
+	service := &Service{
+		cryptProvider: options.CryptProvider,
+		rootPath:      rootPath,
+		medium:        io.Local,
 	}
 
 	if err := service.medium.EnsureDir(rootPath); err != nil {
@@ -91,11 +89,11 @@ func New(options Options) (*Service, error) {
 
 // Example: workspaceID, _ := service.CreateWorkspace("alice", "pass123")
 func (service *Service) CreateWorkspace(identifier, password string) (string, error) {
-	service.lock.Lock()
-	defer service.lock.Unlock()
+	service.stateLock.Lock()
+	defer service.stateLock.Unlock()
 
-	if service.crypt == nil {
-		return "", core.E("workspace.CreateWorkspace", "crypt service not available", nil)
+	if service.cryptProvider == nil {
+		return "", core.E("workspace.CreateWorkspace", "crypt provider not available", nil)
 	}
 
 	hash := sha256.Sum256([]byte(identifier))
@@ -115,7 +113,7 @@ func (service *Service) CreateWorkspace(identifier, password string) (string, er
 		}
 	}
 
-	privKey, err := service.crypt.CreateKeyPair(identifier, password)
+	privKey, err := service.cryptProvider.CreateKeyPair(identifier, password)
 	if err != nil {
 		return "", core.E("workspace.CreateWorkspace", "failed to generate keys", err)
 	}
@@ -129,8 +127,8 @@ func (service *Service) CreateWorkspace(identifier, password string) (string, er
 
 // Example: _ = service.SwitchWorkspace(workspaceID)
 func (service *Service) SwitchWorkspace(workspaceID string) error {
-	service.lock.Lock()
-	defer service.lock.Unlock()
+	service.stateLock.Lock()
+	defer service.stateLock.Unlock()
 
 	workspaceDirectory, err := service.resolveWorkspaceDirectory("workspace.SwitchWorkspace", workspaceID)
 	if err != nil {
@@ -144,8 +142,6 @@ func (service *Service) SwitchWorkspace(workspaceID string) error {
 	return nil
 }
 
-// resolveActiveWorkspaceFilePath resolves a file path inside the active workspace files root.
-// It rejects empty names and traversal outside the workspace root.
 func (service *Service) resolveActiveWorkspaceFilePath(operation, workspaceFilePath string) (string, error) {
 	if service.activeWorkspaceID == "" {
 		return "", core.E(operation, "no active workspace", nil)
@@ -163,8 +159,8 @@ func (service *Service) resolveActiveWorkspaceFilePath(operation, workspaceFileP
 
 // Example: content, _ := service.WorkspaceFileGet("notes/todo.txt")
 func (service *Service) WorkspaceFileGet(workspaceFilePath string) (string, error) {
-	service.lock.RLock()
-	defer service.lock.RUnlock()
+	service.stateLock.RLock()
+	defer service.stateLock.RUnlock()
 
 	filePath, err := service.resolveActiveWorkspaceFilePath("workspace.WorkspaceFileGet", workspaceFilePath)
 	if err != nil {
@@ -175,8 +171,8 @@ func (service *Service) WorkspaceFileGet(workspaceFilePath string) (string, erro
 
 // Example: _ = service.WorkspaceFileSet("notes/todo.txt", "ship it")
 func (service *Service) WorkspaceFileSet(workspaceFilePath, content string) error {
-	service.lock.Lock()
-	defer service.lock.Unlock()
+	service.stateLock.Lock()
+	defer service.stateLock.Unlock()
 
 	filePath, err := service.resolveActiveWorkspaceFilePath("workspace.WorkspaceFileSet", workspaceFilePath)
 	if err != nil {

@@ -108,7 +108,6 @@ func New(options Options) (*Medium, error) {
 	return medium, nil
 }
 
-// objectKey maps a virtual path to the full S3 object key.
 func (medium *Medium) objectKey(filePath string) string {
 	// Clean the path using a leading "/" to sandbox traversal attempts,
 	// then strip the "/" prefix. This ensures ".." can't escape.

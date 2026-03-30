@@ -8,12 +8,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type stubCrypt struct {
+type stubCryptProvider struct {
 	key string
 	err error
 }
 
-func (s stubCrypt) CreateKeyPair(_, _ string) (string, error) {
+func (s stubCryptProvider) CreateKeyPair(_, _ string) (string, error) {
 	if s.err != nil {
 		return "", s.err
 	}
@@ -26,9 +26,14 @@ func newTestService(t *testing.T) (*Service, string) {
 	tempHome := t.TempDir()
 	t.Setenv("HOME", tempHome)
 
-	svc, err := New(Options{Core: core.New(), Crypt: stubCrypt{key: "private-key"}})
+	svc, err := New(Options{Core: core.New(), CryptProvider: stubCryptProvider{key: "private-key"}})
 	require.NoError(t, err)
 	return svc, tempHome
+}
+
+func TestService_New_MissingCryptProvider_Bad(t *testing.T) {
+	_, err := New(Options{Core: core.New()})
+	require.Error(t, err)
 }
 
 func TestService_Workspace_RoundTrip_Good(t *testing.T) {

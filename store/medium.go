@@ -45,7 +45,6 @@ func (medium *Medium) Close() error {
 	return medium.store.Close()
 }
 
-// splitGroupKeyPath splits a group/key path into store components.
 func splitGroupKeyPath(entryPath string) (group, key string) {
 	clean := path.Clean(entryPath)
 	clean = core.TrimPrefix(clean, "/")
@@ -166,7 +165,10 @@ func (medium *Medium) List(entryPath string) ([]fs.DirEntry, error) {
 			}
 			entries = append(entries, &keyValueDirEntry{name: groupName, isDir: true})
 		}
-		return entries, rows.Err()
+		if err := rows.Err(); err != nil {
+			return nil, core.E("store.List", "rows", err)
+		}
+		return entries, nil
 	}
 
 	if key != "" {

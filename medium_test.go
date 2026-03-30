@@ -4,6 +4,7 @@ import (
 	goio "io"
 	"io/fs"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -11,13 +12,38 @@ import (
 
 // --- MemoryMedium Tests ---
 
-func TestClient_NewMemoryMedium_Good(t *testing.T) {
+func TestMemoryMedium_NewMemoryMedium_Good(t *testing.T) {
 	medium := NewMemoryMedium()
 	assert.NotNil(t, medium)
 	assert.NotNil(t, medium.Files)
 	assert.NotNil(t, medium.Dirs)
 	assert.Empty(t, medium.Files)
 	assert.Empty(t, medium.Dirs)
+}
+
+func TestMemoryMedium_NewFileInfo_Good(t *testing.T) {
+	info := NewFileInfo("app.yaml", 8, 0644, time.Unix(0, 0), false)
+
+	assert.Equal(t, "app.yaml", info.Name())
+	assert.Equal(t, int64(8), info.Size())
+	assert.Equal(t, fs.FileMode(0644), info.Mode())
+	assert.True(t, info.ModTime().Equal(time.Unix(0, 0)))
+	assert.False(t, info.IsDir())
+	assert.Nil(t, info.Sys())
+}
+
+func TestMemoryMedium_NewDirEntry_Good(t *testing.T) {
+	info := NewFileInfo("app.yaml", 8, 0644, time.Unix(0, 0), false)
+	entry := NewDirEntry("app.yaml", false, 0644, info)
+
+	assert.Equal(t, "app.yaml", entry.Name())
+	assert.False(t, entry.IsDir())
+	assert.Equal(t, fs.FileMode(0), entry.Type())
+
+	entryInfo, err := entry.Info()
+	require.NoError(t, err)
+	assert.Equal(t, "app.yaml", entryInfo.Name())
+	assert.Equal(t, int64(8), entryInfo.Size())
 }
 
 func TestClient_MockMedium_Read_Good(t *testing.T) {

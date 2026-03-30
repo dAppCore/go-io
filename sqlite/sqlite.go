@@ -86,8 +86,6 @@ func (medium *Medium) Close() error {
 	return nil
 }
 
-// normaliseEntryPath normalises a path for consistent storage.
-// Uses a leading "/" before Clean to sandbox traversal attempts.
 func normaliseEntryPath(filePath string) string {
 	clean := path.Clean("/" + filePath)
 	if clean == "/" {
@@ -424,7 +422,10 @@ func (medium *Medium) List(filePath string) ([]fs.DirEntry, error) {
 		}
 	}
 
-	return entries, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, core.E("sqlite.List", "rows", err)
+	}
+	return entries, nil
 }
 
 func (medium *Medium) Stat(filePath string) (fs.FileInfo, error) {

@@ -511,8 +511,6 @@ func TestClient_EmptyPaths_Ugly(t *testing.T) {
 	err = m.EnsureDir("")
 	assert.NoError(t, err)
 
-	// IsDir empty path (should be true for root, but current impl returns false for "")
-	// Wait, I noticed IsDir returns false for "" in the code.
 	assert.False(t, m.IsDir(""))
 
 	// Exists empty path (root exists)

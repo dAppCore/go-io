@@ -59,7 +59,7 @@ type Medium interface {
 	IsDir(path string) bool
 }
 
-// Example: info := io.FileInfo{name: "app.yaml", size: 8, mode: 0644}
+// Example: info := io.NewFileInfo("app.yaml", 8, 0644, time.Unix(0, 0), false)
 type FileInfo struct {
 	name    string
 	size    int64
@@ -80,7 +80,8 @@ func (info FileInfo) IsDir() bool { return info.isDir }
 
 func (info FileInfo) Sys() any { return nil }
 
-// Example: entry := io.DirEntry{name: "app.yaml", mode: 0644}
+// Example: info := io.NewFileInfo("app.yaml", 8, 0644, time.Unix(0, 0), false)
+// Example: entry := io.NewDirEntry("app.yaml", false, 0644, info)
 type DirEntry struct {
 	name  string
 	isDir bool
@@ -95,6 +96,28 @@ func (entry DirEntry) IsDir() bool { return entry.isDir }
 func (entry DirEntry) Type() fs.FileMode { return entry.mode.Type() }
 
 func (entry DirEntry) Info() (fs.FileInfo, error) { return entry.info, nil }
+
+// Example: info := io.NewFileInfo("app.yaml", 8, 0644, time.Unix(0, 0), false)
+func NewFileInfo(name string, size int64, mode fs.FileMode, modTime time.Time, isDir bool) FileInfo {
+	return FileInfo{
+		name:    name,
+		size:    size,
+		mode:    mode,
+		modTime: modTime,
+		isDir:   isDir,
+	}
+}
+
+// Example: info := io.NewFileInfo("app.yaml", 8, 0644, time.Unix(0, 0), false)
+// Example: entry := io.NewDirEntry("app.yaml", false, 0644, info)
+func NewDirEntry(name string, isDir bool, mode fs.FileMode, info fs.FileInfo) DirEntry {
+	return DirEntry{
+		name:  name,
+		isDir: isDir,
+		mode:  mode,
+		info:  info,
+	}
+}
 
 // Example: _ = io.Local.Read("/etc/hostname")
 var Local Medium
@@ -384,10 +407,7 @@ type MemoryFile struct {
 type MockFile = MemoryFile
 
 func (file *MemoryFile) Stat() (fs.FileInfo, error) {
-	return FileInfo{
-		name: file.name,
-		size: int64(len(file.content)),
-	}, nil
+	return NewFileInfo(file.name, int64(len(file.content)), 0, time.Time{}, false), nil
 }
 
 func (file *MemoryFile) Read(buffer []byte) (int, error) {
@@ -468,32 +488,24 @@ func (medium *MemoryMedium) List(path string) ([]fs.DirEntry, error) {
 				dirName := rest[:idx]
 				if !seen[dirName] {
 					seen[dirName] = true
-					entries = append(entries, DirEntry{
-						name:  dirName,
-						isDir: true,
-						mode:  fs.ModeDir | 0755,
-						info: FileInfo{
-							name:  dirName,
-							isDir: true,
-							mode:  fs.ModeDir | 0755,
-						},
-					})
+					entries = append(entries, NewDirEntry(
+						dirName,
+						true,
+						fs.ModeDir|0755,
+						NewFileInfo(dirName, 0, fs.ModeDir|0755, time.Time{}, true),
+					))
 				}
 			}
 			continue
 		}
 		if !seen[rest] {
 			seen[rest] = true
-			entries = append(entries, DirEntry{
-				name:  rest,
-				isDir: false,
-				mode:  0644,
-				info: FileInfo{
-					name: rest,
-					size: int64(len(content)),
-					mode: 0644,
-				},
-			})
+			entries = append(entries, NewDirEntry(
+				rest,
+				false,
+				0644,
+				NewFileInfo(rest, int64(len(content)), 0644, time.Time{}, false),
+			))
 		}
 	}
 
@@ -510,16 +522,12 @@ func (medium *MemoryMedium) List(path string) ([]fs.DirEntry, error) {
 		}
 		if !seen[rest] {
 			seen[rest] = true
-			entries = append(entries, DirEntry{
-				name:  rest,
-				isDir: true,
-				mode:  fs.ModeDir | 0755,
-				info: FileInfo{
-					name:  rest,
-					isDir: true,
-					mode:  fs.ModeDir | 0755,
-				},
-			})
+			entries = append(entries, NewDirEntry(
+				rest,
+				true,
+				fs.ModeDir|0755,
+				NewFileInfo(rest, 0, fs.ModeDir|0755, time.Time{}, true),
+			))
 		}
 	}
 
@@ -532,19 +540,10 @@ func (medium *MemoryMedium) Stat(path string) (fs.FileInfo, error) {
 		if !ok {
 			modTime = time.Now()
 		}
-		return FileInfo{
-			name:    core.PathBase(path),
-			size:    int64(len(content)),
-			mode:    0644,
-			modTime: modTime,
-		}, nil
+		return NewFileInfo(core.PathBase(path), int64(len(content)), 0644, modTime, false), nil
 	}
 	if _, ok := medium.Dirs[path]; ok {
-		return FileInfo{
-			name:  core.PathBase(path),
-			isDir: true,
-			mode:  fs.ModeDir | 0755,
-		}, nil
+		return NewFileInfo(core.PathBase(path), 0, fs.ModeDir|0755, time.Time{}, true), nil
 	}
 	return nil, core.E("io.MemoryMedium.Stat", core.Concat("path not found: ", path), fs.ErrNotExist)
 }
