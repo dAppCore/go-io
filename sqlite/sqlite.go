@@ -246,8 +246,8 @@ func (medium *Medium) DeleteAll(filePath string) error {
 	if err != nil {
 		return core.E("sqlite.DeleteAll", core.Concat("delete failed: ", key), err)
 	}
-	n, _ := res.RowsAffected()
-	if n == 0 {
+	rowsAffected, _ := res.RowsAffected()
+	if rowsAffected == 0 {
 		return core.E("sqlite.DeleteAll", core.Concat("path not found: ", key), fs.ErrNotExist)
 	}
 	return nil
@@ -303,7 +303,7 @@ func (medium *Medium) Rename(oldPath, newPath string) error {
 		oldPrefix := oldKey + "/"
 		newPrefix := newKey + "/"
 
-		rows, err := tx.Query(
+		childRows, err := tx.Query(
 			`SELECT path, content, mode, is_dir, mtime FROM `+medium.table+` WHERE path LIKE ?`,
 			oldPrefix+"%",
 		)
@@ -319,22 +319,22 @@ func (medium *Medium) Rename(oldPath, newPath string) error {
 			mtime   time.Time
 		}
 		var children []child
-		for rows.Next() {
-			var c child
-			if err := rows.Scan(&c.path, &c.content, &c.mode, &c.isDir, &c.mtime); err != nil {
-				rows.Close()
+		for childRows.Next() {
+			var childEntry child
+			if err := childRows.Scan(&childEntry.path, &childEntry.content, &childEntry.mode, &childEntry.isDir, &childEntry.mtime); err != nil {
+				childRows.Close()
 				return core.E("sqlite.Rename", "scan child failed", err)
 			}
-			children = append(children, c)
+			children = append(children, childEntry)
 		}
-		rows.Close()
+		childRows.Close()
 
-		for _, c := range children {
-			newChildPath := core.Concat(newPrefix, core.TrimPrefix(c.path, oldPrefix))
+		for _, childEntry := range children {
+			newChildPath := core.Concat(newPrefix, core.TrimPrefix(childEntry.path, oldPrefix))
 			_, err = tx.Exec(
 				`INSERT INTO `+medium.table+` (path, content, mode, is_dir, mtime) VALUES (?, ?, ?, ?, ?)
 				 ON CONFLICT(path) DO UPDATE SET content = excluded.content, mode = excluded.mode, is_dir = excluded.is_dir, mtime = excluded.mtime`,
-				newChildPath, c.content, c.mode, c.isDir, c.mtime,
+				newChildPath, childEntry.content, childEntry.mode, childEntry.isDir, childEntry.mtime,
 			)
 			if err != nil {
 				return core.E("sqlite.Rename", "insert child failed", err)
@@ -639,9 +639,9 @@ func (file *sqliteFile) Read(buffer []byte) (int, error) {
 	if file.offset >= int64(len(file.content)) {
 		return 0, goio.EOF
 	}
-	n := copy(buffer, file.content[file.offset:])
-	file.offset += int64(n)
-	return n, nil
+	bytesRead := copy(buffer, file.content[file.offset:])
+	file.offset += int64(bytesRead)
+	return bytesRead, nil
 }
 
 func (file *sqliteFile) Close() error {

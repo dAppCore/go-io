@@ -81,11 +81,11 @@ func (node *Node) ToTar() ([]byte, error) {
 
 // Example: restored, _ := node.FromTar(snapshot)
 func FromTar(data []byte) (*Node, error) {
-	n := New()
-	if err := n.LoadTar(data); err != nil {
+	restoredNode := New()
+	if err := restoredNode.LoadTar(data); err != nil {
 		return nil, err
 	}
-	return n, nil
+	return restoredNode, nil
 }
 
 // Example: _ = nodeTree.LoadTar(snapshot)
@@ -319,8 +319,8 @@ func (node *Node) ReadDir(name string) ([]fs.DirEntry, error) {
 		seen[firstComponent] = true
 
 		if core.Contains(relPath, "/") {
-			dir := &dirInfo{name: firstComponent, modTime: time.Now()}
-			entries = append(entries, fs.FileInfoToDirEntry(dir))
+			directoryInfo := &dirInfo{name: firstComponent, modTime: time.Now()}
+			entries = append(entries, fs.FileInfoToDirEntry(directoryInfo))
 		} else {
 			file := node.files[filePath]
 			info, _ := file.Stat()

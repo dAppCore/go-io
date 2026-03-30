@@ -337,15 +337,15 @@ func (medium *Medium) Rename(oldPath, newPath string) error {
 
 	// Move explicit directories
 	dirsToMove := make(map[string]string)
-	for d := range medium.directorySet {
-		if d == oldPath || core.HasPrefix(d, oldPrefix) {
-			newD := core.Concat(newPath, core.TrimPrefix(d, oldPath))
-			dirsToMove[d] = newD
+	for directoryPath := range medium.directorySet {
+		if directoryPath == oldPath || core.HasPrefix(directoryPath, oldPrefix) {
+			newDirectoryPath := core.Concat(newPath, core.TrimPrefix(directoryPath, oldPath))
+			dirsToMove[directoryPath] = newDirectoryPath
 		}
 	}
-	for old, nw := range dirsToMove {
-		delete(medium.directorySet, old)
-		medium.directorySet[nw] = true
+	for oldDirectoryPath, newDirectoryPath := range dirsToMove {
+		delete(medium.directorySet, oldDirectoryPath)
+		medium.directorySet[newDirectoryPath] = true
 	}
 
 	return nil
@@ -376,11 +376,11 @@ func (medium *Medium) List(filePath string) ([]fs.DirEntry, error) {
 		seen[e.Name()] = true
 	}
 
-	for d := range medium.directorySet {
-		if !core.HasPrefix(d, prefix) {
+	for directoryPath := range medium.directorySet {
+		if !core.HasPrefix(directoryPath, prefix) {
 			continue
 		}
-		rest := core.TrimPrefix(d, prefix)
+		rest := core.TrimPrefix(directoryPath, prefix)
 		if rest == "" {
 			continue
 		}
@@ -515,8 +515,8 @@ func (medium *Medium) hasPrefixLocked(prefix string) (bool, error) {
 			return true, nil
 		}
 	}
-	for d := range medium.directorySet {
-		if core.HasPrefix(d, prefix) {
+	for directoryPath := range medium.directorySet {
+		if core.HasPrefix(directoryPath, prefix) {
 			return true, nil
 		}
 	}

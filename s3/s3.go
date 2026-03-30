@@ -58,10 +58,10 @@ func deleteObjectsError(prefix string, errs []types.Error) error {
 		return nil
 	}
 	details := make([]string, 0, len(errs))
-	for _, item := range errs {
-		key := aws.ToString(item.Key)
-		code := aws.ToString(item.Code)
-		message := aws.ToString(item.Message)
+	for _, errorItem := range errs {
+		key := aws.ToString(errorItem.Key)
+		code := aws.ToString(errorItem.Code)
+		message := aws.ToString(errorItem.Message)
 		switch {
 		case code != "" && message != "":
 			details = append(details, core.Concat(key, ": ", code, " ", message))
@@ -239,11 +239,11 @@ func (medium *Medium) DeleteAll(filePath string) error {
 		prefix += "/"
 	}
 
-	paginator := true
+	continueListing := true
 	var continuationToken *string
 
-	for paginator {
-		listOut, err := medium.client.ListObjectsV2(context.Background(), &awss3.ListObjectsV2Input{
+	for continueListing {
+		listOutput, err := medium.client.ListObjectsV2(context.Background(), &awss3.ListObjectsV2Input{
 			Bucket:            aws.String(medium.bucket),
 			Prefix:            aws.String(prefix),
 			ContinuationToken: continuationToken,
@@ -252,13 +252,13 @@ func (medium *Medium) DeleteAll(filePath string) error {
 			return core.E("s3.DeleteAll", core.Concat("failed to list objects: ", prefix), err)
 		}
 
-		if len(listOut.Contents) == 0 {
+		if len(listOutput.Contents) == 0 {
 			break
 		}
 
-		objects := make([]types.ObjectIdentifier, len(listOut.Contents))
-		for i, obj := range listOut.Contents {
-			objects[i] = types.ObjectIdentifier{Key: obj.Key}
+		objects := make([]types.ObjectIdentifier, len(listOutput.Contents))
+		for i, object := range listOutput.Contents {
+			objects[i] = types.ObjectIdentifier{Key: object.Key}
 		}
 
 		deleteOut, err := medium.client.DeleteObjects(context.Background(), &awss3.DeleteObjectsInput{
@@ -272,10 +272,10 @@ func (medium *Medium) DeleteAll(filePath string) error {
 			return err
 		}
 
-		if listOut.IsTruncated != nil && *listOut.IsTruncated {
-			continuationToken = listOut.NextContinuationToken
+		if listOutput.IsTruncated != nil && *listOutput.IsTruncated {
+			continuationToken = listOutput.NextContinuationToken
 		} else {
-			paginator = false
+			continueListing = false
 		}
 	}
 
@@ -321,7 +321,7 @@ func (medium *Medium) List(filePath string) ([]fs.DirEntry, error) {
 
 	var entries []fs.DirEntry
 
-	listOut, err := medium.client.ListObjectsV2(context.Background(), &awss3.ListObjectsV2Input{
+	listOutput, err := medium.client.ListObjectsV2(context.Background(), &awss3.ListObjectsV2Input{
 		Bucket:    aws.String(medium.bucket),
 		Prefix:    aws.String(prefix),
 		Delimiter: aws.String("/"),
@@ -331,7 +331,7 @@ func (medium *Medium) List(filePath string) ([]fs.DirEntry, error) {
 	}
 
 	// Common prefixes are "directories"
-	for _, commonPrefix := range listOut.CommonPrefixes {
+	for _, commonPrefix := range listOutput.CommonPrefixes {
 		if commonPrefix.Prefix == nil {
 			continue
 		}
@@ -353,21 +353,21 @@ func (medium *Medium) List(filePath string) ([]fs.DirEntry, error) {
 	}
 
 	// Contents are "files" (excluding the prefix itself)
-	for _, obj := range listOut.Contents {
-		if obj.Key == nil {
+	for _, object := range listOutput.Contents {
+		if object.Key == nil {
 			continue
 		}
-		name := core.TrimPrefix(*obj.Key, prefix)
+		name := core.TrimPrefix(*object.Key, prefix)
 		if name == "" || core.Contains(name, "/") {
 			continue
 		}
 		var size int64
-		if obj.Size != nil {
-			size = *obj.Size
+		if object.Size != nil {
+			size = *object.Size
 		}
 		var modTime time.Time
-		if obj.LastModified != nil {
-			modTime = *obj.LastModified
+		if object.LastModified != nil {
+			modTime = *object.LastModified
 		}
 		entries = append(entries, &dirEntry{
 			name:  name,
@@ -532,7 +532,7 @@ func (medium *Medium) Exists(filePath string) bool {
 	if !core.HasSuffix(prefix, "/") {
 		prefix += "/"
 	}
-	listOut, err := medium.client.ListObjectsV2(context.Background(), &awss3.ListObjectsV2Input{
+	listOutput, err := medium.client.ListObjectsV2(context.Background(), &awss3.ListObjectsV2Input{
 		Bucket:  aws.String(medium.bucket),
 		Prefix:  aws.String(prefix),
 		MaxKeys: aws.Int32(1),
@@ -540,7 +540,7 @@ func (medium *Medium) Exists(filePath string) bool {
 	if err != nil {
 		return false
 	}
-	return len(listOut.Contents) > 0 || len(listOut.CommonPrefixes) > 0
+	return len(listOutput.Contents) > 0 || len(listOutput.CommonPrefixes) > 0
 }
 
 // Example: ok := medium.IsDir("reports")
@@ -555,7 +555,7 @@ func (medium *Medium) IsDir(filePath string) bool {
 		prefix += "/"
 	}
 
-	listOut, err := medium.client.ListObjectsV2(context.Background(), &awss3.ListObjectsV2Input{
+	listOutput, err := medium.client.ListObjectsV2(context.Background(), &awss3.ListObjectsV2Input{
 		Bucket:  aws.String(medium.bucket),
 		Prefix:  aws.String(prefix),
 		MaxKeys: aws.Int32(1),
@@ -563,7 +563,7 @@ func (medium *Medium) IsDir(filePath string) bool {
 	if err != nil {
 		return false
 	}
-	return len(listOut.Contents) > 0 || len(listOut.CommonPrefixes) > 0
+	return len(listOutput.Contents) > 0 || len(listOutput.CommonPrefixes) > 0
 }
 
 // --- Internal types ---
@@ -624,9 +624,9 @@ func (file *s3File) Read(buffer []byte) (int, error) {
 	if file.offset >= int64(len(file.content)) {
 		return 0, goio.EOF
 	}
-	n := copy(buffer, file.content[file.offset:])
-	file.offset += int64(n)
-	return n, nil
+	bytesRead := copy(buffer, file.content[file.offset:])
+	file.offset += int64(bytesRead)
+	return bytesRead, nil
 }
 
 func (file *s3File) Close() error {
