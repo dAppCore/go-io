@@ -29,11 +29,7 @@ const (
 	WorkspaceSwitchAction = "workspace.switch"
 )
 
-// Example: command := WorkspaceCommand{
-//     Action:     WorkspaceCreateAction,
-//     Identifier: "alice",
-//     Password:   "pass123",
-// }
+// Example: command := WorkspaceCommand{Action: WorkspaceCreateAction, Identifier: "alice", Password: "pass123"}
 type WorkspaceCommand struct {
 	Action      string
 	Identifier  string
@@ -43,7 +39,7 @@ type WorkspaceCommand struct {
 
 // Example: service, _ := workspace.New(workspace.Options{Core: core.New(), CryptProvider: cryptProvider})
 type Options struct {
-	Core *core.Core
+	Core          *core.Core
 	CryptProvider CryptProvider
 }
 
@@ -181,11 +177,7 @@ func (service *Service) WorkspaceFileSet(workspaceFilePath, content string) erro
 	return service.medium.Write(filePath, content)
 }
 
-// Example: result := service.HandleWorkspaceCommand(WorkspaceCommand{
-//     Action:     WorkspaceCreateAction,
-//     Identifier: "alice",
-//     Password:   "pass123",
-// })
+// Example: result := service.HandleWorkspaceCommand(WorkspaceCommand{Action: WorkspaceCreateAction, Identifier: "alice", Password: "pass123"})
 func (service *Service) HandleWorkspaceCommand(command WorkspaceCommand) core.Result {
 	switch command.Action {
 	case WorkspaceCreateAction:
@@ -203,10 +195,7 @@ func (service *Service) HandleWorkspaceCommand(command WorkspaceCommand) core.Re
 	return core.Result{OK: true}
 }
 
-// Example: result := service.HandleIPCEvents(core.New(), map[string]any{
-//     "action":      WorkspaceSwitchAction,
-//     "workspaceID": "f3f0d7",
-// })
+// Example: result := service.HandleIPCEvents(core.New(), map[string]any{"action": WorkspaceSwitchAction, "workspaceID": "f3f0d7"})
 // HandleIPCEvents preserves the legacy map[string]any payload and still accepts WorkspaceCommand values.
 func (service *Service) HandleIPCEvents(_ *core.Core, message core.Message) core.Result {
 	switch payload := message.(type) {

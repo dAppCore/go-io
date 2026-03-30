@@ -92,7 +92,6 @@ func (medium *Medium) DataNode() *borgdatanode.DataNode {
 	return medium.dataNode
 }
 
-// normaliseEntryPath normalises a path: strips the leading slash and cleans traversal.
 func normaliseEntryPath(filePath string) string {
 	filePath = core.TrimPrefix(filePath, "/")
 	filePath = path.Clean(filePath)

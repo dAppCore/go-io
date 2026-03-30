@@ -502,7 +502,6 @@ func (writer *nodeWriter) Close() error {
 	return nil
 }
 
-// dataFile represents a file in the Node.
 type dataFile struct {
 	name    string
 	content []byte
@@ -515,7 +514,6 @@ func (file *dataFile) Read(_ []byte) (int, error) { return 0, goio.EOF }
 
 func (file *dataFile) Close() error { return nil }
 
-// dataFileInfo implements fs.FileInfo for a dataFile.
 type dataFileInfo struct{ file *dataFile }
 
 func (info *dataFileInfo) Name() string { return path.Base(info.file.name) }
@@ -530,7 +528,6 @@ func (info *dataFileInfo) IsDir() bool { return false }
 
 func (info *dataFileInfo) Sys() any { return nil }
 
-// dataFileReader implements fs.File for reading a dataFile.
 type dataFileReader struct {
 	file   *dataFile
 	reader *bytes.Reader
@@ -547,7 +544,6 @@ func (reader *dataFileReader) Read(buffer []byte) (int, error) {
 
 func (reader *dataFileReader) Close() error { return nil }
 
-// dirInfo implements fs.FileInfo for an implicit directory.
 type dirInfo struct {
 	name    string
 	modTime time.Time
@@ -565,7 +561,6 @@ func (info *dirInfo) IsDir() bool { return true }
 
 func (info *dirInfo) Sys() any { return nil }
 
-// dirFile implements fs.File for a directory.
 type dirFile struct {
 	path    string
 	modTime time.Time
