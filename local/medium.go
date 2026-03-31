@@ -360,14 +360,6 @@ func (medium *Medium) Rename(oldPath, newPath string) error {
 	return resultError("local.Rename", core.Concat("rename failed: ", oldPath), unrestrictedFileSystem.Rename(oldResolvedPath, newResolvedPath))
 }
 
-func (medium *Medium) FileGet(path string) (string, error) {
-	return medium.Read(path)
-}
-
-func (medium *Medium) FileSet(path, content string) error {
-	return medium.Write(path, content)
-}
-
 func lstat(path string) (*syscall.Stat_t, error) {
 	info := &syscall.Stat_t{}
 	if err := syscall.Lstat(path, info); err != nil {

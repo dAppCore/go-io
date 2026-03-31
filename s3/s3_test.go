@@ -299,17 +299,6 @@ func TestS3_IsFile_Good(t *testing.T) {
 	assert.False(t, m.IsFile(""))
 }
 
-func TestS3_FileGetFileSet_Good(t *testing.T) {
-	m, _ := newTestMedium(t)
-
-	err := m.FileSet("key.txt", "value")
-	require.NoError(t, err)
-
-	val, err := m.FileGet("key.txt")
-	require.NoError(t, err)
-	assert.Equal(t, "value", val)
-}
-
 func TestS3_Delete_Good(t *testing.T) {
 	m, _ := newTestMedium(t)
 
@@ -648,8 +637,6 @@ func TestS3_InterfaceCompliance(t *testing.T) {
 		Write(string, string) error
 		EnsureDir(string) error
 		IsFile(string) bool
-		FileGet(string) (string, error)
-		FileSet(string, string) error
 		Delete(string) error
 		DeleteAll(string) error
 		Rename(string, string) error

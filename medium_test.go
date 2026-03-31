@@ -95,21 +95,6 @@ func TestMemoryMedium_IsFile_Good(t *testing.T) {
 	assert.False(t, m.IsFile("nonexistent.txt"))
 }
 
-func TestMemoryMedium_FileGet_Good(t *testing.T) {
-	m := NewMemoryMedium()
-	m.files["test.txt"] = "content"
-	content, err := m.FileGet("test.txt")
-	assert.NoError(t, err)
-	assert.Equal(t, "content", content)
-}
-
-func TestMemoryMedium_FileSet_Good(t *testing.T) {
-	m := NewMemoryMedium()
-	err := m.FileSet("test.txt", "content")
-	assert.NoError(t, err)
-	assert.Equal(t, "content", m.files["test.txt"])
-}
-
 func TestMemoryMedium_Delete_Good(t *testing.T) {
 	m := NewMemoryMedium()
 	m.files["test.txt"] = "content"

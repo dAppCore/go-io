@@ -184,14 +184,6 @@ func (medium *Medium) IsFile(filePath string) bool {
 	return err == nil
 }
 
-func (medium *Medium) FileGet(filePath string) (string, error) {
-	return medium.Read(filePath)
-}
-
-func (medium *Medium) FileSet(filePath, content string) error {
-	return medium.Write(filePath, content)
-}
-
 func (medium *Medium) Delete(filePath string) error {
 	key := medium.objectKey(filePath)
 	if key == "" {

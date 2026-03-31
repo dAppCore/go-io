@@ -332,14 +332,6 @@ func (node *Node) WriteMode(filePath, content string, mode fs.FileMode) error {
 	return node.Write(filePath, content)
 }
 
-func (node *Node) FileGet(filePath string) (string, error) {
-	return node.Read(filePath)
-}
-
-func (node *Node) FileSet(filePath, content string) error {
-	return node.Write(filePath, content)
-}
-
 // Example: _ = nodeTree.EnsureDir("config")
 func (node *Node) EnsureDir(directoryPath string) error {
 	return nil

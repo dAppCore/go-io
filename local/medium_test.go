@@ -200,18 +200,6 @@ func TestLocal_Rename_Basic_Good(t *testing.T) {
 	assert.True(t, m.Exists("new"))
 }
 
-func TestLocal_FileGetFileSet_Basic_Good(t *testing.T) {
-	root := t.TempDir()
-	m, _ := New(root)
-
-	err := m.FileSet("data", "value")
-	assert.NoError(t, err)
-
-	val, err := m.FileGet("data")
-	assert.NoError(t, err)
-	assert.Equal(t, "value", val)
-}
-
 func TestLocal_Delete_Good(t *testing.T) {
 	testRoot := t.TempDir()
 

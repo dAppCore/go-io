@@ -204,13 +204,13 @@ func TestKeyValueMedium_Store_Good(t *testing.T) {
 	assert.Same(t, m.Store(), m.Store())
 }
 
-func TestKeyValueMedium_EnsureDir_FileHelpers_Good(t *testing.T) {
+func TestKeyValueMedium_EnsureDir_ReadWrite_Good(t *testing.T) {
 	m := newTestKeyValueMedium(t)
 
 	require.NoError(t, m.EnsureDir("ignored"))
-	require.NoError(t, m.FileSet("group/key", "value"))
+	require.NoError(t, m.Write("group/key", "value"))
 
-	value, err := m.FileGet("group/key")
+	value, err := m.Read("group/key")
 	require.NoError(t, err)
 	assert.Equal(t, "value", value)
 }

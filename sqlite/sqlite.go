@@ -167,14 +167,6 @@ func (medium *Medium) IsFile(filePath string) bool {
 	return !isDir
 }
 
-func (medium *Medium) FileGet(filePath string) (string, error) {
-	return medium.Read(filePath)
-}
-
-func (medium *Medium) FileSet(filePath, content string) error {
-	return medium.Write(filePath, content)
-}
-
 // Example: _ = medium.Delete("config/app.yaml")
 func (medium *Medium) Delete(filePath string) error {
 	key := normaliseEntryPath(filePath)

@@ -93,14 +93,6 @@ func (medium *Medium) IsFile(entryPath string) bool {
 	return err == nil
 }
 
-func (medium *Medium) FileGet(entryPath string) (string, error) {
-	return medium.Read(entryPath)
-}
-
-func (medium *Medium) FileSet(entryPath, content string) error {
-	return medium.Write(entryPath, content)
-}
-
 func (medium *Medium) Delete(entryPath string) error {
 	group, key := splitGroupKeyPath(entryPath)
 	if group == "" {

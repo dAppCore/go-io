@@ -328,16 +328,6 @@ func TestDataNode_Streams_Good(t *testing.T) {
 	rs.Close()
 }
 
-func TestDataNode_FileGetFileSet_Good(t *testing.T) {
-	m := New()
-
-	require.NoError(t, m.FileSet("alias.txt", "via set"))
-
-	got, err := m.FileGet("alias.txt")
-	require.NoError(t, err)
-	assert.Equal(t, "via set", got)
-}
-
 func TestDataNode_SnapshotRestore_Good(t *testing.T) {
 	m := New()
 

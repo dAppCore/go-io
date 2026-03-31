@@ -26,10 +26,6 @@ type Medium interface {
 
 	IsFile(path string) bool
 
-	FileGet(path string) (string, error)
-
-	FileSet(path, content string) error
-
 	Delete(path string) error
 
 	DeleteAll(path string) error
@@ -226,14 +222,6 @@ func (medium *MemoryMedium) EnsureDir(path string) error {
 func (medium *MemoryMedium) IsFile(path string) bool {
 	_, ok := medium.files[path]
 	return ok
-}
-
-func (medium *MemoryMedium) FileGet(path string) (string, error) {
-	return medium.Read(path)
-}
-
-func (medium *MemoryMedium) FileSet(path, content string) error {
-	return medium.Write(path, content)
 }
 
 func (medium *MemoryMedium) Delete(path string) error {

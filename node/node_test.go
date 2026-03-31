@@ -381,14 +381,14 @@ func TestNode_MediumFacade_Good(t *testing.T) {
 
 	require.NoError(t, n.Write("docs/readme.txt", "hello"))
 	require.NoError(t, n.WriteMode("docs/mode.txt", "mode", 0600))
-	require.NoError(t, n.FileSet("docs/guide.txt", "guide"))
+	require.NoError(t, n.Write("docs/guide.txt", "guide"))
 	require.NoError(t, n.EnsureDir("ignored"))
 
 	value, err := n.Read("docs/readme.txt")
 	require.NoError(t, err)
 	assert.Equal(t, "hello", value)
 
-	value, err = n.FileGet("docs/guide.txt")
+	value, err = n.Read("docs/guide.txt")
 	require.NoError(t, err)
 	assert.Equal(t, "guide", value)
 

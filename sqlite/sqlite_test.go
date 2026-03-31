@@ -134,17 +134,6 @@ func TestSqlite_IsFile_Good(t *testing.T) {
 	assert.False(t, m.IsFile(""))
 }
 
-func TestSqlite_FileGetFileSet_Good(t *testing.T) {
-	m := newTestMedium(t)
-
-	err := m.FileSet("key.txt", "value")
-	require.NoError(t, err)
-
-	val, err := m.FileGet("key.txt")
-	require.NoError(t, err)
-	assert.Equal(t, "value", val)
-}
-
 func TestSqlite_Delete_Good(t *testing.T) {
 	m := newTestMedium(t)
 
@@ -580,8 +569,6 @@ func TestSqlite_InterfaceCompliance(t *testing.T) {
 		Write(string, string) error
 		EnsureDir(string) error
 		IsFile(string) bool
-		FileGet(string) (string, error)
-		FileSet(string, string) error
 		Delete(string) error
 		DeleteAll(string) error
 		Rename(string, string) error
