@@ -6,6 +6,7 @@ package sigil
 
 import core "dappco.re/go/core"
 
+// Example: var transform sigil.Sigil = &sigil.HexSigil{}
 type Sigil interface {
 	// Example: encoded, _ := hexSigil.In([]byte("payload"))
 	In(data []byte) ([]byte, error)

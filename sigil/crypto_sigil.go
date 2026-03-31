@@ -14,12 +14,16 @@ import (
 )
 
 var (
+	// Example: errors.Is(err, sigil.InvalidKeyError)
 	InvalidKeyError = core.E("sigil.InvalidKeyError", "invalid key size, must be 32 bytes", nil)
 
+	// Example: errors.Is(err, sigil.CiphertextTooShortError)
 	CiphertextTooShortError = core.E("sigil.CiphertextTooShortError", "ciphertext too short", nil)
 
+	// Example: errors.Is(err, sigil.DecryptionFailedError)
 	DecryptionFailedError = core.E("sigil.DecryptionFailedError", "decryption failed", nil)
 
+	// Example: errors.Is(err, sigil.NoKeyConfiguredError)
 	NoKeyConfiguredError = core.E("sigil.NoKeyConfiguredError", "no encryption key configured", nil)
 )
 

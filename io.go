@@ -355,14 +355,14 @@ func (medium *MemoryMedium) Open(path string) (fs.File, error) {
 	if !ok {
 		return nil, core.E("io.MemoryMedium.Open", core.Concat("file not found: ", path), fs.ErrNotExist)
 	}
-	return &MemoryFile{
+	return &memoryFile{
 		name:    core.PathBase(path),
 		content: []byte(content),
 	}, nil
 }
 
 func (medium *MemoryMedium) Create(path string) (goio.WriteCloser, error) {
-	return &MemoryWriteCloser{
+	return &memoryWriteCloser{
 		medium: medium,
 		path:   path,
 	}, nil
@@ -370,7 +370,7 @@ func (medium *MemoryMedium) Create(path string) (goio.WriteCloser, error) {
 
 func (medium *MemoryMedium) Append(path string) (goio.WriteCloser, error) {
 	content := medium.files[path]
-	return &MemoryWriteCloser{
+	return &memoryWriteCloser{
 		medium: medium,
 		path:   path,
 		data:   []byte(content),
@@ -385,20 +385,17 @@ func (medium *MemoryMedium) WriteStream(path string) (goio.WriteCloser, error) {
 	return medium.Create(path)
 }
 
-// Example: medium := io.NewMemoryMedium()
-// Example: _ = medium.Write("config/app.yaml", "port: 8080")
-// Example: file, _ := medium.Open("config/app.yaml")
-type MemoryFile struct {
+type memoryFile struct {
 	name    string
 	content []byte
 	offset  int64
 }
 
-func (file *MemoryFile) Stat() (fs.FileInfo, error) {
+func (file *memoryFile) Stat() (fs.FileInfo, error) {
 	return NewFileInfo(file.name, int64(len(file.content)), 0, time.Time{}, false), nil
 }
 
-func (file *MemoryFile) Read(buffer []byte) (int, error) {
+func (file *memoryFile) Read(buffer []byte) (int, error) {
 	if file.offset >= int64(len(file.content)) {
 		return 0, goio.EOF
 	}
@@ -407,24 +404,22 @@ func (file *MemoryFile) Read(buffer []byte) (int, error) {
 	return readCount, nil
 }
 
-func (file *MemoryFile) Close() error {
+func (file *memoryFile) Close() error {
 	return nil
 }
 
-// Example: medium := io.NewMemoryMedium()
-// Example: writer, _ := medium.Create("logs/app.log")
-type MemoryWriteCloser struct {
+type memoryWriteCloser struct {
 	medium *MemoryMedium
 	path   string
 	data   []byte
 }
 
-func (writeCloser *MemoryWriteCloser) Write(data []byte) (int, error) {
+func (writeCloser *memoryWriteCloser) Write(data []byte) (int, error) {
 	writeCloser.data = append(writeCloser.data, data...)
 	return len(data), nil
 }
 
-func (writeCloser *MemoryWriteCloser) Close() error {
+func (writeCloser *memoryWriteCloser) Close() error {
 	writeCloser.medium.files[writeCloser.path] = string(writeCloser.data)
 	writeCloser.medium.modTimes[writeCloser.path] = time.Now()
 	return nil
