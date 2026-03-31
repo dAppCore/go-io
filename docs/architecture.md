@@ -117,7 +117,7 @@ A thread-safe `Medium` backed by Borg's `DataNode` (an in-memory `fs.FS` with ta
 
 The store package provides two complementary APIs:
 
-### Store (key-value)
+### KeyValueStore (key-value)
 
 A group-namespaced key-value store backed by SQLite:
 
@@ -135,22 +135,23 @@ Operations: `Get`, `Set`, `Delete`, `Count`, `DeleteGroup`, `GetAll`, `Render`.
 The `Render` method loads all key-value pairs from a group into a `map[string]string` and executes a Go `text/template` against them:
 
 ```go
-s.Set("user", "pool", "pool.lthn.io:3333")
-s.Set("user", "wallet", "iz...")
-out, _ := s.Render(`{"pool":"{{ .pool }}"}`, "user")
-// out: {"pool":"pool.lthn.io:3333"}
+keyValueStore, _ := store.New(store.Options{Path: ":memory:"})
+keyValueStore.Set("user", "pool", "pool.lthn.io:3333")
+keyValueStore.Set("user", "wallet", "iz...")
+renderedText, _ := keyValueStore.Render(`{"pool":"{{ .pool }}"}`, "user")
+// renderedText: {"pool":"pool.lthn.io:3333"}
 ```
 
 ### store.Medium (Medium adapter)
 
-Wraps a `Store` to satisfy the `Medium` interface. Paths are split as `group/key`:
+Wraps a `KeyValueStore` to satisfy the `Medium` interface. Paths are split as `group/key`:
 
 - `Read("config/theme")` calls `Get("config", "theme")`
 - `List("")` returns all groups as directories
 - `List("config")` returns all keys in the `config` group as files
 - `IsDir("config")` returns true if the group has entries
 
-You can create it directly (`NewMedium(":memory:")`) or adapt an existing store (`store.AsMedium()`).
+You can create it directly (`store.NewMedium(store.Options{Path: ":memory:"})`) or adapt an existing store (`keyValueStore.AsMedium()`).
 
 
 ## sigil Package
@@ -270,7 +271,7 @@ Application code
        +-- sqlite.Medium --> modernc.org/sqlite
        +-- node.Node     --> in-memory map + tar serialisation
        +-- datanode.Medium --> Borg DataNode + sync.RWMutex
-       +-- store.Medium  --> store.Store (SQLite KV) --> Medium adapter
+       +-- store.Medium  --> store.KeyValueStore (SQLite KV) --> Medium adapter
        +-- MemoryMedium   --> map[string]string (for tests)
 ```
 

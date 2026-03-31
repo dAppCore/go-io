@@ -14,7 +14,7 @@ import (
 var NotFoundError = errors.New("key not found")
 
 // Example: keyValueStore, _ := store.New(store.Options{Path: ":memory:"})
-type Store struct {
+type KeyValueStore struct {
 	database *sql.DB
 }
 
@@ -25,7 +25,7 @@ type Options struct {
 
 // Example: keyValueStore, _ := store.New(store.Options{Path: ":memory:"})
 // Example: _ = keyValueStore.Set("app", "theme", "midnight")
-func New(options Options) (*Store, error) {
+func New(options Options) (*KeyValueStore, error) {
 	if options.Path == "" {
 		return nil, core.E("store.New", "database path is required", fs.ErrInvalid)
 	}
@@ -47,18 +47,18 @@ func New(options Options) (*Store, error) {
 		database.Close()
 		return nil, core.E("store.New", "create schema", err)
 	}
-	return &Store{database: database}, nil
+	return &KeyValueStore{database: database}, nil
 }
 
 // Example: _ = keyValueStore.Close()
-func (store *Store) Close() error {
-	return store.database.Close()
+func (keyValueStore *KeyValueStore) Close() error {
+	return keyValueStore.database.Close()
 }
 
 // Example: theme, _ := keyValueStore.Get("app", "theme")
-func (store *Store) Get(group, key string) (string, error) {
+func (keyValueStore *KeyValueStore) Get(group, key string) (string, error) {
 	var value string
-	err := store.database.QueryRow("SELECT entry_value FROM entries WHERE group_name = ? AND entry_key = ?", group, key).Scan(&value)
+	err := keyValueStore.database.QueryRow("SELECT entry_value FROM entries WHERE group_name = ? AND entry_key = ?", group, key).Scan(&value)
 	if err == sql.ErrNoRows {
 		return "", core.E("store.Get", core.Concat("not found: ", group, "/", key), NotFoundError)
 	}
@@ -69,8 +69,8 @@ func (store *Store) Get(group, key string) (string, error) {
 }
 
 // Example: _ = keyValueStore.Set("app", "theme", "midnight")
-func (store *Store) Set(group, key, value string) error {
-	_, err := store.database.Exec(
+func (keyValueStore *KeyValueStore) Set(group, key, value string) error {
+	_, err := keyValueStore.database.Exec(
 		`INSERT INTO entries (group_name, entry_key, entry_value) VALUES (?, ?, ?)
 		 ON CONFLICT(group_name, entry_key) DO UPDATE SET entry_value = excluded.entry_value`,
 		group, key, value,
@@ -82,8 +82,8 @@ func (store *Store) Set(group, key, value string) error {
 }
 
 // Example: _ = keyValueStore.Delete("app", "theme")
-func (store *Store) Delete(group, key string) error {
-	_, err := store.database.Exec("DELETE FROM entries WHERE group_name = ? AND entry_key = ?", group, key)
+func (keyValueStore *KeyValueStore) Delete(group, key string) error {
+	_, err := keyValueStore.database.Exec("DELETE FROM entries WHERE group_name = ? AND entry_key = ?", group, key)
 	if err != nil {
 		return core.E("store.Delete", "exec", err)
 	}
@@ -91,9 +91,9 @@ func (store *Store) Delete(group, key string) error {
 }
 
 // Example: count, _ := keyValueStore.Count("app")
-func (store *Store) Count(group string) (int, error) {
+func (keyValueStore *KeyValueStore) Count(group string) (int, error) {
 	var count int
-	err := store.database.QueryRow("SELECT COUNT(*) FROM entries WHERE group_name = ?", group).Scan(&count)
+	err := keyValueStore.database.QueryRow("SELECT COUNT(*) FROM entries WHERE group_name = ?", group).Scan(&count)
 	if err != nil {
 		return 0, core.E("store.Count", "query", err)
 	}
@@ -101,8 +101,8 @@ func (store *Store) Count(group string) (int, error) {
 }
 
 // Example: _ = keyValueStore.DeleteGroup("app")
-func (store *Store) DeleteGroup(group string) error {
-	_, err := store.database.Exec("DELETE FROM entries WHERE group_name = ?", group)
+func (keyValueStore *KeyValueStore) DeleteGroup(group string) error {
+	_, err := keyValueStore.database.Exec("DELETE FROM entries WHERE group_name = ?", group)
 	if err != nil {
 		return core.E("store.DeleteGroup", "exec", err)
 	}
@@ -110,8 +110,8 @@ func (store *Store) DeleteGroup(group string) error {
 }
 
 // Example: values, _ := keyValueStore.GetAll("app")
-func (store *Store) GetAll(group string) (map[string]string, error) {
-	rows, err := store.database.Query("SELECT entry_key, entry_value FROM entries WHERE group_name = ?", group)
+func (keyValueStore *KeyValueStore) GetAll(group string) (map[string]string, error) {
+	rows, err := keyValueStore.database.Query("SELECT entry_key, entry_value FROM entries WHERE group_name = ?", group)
 	if err != nil {
 		return nil, core.E("store.GetAll", "query", err)
 	}
@@ -134,8 +134,8 @@ func (store *Store) GetAll(group string) (map[string]string, error) {
 // Example: keyValueStore, _ := store.New(store.Options{Path: ":memory:"})
 // Example: _ = keyValueStore.Set("user", "name", "alice")
 // Example: renderedText, _ := keyValueStore.Render("hello {{ .name }}", "user")
-func (store *Store) Render(templateText, group string) (string, error) {
-	rows, err := store.database.Query("SELECT entry_key, entry_value FROM entries WHERE group_name = ?", group)
+func (keyValueStore *KeyValueStore) Render(templateText, group string) (string, error) {
+	rows, err := keyValueStore.database.Query("SELECT entry_key, entry_value FROM entries WHERE group_name = ?", group)
 	if err != nil {
 		return "", core.E("store.Render", "query", err)
 	}

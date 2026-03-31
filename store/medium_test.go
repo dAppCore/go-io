@@ -183,12 +183,12 @@ func TestKeyValueMedium_Append_Good(t *testing.T) {
 }
 
 func TestKeyValueMedium_AsMedium_Good(t *testing.T) {
-	s := newTestStore(t)
+	keyValueStore := newTestKeyValueStore(t)
 
-	m := s.AsMedium()
+	m := keyValueStore.AsMedium()
 	require.NoError(t, m.Write("group/key", "val"))
 
-	value, err := s.Get("group", "key")
+	value, err := keyValueStore.Get("group", "key")
 	require.NoError(t, err)
 	assert.Equal(t, "val", value)
 
@@ -197,11 +197,11 @@ func TestKeyValueMedium_AsMedium_Good(t *testing.T) {
 	assert.Equal(t, "val", value)
 }
 
-func TestKeyValueMedium_Store_Good(t *testing.T) {
+func TestKeyValueMedium_KeyValueStore_Good(t *testing.T) {
 	m := newTestKeyValueMedium(t)
 
-	assert.NotNil(t, m.Store())
-	assert.Same(t, m.Store(), m.Store())
+	assert.NotNil(t, m.KeyValueStore())
+	assert.Same(t, m.KeyValueStore(), m.KeyValueStore())
 }
 
 func TestKeyValueMedium_EnsureDir_ReadWrite_Good(t *testing.T) {

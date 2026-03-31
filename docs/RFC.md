@@ -1097,8 +1097,8 @@ Returned when a key does not exist.
 
 Example:
 ```go
-s, _ := store.New(store.Options{Path: ":memory:"})
-_, err := s.Get("config", "missing")
+keyValueStore, _ := store.New(store.Options{Path: ":memory:"})
+_, err := keyValueStore.Get("config", "missing")
 if core.Is(err, store.NotFoundError) {
 	// handle missing key
 }
@@ -1114,94 +1114,94 @@ options := store.Options{Path: ":memory:"}
 _ = options
 ```
 
-### New(options Options) (*Store, error)
+### New(options Options) (*KeyValueStore, error)
 
-Creates a new `Store` backed by the configured SQLite path.
+Creates a new `KeyValueStore` backed by the configured SQLite path.
 
 Example:
 ```go
-s, _ := store.New(store.Options{Path: ":memory:"})
-_ = s.Set("config", "theme", "midnight")
+keyValueStore, _ := store.New(store.Options{Path: ":memory:"})
+_ = keyValueStore.Set("config", "theme", "midnight")
 ```
 
-### Store
+### KeyValueStore
 
 Group-namespaced key-value store.
 
 Example:
 ```go
-s, _ := store.New(store.Options{Path: ":memory:"})
-_ = s.Set("config", "theme", "midnight")
+keyValueStore, _ := store.New(store.Options{Path: ":memory:"})
+_ = keyValueStore.Set("config", "theme", "midnight")
 ```
 
 **Close() error**
 Example:
 ```go
-s, _ := store.New(store.Options{Path: ":memory:"})
-_ = s.Close()
+keyValueStore, _ := store.New(store.Options{Path: ":memory:"})
+_ = keyValueStore.Close()
 ```
 
 **Get(group, key string) (string, error)**
 Example:
 ```go
-s, _ := store.New(store.Options{Path: ":memory:"})
-_ = s.Set("config", "theme", "midnight")
-value, _ := s.Get("config", "theme")
+keyValueStore, _ := store.New(store.Options{Path: ":memory:"})
+_ = keyValueStore.Set("config", "theme", "midnight")
+value, _ := keyValueStore.Get("config", "theme")
 ```
 
 **Set(group, key, value string) error**
 Example:
 ```go
-s, _ := store.New(store.Options{Path: ":memory:"})
-_ = s.Set("config", "theme", "midnight")
+keyValueStore, _ := store.New(store.Options{Path: ":memory:"})
+_ = keyValueStore.Set("config", "theme", "midnight")
 ```
 
 **Delete(group, key string) error**
 Example:
 ```go
-s, _ := store.New(store.Options{Path: ":memory:"})
-_ = s.Set("config", "theme", "midnight")
-_ = s.Delete("config", "theme")
+keyValueStore, _ := store.New(store.Options{Path: ":memory:"})
+_ = keyValueStore.Set("config", "theme", "midnight")
+_ = keyValueStore.Delete("config", "theme")
 ```
 
 **Count(group string) (int, error)**
 Example:
 ```go
-s, _ := store.New(store.Options{Path: ":memory:"})
-_ = s.Set("config", "theme", "midnight")
-count, _ := s.Count("config")
+keyValueStore, _ := store.New(store.Options{Path: ":memory:"})
+_ = keyValueStore.Set("config", "theme", "midnight")
+count, _ := keyValueStore.Count("config")
 ```
 
 **DeleteGroup(group string) error**
 Example:
 ```go
-s, _ := store.New(store.Options{Path: ":memory:"})
-_ = s.Set("config", "theme", "midnight")
-_ = s.DeleteGroup("config")
+keyValueStore, _ := store.New(store.Options{Path: ":memory:"})
+_ = keyValueStore.Set("config", "theme", "midnight")
+_ = keyValueStore.DeleteGroup("config")
 ```
 
 **GetAll(group string) (map[string]string, error)**
 Example:
 ```go
-s, _ := store.New(store.Options{Path: ":memory:"})
-_ = s.Set("config", "theme", "midnight")
-all, _ := s.GetAll("config")
+keyValueStore, _ := store.New(store.Options{Path: ":memory:"})
+_ = keyValueStore.Set("config", "theme", "midnight")
+all, _ := keyValueStore.GetAll("config")
 ```
 
 **Render(tmplStr, group string) (string, error)**
 Example:
 ```go
-s, _ := store.New(store.Options{Path: ":memory:"})
-_ = s.Set("user", "name", "alice")
-out, _ := s.Render("hello {{ .name }}", "user")
+keyValueStore, _ := store.New(store.Options{Path: ":memory:"})
+_ = keyValueStore.Set("user", "name", "alice")
+renderedText, _ := keyValueStore.Render("hello {{ .name }}", "user")
 ```
 
 **AsMedium() *Medium**
 Example:
 ```go
-s, _ := store.New(store.Options{Path: ":memory:"})
-m := s.AsMedium()
-_ = m.Write("config/theme", "midnight")
+keyValueStore, _ := store.New(store.Options{Path: ":memory:"})
+medium := keyValueStore.AsMedium()
+_ = medium.Write("config/theme", "midnight")
 ```
 
 ### NewMedium(options Options) (*Medium, error)
@@ -1216,7 +1216,7 @@ _ = m.Write("config/theme", "midnight")
 
 ### Medium
 
-Adapter that maps `group/key` paths onto a `Store`.
+Adapter that maps `group/key` paths onto a `KeyValueStore`.
 
 Example:
 ```go
@@ -1224,12 +1224,12 @@ m, _ := store.NewMedium(store.Options{Path: ":memory:"})
 _ = m.Write("config/theme", "midnight")
 ```
 
-**Store() *Store**
+**KeyValueStore() *KeyValueStore**
 Example:
 ```go
 m, _ := store.NewMedium(store.Options{Path: ":memory:"})
-s := m.Store()
-_ = s.Set("config", "theme", "midnight")
+keyValueStore := m.KeyValueStore()
+_ = keyValueStore.Set("config", "theme", "midnight")
 ```
 
 **Close() error**

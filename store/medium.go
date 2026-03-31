@@ -15,7 +15,7 @@ import (
 // Example: entries, _ := medium.List("")
 // Example: entries, _ := medium.List("app")
 type Medium struct {
-	store *Store
+	keyValueStore *KeyValueStore
 }
 
 var _ coreio.Medium = (*Medium)(nil)
@@ -23,26 +23,26 @@ var _ coreio.Medium = (*Medium)(nil)
 // Example: medium, _ := store.NewMedium(store.Options{Path: "config.db"})
 // Example: _ = medium.Write("app/theme", "midnight")
 func NewMedium(options Options) (*Medium, error) {
-	store, err := New(options)
+	keyValueStore, err := New(options)
 	if err != nil {
 		return nil, err
 	}
-	return &Medium{store: store}, nil
+	return &Medium{keyValueStore: keyValueStore}, nil
 }
 
 // Example: medium := keyValueStore.AsMedium()
-func (store *Store) AsMedium() *Medium {
-	return &Medium{store: store}
+func (keyValueStore *KeyValueStore) AsMedium() *Medium {
+	return &Medium{keyValueStore: keyValueStore}
 }
 
-// Example: keyValueStore := medium.Store()
-func (medium *Medium) Store() *Store {
-	return medium.store
+// Example: keyValueStore := medium.KeyValueStore()
+func (medium *Medium) KeyValueStore() *KeyValueStore {
+	return medium.keyValueStore
 }
 
 // Example: _ = medium.Close()
 func (medium *Medium) Close() error {
-	return medium.store.Close()
+	return medium.keyValueStore.Close()
 }
 
 func splitGroupKeyPath(entryPath string) (group, key string) {
@@ -63,7 +63,7 @@ func (medium *Medium) Read(entryPath string) (string, error) {
 	if key == "" {
 		return "", core.E("store.Read", "path must include group/key", fs.ErrInvalid)
 	}
-	return medium.store.Get(group, key)
+	return medium.keyValueStore.Get(group, key)
 }
 
 func (medium *Medium) Write(entryPath, content string) error {
@@ -71,7 +71,7 @@ func (medium *Medium) Write(entryPath, content string) error {
 	if key == "" {
 		return core.E("store.Write", "path must include group/key", fs.ErrInvalid)
 	}
-	return medium.store.Set(group, key, content)
+	return medium.keyValueStore.Set(group, key, content)
 }
 
 // Example: _ = medium.WriteMode("app/theme", "midnight", 0600)
@@ -89,7 +89,7 @@ func (medium *Medium) IsFile(entryPath string) bool {
 	if key == "" {
 		return false
 	}
-	_, err := medium.store.Get(group, key)
+	_, err := medium.keyValueStore.Get(group, key)
 	return err == nil
 }
 
@@ -99,7 +99,7 @@ func (medium *Medium) Delete(entryPath string) error {
 		return core.E("store.Delete", "path is required", fs.ErrInvalid)
 	}
 	if key == "" {
-		entryCount, err := medium.store.Count(group)
+		entryCount, err := medium.keyValueStore.Count(group)
 		if err != nil {
 			return err
 		}
@@ -108,7 +108,7 @@ func (medium *Medium) Delete(entryPath string) error {
 		}
 		return nil
 	}
-	return medium.store.Delete(group, key)
+	return medium.keyValueStore.Delete(group, key)
 }
 
 func (medium *Medium) DeleteAll(entryPath string) error {
@@ -117,9 +117,9 @@ func (medium *Medium) DeleteAll(entryPath string) error {
 		return core.E("store.DeleteAll", "path is required", fs.ErrInvalid)
 	}
 	if key == "" {
-		return medium.store.DeleteGroup(group)
+		return medium.keyValueStore.DeleteGroup(group)
 	}
-	return medium.store.Delete(group, key)
+	return medium.keyValueStore.Delete(group, key)
 }
 
 func (medium *Medium) Rename(oldPath, newPath string) error {
@@ -128,14 +128,14 @@ func (medium *Medium) Rename(oldPath, newPath string) error {
 	if oldKey == "" || newKey == "" {
 		return core.E("store.Rename", "both paths must include group/key", fs.ErrInvalid)
 	}
-	value, err := medium.store.Get(oldGroup, oldKey)
+	value, err := medium.keyValueStore.Get(oldGroup, oldKey)
 	if err != nil {
 		return err
 	}
-	if err := medium.store.Set(newGroup, newKey, value); err != nil {
+	if err := medium.keyValueStore.Set(newGroup, newKey, value); err != nil {
 		return err
 	}
-	return medium.store.Delete(oldGroup, oldKey)
+	return medium.keyValueStore.Delete(oldGroup, oldKey)
 }
 
 // Example: entries, _ := medium.List("app")
@@ -143,7 +143,7 @@ func (medium *Medium) List(entryPath string) ([]fs.DirEntry, error) {
 	group, key := splitGroupKeyPath(entryPath)
 
 	if group == "" {
-		rows, err := medium.store.database.Query("SELECT DISTINCT group_name FROM entries ORDER BY group_name")
+		rows, err := medium.keyValueStore.database.Query("SELECT DISTINCT group_name FROM entries ORDER BY group_name")
 		if err != nil {
 			return nil, core.E("store.List", "query groups", err)
 		}
@@ -167,7 +167,7 @@ func (medium *Medium) List(entryPath string) ([]fs.DirEntry, error) {
 		return nil, nil
 	}
 
-	all, err := medium.store.GetAll(group)
+	all, err := medium.keyValueStore.GetAll(group)
 	if err != nil {
 		return nil, err
 	}
@@ -185,7 +185,7 @@ func (medium *Medium) Stat(entryPath string) (fs.FileInfo, error) {
 		return nil, core.E("store.Stat", "path is required", fs.ErrInvalid)
 	}
 	if key == "" {
-		entryCount, err := medium.store.Count(group)
+		entryCount, err := medium.keyValueStore.Count(group)
 		if err != nil {
 			return nil, err
 		}
@@ -194,7 +194,7 @@ func (medium *Medium) Stat(entryPath string) (fs.FileInfo, error) {
 		}
 		return &keyValueFileInfo{name: group, isDir: true}, nil
 	}
-	value, err := medium.store.Get(group, key)
+	value, err := medium.keyValueStore.Get(group, key)
 	if err != nil {
 		return nil, err
 	}
@@ -206,7 +206,7 @@ func (medium *Medium) Open(entryPath string) (fs.File, error) {
 	if key == "" {
 		return nil, core.E("store.Open", "path must include group/key", fs.ErrInvalid)
 	}
-	value, err := medium.store.Get(group, key)
+	value, err := medium.keyValueStore.Get(group, key)
 	if err != nil {
 		return nil, err
 	}
@@ -218,7 +218,7 @@ func (medium *Medium) Create(entryPath string) (goio.WriteCloser, error) {
 	if key == "" {
 		return nil, core.E("store.Create", "path must include group/key", fs.ErrInvalid)
 	}
-	return &keyValueWriteCloser{store: medium.store, group: group, key: key}, nil
+	return &keyValueWriteCloser{keyValueStore: medium.keyValueStore, group: group, key: key}, nil
 }
 
 func (medium *Medium) Append(entryPath string) (goio.WriteCloser, error) {
@@ -226,8 +226,8 @@ func (medium *Medium) Append(entryPath string) (goio.WriteCloser, error) {
 	if key == "" {
 		return nil, core.E("store.Append", "path must include group/key", fs.ErrInvalid)
 	}
-	existingValue, _ := medium.store.Get(group, key)
-	return &keyValueWriteCloser{store: medium.store, group: group, key: key, data: []byte(existingValue)}, nil
+	existingValue, _ := medium.keyValueStore.Get(group, key)
+	return &keyValueWriteCloser{keyValueStore: medium.keyValueStore, group: group, key: key, data: []byte(existingValue)}, nil
 }
 
 func (medium *Medium) ReadStream(entryPath string) (goio.ReadCloser, error) {
@@ -235,7 +235,7 @@ func (medium *Medium) ReadStream(entryPath string) (goio.ReadCloser, error) {
 	if key == "" {
 		return nil, core.E("store.ReadStream", "path must include group/key", fs.ErrInvalid)
 	}
-	value, err := medium.store.Get(group, key)
+	value, err := medium.keyValueStore.Get(group, key)
 	if err != nil {
 		return nil, err
 	}
@@ -252,10 +252,10 @@ func (medium *Medium) Exists(entryPath string) bool {
 		return false
 	}
 	if key == "" {
-		entryCount, err := medium.store.Count(group)
+		entryCount, err := medium.keyValueStore.Count(group)
 		return err == nil && entryCount > 0
 	}
-	_, err := medium.store.Get(group, key)
+	_, err := medium.keyValueStore.Get(group, key)
 	return err == nil
 }
 
@@ -264,7 +264,7 @@ func (medium *Medium) IsDir(entryPath string) bool {
 	if key != "" || group == "" {
 		return false
 	}
-	entryCount, err := medium.store.Count(group)
+	entryCount, err := medium.keyValueStore.Count(group)
 	return err == nil && entryCount > 0
 }
 
@@ -334,7 +334,7 @@ func (file *keyValueFile) Read(buffer []byte) (int, error) {
 func (file *keyValueFile) Close() error { return nil }
 
 type keyValueWriteCloser struct {
-	store *Store
+	keyValueStore *KeyValueStore
 	group string
 	key   string
 	data  []byte
@@ -346,5 +346,5 @@ func (writer *keyValueWriteCloser) Write(data []byte) (int, error) {
 }
 
 func (writer *keyValueWriteCloser) Close() error {
-	return writer.store.Set(writer.group, writer.key, string(writer.data))
+	return writer.keyValueStore.Set(writer.group, writer.key, string(writer.data))
 }
