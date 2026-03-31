@@ -11,7 +11,7 @@ import (
 	"dappco.re/go/core/io"
 )
 
-// Example: service, _ := workspace.New(workspace.Options{CryptProvider: cryptProvider})
+// Example: service, _ := workspace.New(workspace.Options{KeyPairProvider: keyPairProvider})
 type Workspace interface {
 	CreateWorkspace(identifier, password string) (string, error)
 	SwitchWorkspace(workspaceID string) error
@@ -19,10 +19,12 @@ type Workspace interface {
 	WorkspaceFileSet(workspaceFilePath, content string) error
 }
 
-// Example: key, _ := cryptProvider.CreateKeyPair("alice", "pass123")
-type CryptProvider interface {
+// Example: key, _ := keyPairProvider.CreateKeyPair("alice", "pass123")
+type KeyPairProvider interface {
 	CreateKeyPair(name, passphrase string) (string, error)
 }
+
+type CryptProvider = KeyPairProvider
 
 const (
 	WorkspaceCreateAction = "workspace.create"
@@ -37,14 +39,15 @@ type WorkspaceCommand struct {
 	WorkspaceID string
 }
 
-// Example: service, _ := workspace.New(workspace.Options{CryptProvider: cryptProvider})
+// Example: service, _ := workspace.New(workspace.Options{KeyPairProvider: keyPairProvider})
 type Options struct {
-	CryptProvider CryptProvider
+	KeyPairProvider KeyPairProvider
+	CryptProvider   CryptProvider
 }
 
-// Example: service, _ := workspace.New(workspace.Options{CryptProvider: cryptProvider})
+// Example: service, _ := workspace.New(workspace.Options{KeyPairProvider: keyPairProvider})
 type Service struct {
-	cryptProvider     CryptProvider
+	keyPairProvider   KeyPairProvider
 	activeWorkspaceID string
 	rootPath          string
 	medium            io.Medium
@@ -53,7 +56,7 @@ type Service struct {
 
 var _ Workspace = (*Service)(nil)
 
-// Example: service, _ := workspace.New(workspace.Options{CryptProvider: cryptProvider})
+// Example: service, _ := workspace.New(workspace.Options{KeyPairProvider: keyPairProvider})
 // Example: workspaceID, _ := service.CreateWorkspace("alice", "pass123")
 func New(options Options) (*Service, error) {
 	home := resolveWorkspaceHomeDirectory()
@@ -62,14 +65,18 @@ func New(options Options) (*Service, error) {
 	}
 	rootPath := core.Path(home, ".core", "workspaces")
 
-	if options.CryptProvider == nil {
-		return nil, core.E("workspace.New", "crypt provider is required", fs.ErrInvalid)
+	keyPairProvider := options.KeyPairProvider
+	if keyPairProvider == nil {
+		keyPairProvider = options.CryptProvider
+	}
+	if keyPairProvider == nil {
+		return nil, core.E("workspace.New", "key pair provider is required", fs.ErrInvalid)
 	}
 
 	service := &Service{
-		cryptProvider: options.CryptProvider,
-		rootPath:      rootPath,
-		medium:        io.Local,
+		keyPairProvider: keyPairProvider,
+		rootPath:        rootPath,
+		medium:          io.Local,
 	}
 
 	if err := service.medium.EnsureDir(rootPath); err != nil {
@@ -84,8 +91,8 @@ func (service *Service) CreateWorkspace(identifier, password string) (string, er
 	service.stateLock.Lock()
 	defer service.stateLock.Unlock()
 
-	if service.cryptProvider == nil {
-		return "", core.E("workspace.CreateWorkspace", "crypt provider not available", nil)
+	if service.keyPairProvider == nil {
+		return "", core.E("workspace.CreateWorkspace", "key pair provider not available", nil)
 	}
 
 	hash := sha256.Sum256([]byte(identifier))
@@ -105,7 +112,7 @@ func (service *Service) CreateWorkspace(identifier, password string) (string, er
 		}
 	}
 
-	privKey, err := service.cryptProvider.CreateKeyPair(identifier, password)
+	privKey, err := service.keyPairProvider.CreateKeyPair(identifier, password)
 	if err != nil {
 		return "", core.E("workspace.CreateWorkspace", "failed to generate keys", err)
 	}
