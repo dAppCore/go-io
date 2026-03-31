@@ -9,6 +9,7 @@ import (
 	core "dappco.re/go/core"
 
 	"dappco.re/go/core/io"
+	"dappco.re/go/core/io/sigil"
 )
 
 // Example: service, _ := workspace.New(workspace.Options{
@@ -45,11 +46,15 @@ type WorkspaceCommand struct {
 // Example:     KeyPairProvider: keyPairProvider,
 // Example:     RootPath: "/srv/workspaces",
 // Example:     Medium: io.NewMemoryMedium(),
+// Example:     Core: c,
 // Example: })
 type Options struct {
 	KeyPairProvider KeyPairProvider
 	RootPath        string
 	Medium          io.Medium
+	// Core is the optional Core instance. When set, the workspace service
+	// auto-registers as an IPC listener for workspace.create and workspace.switch events.
+	Core *core.Core
 }
 
 // Example: service, _ := workspace.New(workspace.Options{
@@ -103,6 +108,10 @@ func New(options Options) (*Service, error) {
 
 	if err := service.medium.EnsureDir(rootPath); err != nil {
 		return nil, core.E("workspace.New", "failed to ensure root directory", err)
+	}
+
+	if options.Core != nil {
+		options.Core.RegisterAction(service.HandleWorkspaceMessage)
 	}
 
 	return service, nil
@@ -178,6 +187,24 @@ func (service *Service) resolveActiveWorkspaceFilePath(operation, workspaceFileP
 	return filePath, nil
 }
 
+// Example: cipherSigil, _ := service.workspaceCipherSigil("workspace.ReadWorkspaceFile")
+func (service *Service) workspaceCipherSigil(operation string) (*sigil.ChaChaPolySigil, error) {
+	if service.activeWorkspaceID == "" {
+		return nil, core.E(operation, "no active workspace", fs.ErrNotExist)
+	}
+	keyPath := core.Path(service.rootPath, service.activeWorkspaceID, "keys", "private.key")
+	rawKey, err := service.medium.Read(keyPath)
+	if err != nil {
+		return nil, core.E(operation, "failed to read workspace key", err)
+	}
+	derived := sha256.Sum256([]byte(rawKey))
+	cipherSigil, err := sigil.NewChaChaPolySigil(derived[:], nil)
+	if err != nil {
+		return nil, core.E(operation, "failed to create cipher sigil", err)
+	}
+	return cipherSigil, nil
+}
+
 // Example: content, _ := service.ReadWorkspaceFile("notes/todo.txt")
 func (service *Service) ReadWorkspaceFile(workspaceFilePath string) (string, error) {
 	service.stateLock.RLock()
@@ -187,7 +214,19 @@ func (service *Service) ReadWorkspaceFile(workspaceFilePath string) (string, err
 	if err != nil {
 		return "", err
 	}
-	return service.medium.Read(filePath)
+	cipherSigil, err := service.workspaceCipherSigil("workspace.ReadWorkspaceFile")
+	if err != nil {
+		return "", err
+	}
+	encoded, err := service.medium.Read(filePath)
+	if err != nil {
+		return "", err
+	}
+	plaintext, err := sigil.Untransmute([]byte(encoded), []sigil.Sigil{cipherSigil})
+	if err != nil {
+		return "", core.E("workspace.ReadWorkspaceFile", "failed to decrypt file content", err)
+	}
+	return string(plaintext), nil
 }
 
 // Example: _ = service.WriteWorkspaceFile("notes/todo.txt", "ship it")
@@ -199,7 +238,15 @@ func (service *Service) WriteWorkspaceFile(workspaceFilePath, content string) er
 	if err != nil {
 		return err
 	}
-	return service.medium.Write(filePath, content)
+	cipherSigil, err := service.workspaceCipherSigil("workspace.WriteWorkspaceFile")
+	if err != nil {
+		return err
+	}
+	ciphertext, err := sigil.Transmute([]byte(content), []sigil.Sigil{cipherSigil})
+	if err != nil {
+		return core.E("workspace.WriteWorkspaceFile", "failed to encrypt file content", err)
+	}
+	return service.medium.Write(filePath, string(ciphertext))
 }
 
 // Example: commandResult := service.HandleWorkspaceCommand(WorkspaceCommand{Action: WorkspaceCreateAction, Identifier: "alice", Password: "pass123"})

@@ -127,6 +127,64 @@ func TestService_JoinPathWithinRoot_DefaultSeparator_Good(t *testing.T) {
 	assert.Empty(t, path)
 }
 
+func TestService_New_IPCAutoRegistration_Good(t *testing.T) {
+	tempHome := t.TempDir()
+	t.Setenv("HOME", tempHome)
+
+	c := core.New()
+	service, err := New(Options{
+		KeyPairProvider: testKeyPairProvider{privateKey: "private-key"},
+		Core:            c,
+	})
+	require.NoError(t, err)
+
+	// Create a workspace directly, then switch via the Core IPC bus.
+	workspaceID, err := service.CreateWorkspace("ipc-bus-user", "pass789")
+	require.NoError(t, err)
+
+	// Dispatching workspace.switch via ACTION must reach the auto-registered handler.
+	c.ACTION(WorkspaceCommand{
+		Action:      WorkspaceSwitchAction,
+		WorkspaceID: workspaceID,
+	})
+	assert.Equal(t, workspaceID, service.activeWorkspaceID)
+}
+
+func TestService_New_IPCCreate_Good(t *testing.T) {
+	tempHome := t.TempDir()
+	t.Setenv("HOME", tempHome)
+
+	c := core.New()
+	service, err := New(Options{
+		KeyPairProvider: testKeyPairProvider{privateKey: "private-key"},
+		Core:            c,
+	})
+	require.NoError(t, err)
+
+	// workspace.create dispatched via the bus must create the workspace on the medium.
+	c.ACTION(WorkspaceCommand{
+		Action:     WorkspaceCreateAction,
+		Identifier: "ipc-create-user",
+		Password:   "pass123",
+	})
+
+	// A duplicate create must fail — proves the first create succeeded.
+	_, err = service.CreateWorkspace("ipc-create-user", "pass123")
+	require.Error(t, err)
+}
+
+func TestService_New_NoCoreOption_NoRegistration_Good(t *testing.T) {
+	tempHome := t.TempDir()
+	t.Setenv("HOME", tempHome)
+
+	// Without Core in Options, New must succeed and no IPC handler is registered.
+	service, err := New(Options{
+		KeyPairProvider: testKeyPairProvider{privateKey: "private-key"},
+	})
+	require.NoError(t, err)
+	assert.NotNil(t, service)
+}
+
 func TestService_HandleWorkspaceMessage_Command_Good(t *testing.T) {
 	service, _ := newWorkspaceService(t)
 
