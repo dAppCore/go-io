@@ -188,8 +188,6 @@ type MemoryMedium struct {
 	modTimes map[string]time.Time
 }
 
-type MockMedium = MemoryMedium
-
 var _ Medium = (*MemoryMedium)(nil)
 
 // Example: medium := io.NewMemoryMedium()
@@ -200,12 +198,6 @@ func NewMemoryMedium() *MemoryMedium {
 		dirs:     make(map[string]bool),
 		modTimes: make(map[string]time.Time),
 	}
-}
-
-// Example: medium := io.NewMockMedium()
-// Example: _ = medium.Write("config/app.yaml", "port: 8080")
-func NewMockMedium() *MemoryMedium {
-	return NewMemoryMedium()
 }
 
 func (medium *MemoryMedium) Read(path string) (string, error) {
@@ -399,8 +391,6 @@ type MemoryFile struct {
 	offset  int64
 }
 
-type MockFile = MemoryFile
-
 func (file *MemoryFile) Stat() (fs.FileInfo, error) {
 	return NewFileInfo(file.name, int64(len(file.content)), 0, time.Time{}, false), nil
 }
@@ -423,8 +413,6 @@ type MemoryWriteCloser struct {
 	path   string
 	data   []byte
 }
-
-type MockWriteCloser = MemoryWriteCloser
 
 func (writeCloser *MemoryWriteCloser) Write(data []byte) (int, error) {
 	writeCloser.data = append(writeCloser.data, data...)

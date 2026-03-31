@@ -148,18 +148,3 @@ func TestService_HandleWorkspaceMessage_Good(t *testing.T) {
 	unknown := service.HandleWorkspaceMessage(core.New(), "noop")
 	assert.True(t, unknown.OK)
 }
-
-func TestService_HandleIPCEvents_Compatibility_Good(t *testing.T) {
-	service, _ := newTestService(t)
-
-	result := service.HandleIPCEvents(core.New(), WorkspaceCommand{
-		Action:     WorkspaceCreateAction,
-		Identifier: "compat-user",
-		Password:   "pass123",
-	})
-
-	assert.True(t, result.OK)
-	workspaceID, ok := result.Value.(string)
-	require.True(t, ok)
-	require.NotEmpty(t, workspaceID)
-}

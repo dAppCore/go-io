@@ -24,8 +24,6 @@ type KeyPairProvider interface {
 	CreateKeyPair(name, passphrase string) (string, error)
 }
 
-type CryptProvider = KeyPairProvider
-
 const (
 	WorkspaceCreateAction = "workspace.create"
 	WorkspaceSwitchAction = "workspace.switch"
@@ -42,7 +40,6 @@ type WorkspaceCommand struct {
 // Example: service, _ := workspace.New(workspace.Options{KeyPairProvider: keyPairProvider})
 type Options struct {
 	KeyPairProvider KeyPairProvider
-	CryptProvider   CryptProvider
 }
 
 // Example: service, _ := workspace.New(workspace.Options{KeyPairProvider: keyPairProvider})
@@ -65,16 +62,12 @@ func New(options Options) (*Service, error) {
 	}
 	rootPath := core.Path(home, ".core", "workspaces")
 
-	keyPairProvider := options.KeyPairProvider
-	if keyPairProvider == nil {
-		keyPairProvider = options.CryptProvider
-	}
-	if keyPairProvider == nil {
+	if options.KeyPairProvider == nil {
 		return nil, core.E("workspace.New", "key pair provider is required", fs.ErrInvalid)
 	}
 
 	service := &Service{
-		keyPairProvider: keyPairProvider,
+		keyPairProvider: options.KeyPairProvider,
 		rootPath:        rootPath,
 		medium:          io.Local,
 	}
@@ -206,11 +199,6 @@ func (service *Service) HandleWorkspaceMessage(_ *core.Core, message core.Messag
 		return core.Result{OK: true}
 	}
 	return service.HandleWorkspaceCommand(command)
-}
-
-// Example: result := service.HandleIPCEvents(core.New(), WorkspaceCommand{Action: WorkspaceSwitchAction, WorkspaceID: "f3f0d7"})
-func (service *Service) HandleIPCEvents(coreRuntime *core.Core, message core.Message) core.Result {
-	return service.HandleWorkspaceMessage(coreRuntime, message)
 }
 
 func workspaceCommandFromMessage(message core.Message) (WorkspaceCommand, bool) {
