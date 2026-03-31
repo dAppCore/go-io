@@ -15,8 +15,8 @@ import (
 type Workspace interface {
 	CreateWorkspace(identifier, password string) (string, error)
 	SwitchWorkspace(workspaceID string) error
-	WorkspaceFileGet(workspaceFilePath string) (string, error)
-	WorkspaceFileSet(workspaceFilePath, content string) error
+	ReadWorkspaceFile(workspaceFilePath string) (string, error)
+	WriteWorkspaceFile(workspaceFilePath, content string) error
 }
 
 // Example: key, _ := keyPairProvider.CreateKeyPair("alice", "pass123")
@@ -149,24 +149,24 @@ func (service *Service) resolveActiveWorkspaceFilePath(operation, workspaceFileP
 	return filePath, nil
 }
 
-// Example: content, _ := service.WorkspaceFileGet("notes/todo.txt")
-func (service *Service) WorkspaceFileGet(workspaceFilePath string) (string, error) {
+// Example: content, _ := service.ReadWorkspaceFile("notes/todo.txt")
+func (service *Service) ReadWorkspaceFile(workspaceFilePath string) (string, error) {
 	service.stateLock.RLock()
 	defer service.stateLock.RUnlock()
 
-	filePath, err := service.resolveActiveWorkspaceFilePath("workspace.WorkspaceFileGet", workspaceFilePath)
+	filePath, err := service.resolveActiveWorkspaceFilePath("workspace.ReadWorkspaceFile", workspaceFilePath)
 	if err != nil {
 		return "", err
 	}
 	return service.medium.Read(filePath)
 }
 
-// Example: _ = service.WorkspaceFileSet("notes/todo.txt", "ship it")
-func (service *Service) WorkspaceFileSet(workspaceFilePath, content string) error {
+// Example: _ = service.WriteWorkspaceFile("notes/todo.txt", "ship it")
+func (service *Service) WriteWorkspaceFile(workspaceFilePath, content string) error {
 	service.stateLock.Lock()
 	defer service.stateLock.Unlock()
 
-	filePath, err := service.resolveActiveWorkspaceFilePath("workspace.WorkspaceFileSet", workspaceFilePath)
+	filePath, err := service.resolveActiveWorkspaceFilePath("workspace.WriteWorkspaceFile", workspaceFilePath)
 	if err != nil {
 		return err
 	}

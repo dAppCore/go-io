@@ -36,7 +36,7 @@ func TestService_New_MissingKeyPairProvider_Bad(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestService_Workspace_RoundTrip_Good(t *testing.T) {
+func TestService_WorkspaceFileRoundTrip_Good(t *testing.T) {
 	service, tempHome := newTestService(t)
 
 	workspaceID, err := service.CreateWorkspace("test-user", "pass123")
@@ -52,10 +52,10 @@ func TestService_Workspace_RoundTrip_Good(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, workspaceID, service.activeWorkspaceID)
 
-	err = service.WorkspaceFileSet("secret.txt", "top secret info")
+	err = service.WriteWorkspaceFile("secret.txt", "top secret info")
 	require.NoError(t, err)
 
-	got, err := service.WorkspaceFileGet("secret.txt")
+	got, err := service.ReadWorkspaceFile("secret.txt")
 	require.NoError(t, err)
 	assert.Equal(t, "top secret info", got)
 }
@@ -71,7 +71,7 @@ func TestService_SwitchWorkspace_TraversalBlocked_Bad(t *testing.T) {
 	assert.Empty(t, service.activeWorkspaceID)
 }
 
-func TestService_WorkspaceFileSet_TraversalBlocked_Bad(t *testing.T) {
+func TestService_WriteWorkspaceFile_TraversalBlocked_Bad(t *testing.T) {
 	service, tempHome := newTestService(t)
 
 	workspaceID, err := service.CreateWorkspace("test-user", "pass123")
@@ -82,14 +82,14 @@ func TestService_WorkspaceFileSet_TraversalBlocked_Bad(t *testing.T) {
 	before, err := service.medium.Read(keyPath)
 	require.NoError(t, err)
 
-	err = service.WorkspaceFileSet("../keys/private.key", "hijack")
+	err = service.WriteWorkspaceFile("../keys/private.key", "hijack")
 	require.Error(t, err)
 
 	after, err := service.medium.Read(keyPath)
 	require.NoError(t, err)
 	assert.Equal(t, before, after)
 
-	_, err = service.WorkspaceFileGet("../keys/private.key")
+	_, err = service.ReadWorkspaceFile("../keys/private.key")
 	require.Error(t, err)
 }
 
