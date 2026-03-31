@@ -275,8 +275,8 @@ func (sigil *ChaChaPolySigil) Out(data []byte) ([]byte, error) {
 	return plaintext, nil
 }
 
-// Example: nonce, _ := sigil.GetNonceFromCiphertext(ciphertext)
-func GetNonceFromCiphertext(ciphertext []byte) ([]byte, error) {
+// Example: nonce, _ := sigil.NonceFromCiphertext(ciphertext)
+func NonceFromCiphertext(ciphertext []byte) ([]byte, error) {
 	nonceSize := chacha20poly1305.NonceSizeX
 	if len(ciphertext) < nonceSize {
 		return nil, CiphertextTooShortError

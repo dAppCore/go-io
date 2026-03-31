@@ -345,8 +345,8 @@ func (medium *Medium) List(filePath string) ([]fs.DirEntry, error) {
 		prefix += "/"
 	}
 	seen := make(map[string]bool)
-	for _, e := range entries {
-		seen[e.Name()] = true
+	for _, entry := range entries {
+		seen[entry.Name()] = true
 	}
 
 	for directoryPath := range medium.directorySet {

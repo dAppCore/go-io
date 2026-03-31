@@ -2359,7 +2359,7 @@ Returned when ciphertext is too short to decrypt.
 
 Example:
 ```go
-_, err := sigil.GetNonceFromCiphertext([]byte("short"))
+_, err := sigil.NonceFromCiphertext([]byte("short"))
 if errors.Is(err, sigil.CiphertextTooShortError) {
 	// handle truncated payload
 }
@@ -2503,7 +2503,7 @@ ob := &sigil.ShuffleMaskObfuscator{}
 s, _ := sigil.NewChaChaPolySigil(key, ob)
 ```
 
-### GetNonceFromCiphertext(ciphertext []byte) ([]byte, error)
+### NonceFromCiphertext(ciphertext []byte) ([]byte, error)
 
 Extracts the XChaCha20 nonce from encrypted output.
 
@@ -2512,5 +2512,5 @@ Example:
 key := make([]byte, 32)
 s, _ := sigil.NewChaChaPolySigil(key, nil)
 ciphertext, _ := s.In([]byte("hello"))
-nonce, _ := sigil.GetNonceFromCiphertext(ciphertext)
+nonce, _ := sigil.NonceFromCiphertext(ciphertext)
 ```

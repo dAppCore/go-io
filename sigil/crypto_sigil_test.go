@@ -362,28 +362,28 @@ func TestCryptoSigil_ChaChaPolySigil_NoObfuscator_Good(t *testing.T) {
 	assert.Equal(t, plaintext, decrypted)
 }
 
-func TestCryptoSigil_GetNonceFromCiphertext_Good(t *testing.T) {
+func TestCryptoSigil_NonceFromCiphertext_Good(t *testing.T) {
 	key := make([]byte, 32)
 	_, _ = rand.Read(key)
 
 	cipherSigil, _ := NewChaChaPolySigil(key, nil)
 	ciphertext, _ := cipherSigil.In([]byte("nonce extraction test"))
 
-	nonce, err := GetNonceFromCiphertext(ciphertext)
+	nonce, err := NonceFromCiphertext(ciphertext)
 	require.NoError(t, err)
 	assert.Len(t, nonce, 24)
 
 	assert.Equal(t, ciphertext[:24], nonce)
 }
 
-func TestCryptoSigil_GetNonceFromCiphertext_NonceCopied_Good(t *testing.T) {
+func TestCryptoSigil_NonceFromCiphertext_NonceCopied_Good(t *testing.T) {
 	key := make([]byte, 32)
 	_, _ = rand.Read(key)
 
 	cipherSigil, _ := NewChaChaPolySigil(key, nil)
 	ciphertext, _ := cipherSigil.In([]byte("data"))
 
-	nonce, _ := GetNonceFromCiphertext(ciphertext)
+	nonce, _ := NonceFromCiphertext(ciphertext)
 	original := make([]byte, len(nonce))
 	copy(original, nonce)
 
@@ -391,13 +391,13 @@ func TestCryptoSigil_GetNonceFromCiphertext_NonceCopied_Good(t *testing.T) {
 	assert.Equal(t, original, ciphertext[:24])
 }
 
-func TestCryptoSigil_GetNonceFromCiphertext_TooShort_Bad(t *testing.T) {
-	_, err := GetNonceFromCiphertext([]byte("short"))
+func TestCryptoSigil_NonceFromCiphertext_TooShort_Bad(t *testing.T) {
+	_, err := NonceFromCiphertext([]byte("short"))
 	assert.ErrorIs(t, err, CiphertextTooShortError)
 }
 
-func TestCryptoSigil_GetNonceFromCiphertext_Empty_Bad(t *testing.T) {
-	_, err := GetNonceFromCiphertext(nil)
+func TestCryptoSigil_NonceFromCiphertext_Empty_Bad(t *testing.T) {
+	_, err := NonceFromCiphertext(nil)
 	assert.ErrorIs(t, err, CiphertextTooShortError)
 }
 
