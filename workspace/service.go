@@ -192,28 +192,12 @@ func (service *Service) HandleWorkspaceCommand(command WorkspaceCommand) core.Re
 }
 
 // Example: result := service.HandleWorkspaceMessage(core.New(), WorkspaceCommand{Action: WorkspaceSwitchAction, WorkspaceID: "f3f0d7"})
-// Example: legacy := service.HandleWorkspaceMessage(core.New(), map[string]any{"action": WorkspaceCreateAction, "identifier": "alice", "password": "pass123"})
 func (service *Service) HandleWorkspaceMessage(_ *core.Core, message core.Message) core.Result {
-	command, ok := workspaceCommandFromMessage(message)
-	if !ok {
-		return core.Result{OK: true}
-	}
-	return service.HandleWorkspaceCommand(command)
-}
-
-func workspaceCommandFromMessage(message core.Message) (WorkspaceCommand, bool) {
-	switch payload := message.(type) {
+	switch command := message.(type) {
 	case WorkspaceCommand:
-		return payload, true
-	case map[string]any:
-		command := WorkspaceCommand{}
-		command.Action, _ = payload["action"].(string)
-		command.Identifier, _ = payload["identifier"].(string)
-		command.Password, _ = payload["password"].(string)
-		command.WorkspaceID, _ = payload["workspaceID"].(string)
-		return command, true
+		return service.HandleWorkspaceCommand(command)
 	}
-	return WorkspaceCommand{}, false
+	return core.Result{OK: true}
 }
 
 func resolveWorkspaceHomeDirectory() string {

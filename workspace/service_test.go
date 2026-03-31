@@ -93,7 +93,7 @@ func TestService_WriteWorkspaceFile_TraversalBlocked_Bad(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestService_HandleWorkspaceMessage_Good(t *testing.T) {
+func TestService_HandleWorkspaceMessage_Command_Good(t *testing.T) {
 	service, _ := newTestService(t)
 
 	create := service.HandleWorkspaceMessage(core.New(), WorkspaceCommand{
@@ -113,37 +113,6 @@ func TestService_HandleWorkspaceMessage_Good(t *testing.T) {
 	})
 	assert.True(t, switchResult.OK)
 	assert.Equal(t, workspaceID, service.activeWorkspaceID)
-
-	legacyCreate := service.HandleWorkspaceMessage(core.New(), map[string]any{
-		"action":     WorkspaceCreateAction,
-		"identifier": "legacy-user",
-		"password":   "pass123",
-	})
-	assert.True(t, legacyCreate.OK)
-
-	legacyWorkspaceID, ok := legacyCreate.Value.(string)
-	require.True(t, ok)
-	require.NotEmpty(t, legacyWorkspaceID)
-
-	legacySwitch := service.HandleWorkspaceMessage(core.New(), WorkspaceCommand{
-		Action:      WorkspaceSwitchAction,
-		WorkspaceID: legacyWorkspaceID,
-	})
-	assert.True(t, legacySwitch.OK)
-	assert.Equal(t, legacyWorkspaceID, service.activeWorkspaceID)
-
-	rejectedLegacySwitch := service.HandleWorkspaceMessage(core.New(), map[string]any{
-		"action": WorkspaceSwitchAction,
-		"name":   workspaceID,
-	})
-	assert.False(t, rejectedLegacySwitch.OK)
-	assert.Equal(t, legacyWorkspaceID, service.activeWorkspaceID)
-
-	failedSwitch := service.HandleWorkspaceMessage(core.New(), map[string]any{
-		"action":      WorkspaceSwitchAction,
-		"workspaceID": "missing",
-	})
-	assert.False(t, failedSwitch.OK)
 
 	unknown := service.HandleWorkspaceMessage(core.New(), "noop")
 	assert.True(t, unknown.OK)
