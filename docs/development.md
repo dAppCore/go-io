@@ -96,7 +96,6 @@ func TestMyFeature(t *testing.T) {
     _ = memoryMedium.Write("config.yaml", "key: value")
     _ = memoryMedium.EnsureDir("data")
 
-    // Your code under test receives memoryMedium as an io.Medium
     result, err := myFunction(memoryMedium)
     assert.NoError(t, err)
     output, err := memoryMedium.Read("output.txt")

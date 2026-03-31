@@ -30,23 +30,29 @@ func New(root string) (*Medium, error) {
 }
 
 func dirSeparator() string {
-	if sep := core.Env("DS"); sep != "" {
-		return sep
+	if separator := core.Env("CORE_PATH_SEPARATOR"); separator != "" {
+		return separator
+	}
+	if separator := core.Env("DS"); separator != "" {
+		return separator
 	}
 	return "/"
 }
 
 func normalisePath(path string) string {
-	sep := dirSeparator()
-	if sep == "/" {
-		return core.Replace(path, "\\", sep)
+	separator := dirSeparator()
+	if separator == "/" {
+		return core.Replace(path, "\\", separator)
 	}
-	return core.Replace(path, "/", sep)
+	return core.Replace(path, "/", separator)
 }
 
 func currentWorkingDir() string {
-	if cwd := core.Env("DIR_CWD"); cwd != "" {
-		return cwd
+	if workingDirectory := core.Env("CORE_WORKING_DIRECTORY"); workingDirectory != "" {
+		return workingDirectory
+	}
+	if workingDirectory := core.Env("DIR_CWD"); workingDirectory != "" {
+		return workingDirectory
 	}
 	return "."
 }

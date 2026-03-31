@@ -282,8 +282,8 @@ func TestSqlite_List_Good(t *testing.T) {
 	require.NoError(t, err)
 
 	names := make(map[string]bool)
-	for _, e := range entries {
-		names[e.Name()] = true
+	for _, entry := range entries {
+		names[entry.Name()] = true
 	}
 
 	assert.True(t, names["file1.txt"])
@@ -302,8 +302,8 @@ func TestSqlite_List_Root_Good(t *testing.T) {
 	require.NoError(t, err)
 
 	names := make(map[string]bool)
-	for _, e := range entries {
-		names[e.Name()] = true
+	for _, entry := range entries {
+		names[entry.Name()] = true
 	}
 
 	assert.True(t, names["root.txt"])
@@ -369,15 +369,15 @@ func TestSqlite_Open_Good(t *testing.T) {
 
 	require.NoError(t, sqliteMedium.Write("file.txt", "open me"))
 
-	f, err := sqliteMedium.Open("file.txt")
+	file, err := sqliteMedium.Open("file.txt")
 	require.NoError(t, err)
-	defer f.Close()
+	defer file.Close()
 
-	data, err := goio.ReadAll(f.(goio.Reader))
+	data, err := goio.ReadAll(file.(goio.Reader))
 	require.NoError(t, err)
 	assert.Equal(t, "open me", string(data))
 
-	stat, err := f.Stat()
+	stat, err := file.Stat()
 	require.NoError(t, err)
 	assert.Equal(t, "file.txt", stat.Name())
 }
@@ -400,14 +400,14 @@ func TestSqlite_Open_IsDirectory_Bad(t *testing.T) {
 func TestSqlite_Create_Good(t *testing.T) {
 	sqliteMedium := newSqliteMedium(t)
 
-	w, err := sqliteMedium.Create("new.txt")
+	writer, err := sqliteMedium.Create("new.txt")
 	require.NoError(t, err)
 
-	n, err := w.Write([]byte("created"))
+	bytesWritten, err := writer.Write([]byte("created"))
 	require.NoError(t, err)
-	assert.Equal(t, 7, n)
+	assert.Equal(t, 7, bytesWritten)
 
-	err = w.Close()
+	err = writer.Close()
 	require.NoError(t, err)
 
 	content, err := sqliteMedium.Read("new.txt")
@@ -420,11 +420,11 @@ func TestSqlite_Create_Overwrite_Good(t *testing.T) {
 
 	require.NoError(t, sqliteMedium.Write("file.txt", "old content"))
 
-	w, err := sqliteMedium.Create("file.txt")
+	writer, err := sqliteMedium.Create("file.txt")
 	require.NoError(t, err)
-	_, err = w.Write([]byte("new"))
+	_, err = writer.Write([]byte("new"))
 	require.NoError(t, err)
-	require.NoError(t, w.Close())
+	require.NoError(t, writer.Close())
 
 	content, err := sqliteMedium.Read("file.txt")
 	require.NoError(t, err)
@@ -443,12 +443,12 @@ func TestSqlite_Append_Good(t *testing.T) {
 
 	require.NoError(t, sqliteMedium.Write("append.txt", "hello"))
 
-	w, err := sqliteMedium.Append("append.txt")
+	writer, err := sqliteMedium.Append("append.txt")
 	require.NoError(t, err)
 
-	_, err = w.Write([]byte(" world"))
+	_, err = writer.Write([]byte(" world"))
 	require.NoError(t, err)
-	require.NoError(t, w.Close())
+	require.NoError(t, writer.Close())
 
 	content, err := sqliteMedium.Read("append.txt")
 	require.NoError(t, err)
@@ -458,12 +458,12 @@ func TestSqlite_Append_Good(t *testing.T) {
 func TestSqlite_Append_NewFile_Good(t *testing.T) {
 	sqliteMedium := newSqliteMedium(t)
 
-	w, err := sqliteMedium.Append("new.txt")
+	writer, err := sqliteMedium.Append("new.txt")
 	require.NoError(t, err)
 
-	_, err = w.Write([]byte("fresh"))
+	_, err = writer.Write([]byte("fresh"))
 	require.NoError(t, err)
-	require.NoError(t, w.Close())
+	require.NoError(t, writer.Close())
 
 	content, err := sqliteMedium.Read("new.txt")
 	require.NoError(t, err)

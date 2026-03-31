@@ -409,8 +409,8 @@ func TestS3_List_Good(t *testing.T) {
 	require.NoError(t, err)
 
 	names := make(map[string]bool)
-	for _, e := range entries {
-		names[e.Name()] = true
+	for _, entry := range entries {
+		names[entry.Name()] = true
 	}
 
 	assert.True(t, names["file1.txt"], "should list file1.txt")
@@ -418,10 +418,10 @@ func TestS3_List_Good(t *testing.T) {
 	assert.True(t, names["sub"], "should list sub directory")
 	assert.Len(t, entries, 3)
 
-	for _, e := range entries {
-		if e.Name() == "sub" {
-			assert.True(t, e.IsDir())
-			info, err := e.Info()
+	for _, entry := range entries {
+		if entry.Name() == "sub" {
+			assert.True(t, entry.IsDir())
+			info, err := entry.Info()
 			require.NoError(t, err)
 			assert.True(t, info.IsDir())
 		}
@@ -438,8 +438,8 @@ func TestS3_List_Root_Good(t *testing.T) {
 	require.NoError(t, err)
 
 	names := make(map[string]bool)
-	for _, e := range entries {
-		names[e.Name()] = true
+	for _, entry := range entries {
+		names[entry.Name()] = true
 	}
 
 	assert.True(t, names["root.txt"])
@@ -476,15 +476,15 @@ func TestS3_Open_Good(t *testing.T) {
 
 	require.NoError(t, s3Medium.Write("file.txt", "open me"))
 
-	f, err := s3Medium.Open("file.txt")
+	file, err := s3Medium.Open("file.txt")
 	require.NoError(t, err)
-	defer f.Close()
+	defer file.Close()
 
-	data, err := goio.ReadAll(f.(goio.Reader))
+	data, err := goio.ReadAll(file.(goio.Reader))
 	require.NoError(t, err)
 	assert.Equal(t, "open me", string(data))
 
-	stat, err := f.Stat()
+	stat, err := file.Stat()
 	require.NoError(t, err)
 	assert.Equal(t, "file.txt", stat.Name())
 }
@@ -499,14 +499,14 @@ func TestS3_Open_NotFound_Bad(t *testing.T) {
 func TestS3_Create_Good(t *testing.T) {
 	s3Medium, _ := newS3Medium(t)
 
-	w, err := s3Medium.Create("new.txt")
+	writer, err := s3Medium.Create("new.txt")
 	require.NoError(t, err)
 
-	n, err := w.Write([]byte("created"))
+	bytesWritten, err := writer.Write([]byte("created"))
 	require.NoError(t, err)
-	assert.Equal(t, 7, n)
+	assert.Equal(t, 7, bytesWritten)
 
-	err = w.Close()
+	err = writer.Close()
 	require.NoError(t, err)
 
 	content, err := s3Medium.Read("new.txt")
@@ -519,12 +519,12 @@ func TestS3_Append_Good(t *testing.T) {
 
 	require.NoError(t, s3Medium.Write("append.txt", "hello"))
 
-	w, err := s3Medium.Append("append.txt")
+	writer, err := s3Medium.Append("append.txt")
 	require.NoError(t, err)
 
-	_, err = w.Write([]byte(" world"))
+	_, err = writer.Write([]byte(" world"))
 	require.NoError(t, err)
-	err = w.Close()
+	err = writer.Close()
 	require.NoError(t, err)
 
 	content, err := s3Medium.Read("append.txt")
@@ -535,12 +535,12 @@ func TestS3_Append_Good(t *testing.T) {
 func TestS3_Append_NewFile_Good(t *testing.T) {
 	s3Medium, _ := newS3Medium(t)
 
-	w, err := s3Medium.Append("new.txt")
+	writer, err := s3Medium.Append("new.txt")
 	require.NoError(t, err)
 
-	_, err = w.Write([]byte("fresh"))
+	_, err = writer.Write([]byte("fresh"))
 	require.NoError(t, err)
-	err = w.Close()
+	err = writer.Close()
 	require.NoError(t, err)
 
 	content, err := s3Medium.Read("new.txt")

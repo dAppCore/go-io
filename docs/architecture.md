@@ -139,7 +139,7 @@ keyValueStore, _ := store.New(store.Options{Path: ":memory:"})
 keyValueStore.Set("user", "pool", "pool.lthn.io:3333")
 keyValueStore.Set("user", "wallet", "iz...")
 renderedText, _ := keyValueStore.Render(`{"pool":"{{ .pool }}"}`, "user")
-// renderedText: {"pool":"pool.lthn.io:3333"}
+assert.Equal(t, `{"pool":"pool.lthn.io:3333"}`, renderedText)
 ```
 
 ### store.Medium (Medium adapter)
@@ -164,8 +164,8 @@ The sigil package implements composable, reversible data transformations.
 
 ```go
 type Sigil interface {
-    In(data []byte) ([]byte, error)   // forward transform
-    Out(data []byte) ([]byte, error)  // reverse transform
+    In(data []byte) ([]byte, error)
+    Out(data []byte) ([]byte, error)
 }
 ```
 
@@ -199,10 +199,8 @@ Created via `NewSigil(name)`:
 ### Pipeline Functions
 
 ```go
-// Apply sigils left-to-right.
 encoded, _ := sigil.Transmute(data, []sigil.Sigil{gzipSigil, hexSigil})
 
-// Reverse sigils right-to-left.
 original, _ := sigil.Untransmute(encoded, []sigil.Sigil{gzipSigil, hexSigil})
 ```
 
@@ -231,12 +229,11 @@ The pre-obfuscation layer ensures that raw plaintext patterns are never sent dir
 key := make([]byte, 32)
 rand.Read(key)
 
-s, _ := sigil.NewChaChaPolySigil(key, nil)
-ciphertext, _ := s.In([]byte("secret"))
-plaintext, _ := s.Out(ciphertext)
+cipherSigil, _ := sigil.NewChaChaPolySigil(key, nil)
+ciphertext, _ := cipherSigil.In([]byte("secret"))
+plaintext, _ := cipherSigil.Out(ciphertext)
 
-// With stronger obfuscation:
-s2, _ := sigil.NewChaChaPolySigil(key, &sigil.ShuffleMaskObfuscator{})
+shuffleCipherSigil, _ := sigil.NewChaChaPolySigil(key, &sigil.ShuffleMaskObfuscator{})
 ```
 
 Each call to `In` generates a fresh random nonce, so encrypting the same plaintext twice produces different ciphertexts.

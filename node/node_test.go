@@ -556,8 +556,8 @@ func TestNode_FSInterface_Good(t *testing.T) {
 
 func sortedNames(entries []fs.DirEntry) []string {
 	var names []string
-	for _, e := range entries {
-		names = append(names, e.Name())
+	for _, entry := range entries {
+		names = append(names, entry.Name())
 	}
 	sort.Strings(names)
 	return names

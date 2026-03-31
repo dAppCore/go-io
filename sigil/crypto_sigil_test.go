@@ -331,7 +331,7 @@ func TestCryptoSigil_ChaChaPolySigil_TamperedCiphertext_Bad(t *testing.T) {
 
 type failReader struct{}
 
-func (f *failReader) Read([]byte) (int, error) {
+func (reader *failReader) Read([]byte) (int, error) {
 	return 0, core.NewError("entropy source failed")
 }
 
@@ -432,8 +432,8 @@ func isHex(data []byte) bool {
 
 type failSigil struct{}
 
-func (f *failSigil) In([]byte) ([]byte, error)  { return nil, core.NewError("fail in") }
-func (f *failSigil) Out([]byte) ([]byte, error) { return nil, core.NewError("fail out") }
+func (sigil *failSigil) In([]byte) ([]byte, error)  { return nil, core.NewError("fail in") }
+func (sigil *failSigil) Out([]byte) ([]byte, error) { return nil, core.NewError("fail out") }
 
 func TestCryptoSigil_Transmute_ErrorPropagation_Bad(t *testing.T) {
 	_, err := Transmute([]byte("data"), []Sigil{&failSigil{}})

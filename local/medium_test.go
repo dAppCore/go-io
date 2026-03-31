@@ -40,8 +40,8 @@ func TestLocal_Path_RootFilesystem_Good(t *testing.T) {
 	assert.Equal(t, "/etc/passwd", localMedium.sandboxedPath("/etc/passwd"))
 	assert.Equal(t, "/home/user/file.txt", localMedium.sandboxedPath("/home/user/file.txt"))
 
-	cwd := currentWorkingDir()
-	assert.Equal(t, core.Path(cwd, "file.txt"), localMedium.sandboxedPath("file.txt"))
+	workingDirectory := currentWorkingDir()
+	assert.Equal(t, core.Path(workingDirectory, "file.txt"), localMedium.sandboxedPath("file.txt"))
 }
 
 func TestLocal_ReadWrite_Basic_Good(t *testing.T) {
@@ -303,8 +303,8 @@ func TestLocal_List_Good(t *testing.T) {
 	assert.Len(t, entries, 3)
 
 	names := make(map[string]bool)
-	for _, e := range entries {
-		names[e.Name()] = true
+	for _, entry := range entries {
+		names[entry.Name()] = true
 	}
 	assert.True(t, names["file1.txt"])
 	assert.True(t, names["file2.txt"])

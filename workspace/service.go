@@ -222,7 +222,7 @@ func (service *Service) HandleWorkspaceCommand(command WorkspaceCommand) core.Re
 }
 
 // Example: result := service.HandleWorkspaceMessage(core.New(), WorkspaceCommand{Action: WorkspaceSwitchAction, WorkspaceID: "f3f0d7"})
-func (service *Service) HandleWorkspaceMessage(coreInstance *core.Core, message core.Message) core.Result {
+func (service *Service) HandleWorkspaceMessage(_ *core.Core, message core.Message) core.Result {
 	switch command := message.(type) {
 	case WorkspaceCommand:
 		return service.HandleWorkspaceCommand(command)
@@ -242,11 +242,14 @@ func resolveWorkspaceHomeDirectory() string {
 
 func joinPathWithinRoot(root string, parts ...string) (string, error) {
 	candidate := core.Path(append([]string{root}, parts...)...)
-	sep := core.Env("DS")
-	if sep == "" {
-		sep = "/"
+	separator := core.Env("CORE_PATH_SEPARATOR")
+	if separator == "" {
+		separator = core.Env("DS")
 	}
-	if candidate == root || core.HasPrefix(candidate, root+sep) {
+	if separator == "" {
+		separator = "/"
+	}
+	if candidate == root || core.HasPrefix(candidate, root+separator) {
 		return candidate, nil
 	}
 	return "", fs.ErrPermission

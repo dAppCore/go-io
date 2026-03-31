@@ -19,21 +19,17 @@ import (
     "forge.lthn.ai/core/go-io/node"
 )
 
-// Use the pre-initialised local filesystem (unsandboxed, rooted at "/").
 content, _ := io.Local.Read("/etc/hostname")
 
-// Create a sandboxed medium restricted to a single directory.
-sandbox, _ := io.NewSandboxed("/var/data/myapp")
-_ = sandbox.Write("config.yaml", "key: value")
+sandboxMedium, _ := io.NewSandboxed("/var/data/myapp")
+_ = sandboxMedium.Write("config.yaml", "key: value")
 
-// In-memory filesystem with tar serialisation.
-mem := node.New()
-mem.AddData("hello.txt", []byte("world"))
-tarball, _ := mem.ToTar()
+nodeTree := node.New()
+nodeTree.AddData("hello.txt", []byte("world"))
+tarball, _ := nodeTree.ToTar()
 
-// S3 backend (requires an *awss3.Client from the AWS SDK).
-bucket, _ := s3.New(s3.Options{Bucket: "my-bucket", Client: awsClient, Prefix: "uploads/"})
-_ = bucket.Write("photo.jpg", rawData)
+s3Medium, _ := s3.New(s3.Options{Bucket: "my-bucket", Client: awsClient, Prefix: "uploads/"})
+_ = s3Medium.Write("photo.jpg", rawData)
 ```
 
 
@@ -58,29 +54,24 @@ Every storage backend implements the same 17-method interface:
 
 ```go
 type Medium interface {
-    // Content operations
     Read(path string) (string, error)
     Write(path, content string) error
     WriteMode(path, content string, mode fs.FileMode) error
 
-    // Streaming (for large files)
     ReadStream(path string) (io.ReadCloser, error)
     WriteStream(path string) (io.WriteCloser, error)
     Open(path string) (fs.File, error)
     Create(path string) (io.WriteCloser, error)
     Append(path string) (io.WriteCloser, error)
 
-    // Directory operations
     EnsureDir(path string) error
     List(path string) ([]fs.DirEntry, error)
 
-    // Metadata
     Stat(path string) (fs.FileInfo, error)
     Exists(path string) bool
     IsFile(path string) bool
     IsDir(path string) bool
 
-    // Mutation
     Delete(path string) error
     DeleteAll(path string) error
     Rename(oldPath, newPath string) error
@@ -95,12 +86,12 @@ All backends implement this interface fully. Backends where a method has no natu
 The root package provides helper functions that accept any `Medium`:
 
 ```go
-// Copy a file between any two backends.
-err := io.Copy(localMedium, "source.txt", s3Medium, "dest.txt")
+sourceMedium := io.Local
+destinationMedium := io.NewMemoryMedium()
+err := io.Copy(sourceMedium, "source.txt", destinationMedium, "dest.txt")
 
-// Read/Write wrappers that take an explicit medium.
-content, err := io.Read(medium, "path")
-err := io.Write(medium, "path", "content")
+content, err := io.Read(destinationMedium, "path")
+err = io.Write(destinationMedium, "path", "content")
 ```
 
 

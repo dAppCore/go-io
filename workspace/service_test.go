@@ -119,7 +119,7 @@ func TestService_WriteWorkspaceFile_TraversalBlocked_Bad(t *testing.T) {
 }
 
 func TestService_JoinPathWithinRoot_DefaultSeparator_Good(t *testing.T) {
-	t.Setenv("DS", "")
+	t.Setenv("CORE_PATH_SEPARATOR", "")
 
 	path, err := joinPathWithinRoot("/tmp/workspaces", "../workspaces2")
 	require.Error(t, err)

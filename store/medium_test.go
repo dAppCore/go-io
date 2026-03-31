@@ -99,9 +99,9 @@ func TestKeyValueMedium_List_Groups_Good(t *testing.T) {
 	assert.Len(t, entries, 2)
 
 	names := make(map[string]bool)
-	for _, e := range entries {
-		names[e.Name()] = true
-		assert.True(t, e.IsDir())
+	for _, entry := range entries {
+		names[entry.Name()] = true
+		assert.True(t, entry.IsDir())
 	}
 	assert.True(t, names["alpha"])
 	assert.True(t, names["beta"])
@@ -146,11 +146,11 @@ func TestKeyValueMedium_Open_Read_Good(t *testing.T) {
 	keyValueMedium := newKeyValueMedium(t)
 	_ = keyValueMedium.Write("group/key", "hello world")
 
-	f, err := keyValueMedium.Open("group/key")
+	file, err := keyValueMedium.Open("group/key")
 	require.NoError(t, err)
-	defer f.Close()
+	defer file.Close()
 
-	data, err := io.ReadAll(f)
+	data, err := io.ReadAll(file)
 	require.NoError(t, err)
 	assert.Equal(t, "hello world", string(data))
 }
@@ -158,10 +158,10 @@ func TestKeyValueMedium_Open_Read_Good(t *testing.T) {
 func TestKeyValueMedium_CreateClose_Good(t *testing.T) {
 	keyValueMedium := newKeyValueMedium(t)
 
-	w, err := keyValueMedium.Create("group/key")
+	writer, err := keyValueMedium.Create("group/key")
 	require.NoError(t, err)
-	_, _ = w.Write([]byte("streamed"))
-	require.NoError(t, w.Close())
+	_, _ = writer.Write([]byte("streamed"))
+	require.NoError(t, writer.Close())
 
 	value, err := keyValueMedium.Read("group/key")
 	require.NoError(t, err)
@@ -172,10 +172,10 @@ func TestKeyValueMedium_Append_Good(t *testing.T) {
 	keyValueMedium := newKeyValueMedium(t)
 	_ = keyValueMedium.Write("group/key", "hello")
 
-	w, err := keyValueMedium.Append("group/key")
+	writer, err := keyValueMedium.Append("group/key")
 	require.NoError(t, err)
-	_, _ = w.Write([]byte(" world"))
-	require.NoError(t, w.Close())
+	_, _ = writer.Write([]byte(" world"))
+	require.NoError(t, writer.Close())
 
 	value, err := keyValueMedium.Read("group/key")
 	require.NoError(t, err)

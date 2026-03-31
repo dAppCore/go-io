@@ -167,8 +167,8 @@ func TestMemoryMedium_List_Good(t *testing.T) {
 	assert.Len(t, entries, 3)
 
 	names := make(map[string]bool)
-	for _, e := range entries {
-		names[e.Name()] = true
+	for _, entry := range entries {
+		names[entry.Name()] = true
 	}
 	assert.True(t, names["file1.txt"])
 	assert.True(t, names["file2.txt"])

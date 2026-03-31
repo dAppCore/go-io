@@ -227,8 +227,8 @@ func TestDataNode_List_Good(t *testing.T) {
 	require.NoError(t, err)
 
 	names := make([]string, len(entries))
-	for i, e := range entries {
-		names[i] = e.Name()
+	for index, entry := range entries {
+		names[index] = entry.Name()
 	}
 	assert.Contains(t, names, "root.txt")
 	assert.Contains(t, names, "pkg")
@@ -236,8 +236,8 @@ func TestDataNode_List_Good(t *testing.T) {
 	entries, err = dataNodeMedium.List("pkg")
 	require.NoError(t, err)
 	names = make([]string, len(entries))
-	for i, e := range entries {
-		names[i] = e.Name()
+	for index, entry := range entries {
+		names[index] = entry.Name()
 	}
 	assert.Contains(t, names, "a.go")
 	assert.Contains(t, names, "b.go")
@@ -264,11 +264,11 @@ func TestDataNode_Open_Good(t *testing.T) {
 
 	require.NoError(t, dataNodeMedium.Write("open.txt", "opened"))
 
-	f, err := dataNodeMedium.Open("open.txt")
+	file, err := dataNodeMedium.Open("open.txt")
 	require.NoError(t, err)
-	defer f.Close()
+	defer file.Close()
 
-	data, err := io.ReadAll(f)
+	data, err := io.ReadAll(file)
 	require.NoError(t, err)
 	assert.Equal(t, "opened", string(data))
 }
@@ -276,19 +276,19 @@ func TestDataNode_Open_Good(t *testing.T) {
 func TestDataNode_CreateAppend_Good(t *testing.T) {
 	dataNodeMedium := New()
 
-	w, err := dataNodeMedium.Create("new.txt")
+	writer, err := dataNodeMedium.Create("new.txt")
 	require.NoError(t, err)
-	w.Write([]byte("hello"))
-	w.Close()
+	_, _ = writer.Write([]byte("hello"))
+	require.NoError(t, writer.Close())
 
 	got, err := dataNodeMedium.Read("new.txt")
 	require.NoError(t, err)
 	assert.Equal(t, "hello", got)
 
-	w, err = dataNodeMedium.Append("new.txt")
+	writer, err = dataNodeMedium.Append("new.txt")
 	require.NoError(t, err)
-	w.Write([]byte(" world"))
-	w.Close()
+	_, _ = writer.Write([]byte(" world"))
+	require.NoError(t, writer.Close())
 
 	got, err = dataNodeMedium.Read("new.txt")
 	require.NoError(t, err)
@@ -315,17 +315,17 @@ func TestDataNode_Append_ReadFailure_Bad(t *testing.T) {
 func TestDataNode_Streams_Good(t *testing.T) {
 	dataNodeMedium := New()
 
-	ws, err := dataNodeMedium.WriteStream("stream.txt")
+	writeStream, err := dataNodeMedium.WriteStream("stream.txt")
 	require.NoError(t, err)
-	ws.Write([]byte("streamed"))
-	ws.Close()
+	_, _ = writeStream.Write([]byte("streamed"))
+	require.NoError(t, writeStream.Close())
 
-	rs, err := dataNodeMedium.ReadStream("stream.txt")
+	readStream, err := dataNodeMedium.ReadStream("stream.txt")
 	require.NoError(t, err)
-	data, err := io.ReadAll(rs)
+	data, err := io.ReadAll(readStream)
 	require.NoError(t, err)
 	assert.Equal(t, "streamed", string(data))
-	rs.Close()
+	require.NoError(t, readStream.Close())
 }
 
 func TestDataNode_SnapshotRestore_Good(t *testing.T) {
@@ -334,11 +334,11 @@ func TestDataNode_SnapshotRestore_Good(t *testing.T) {
 	require.NoError(t, dataNodeMedium.Write("a.txt", "alpha"))
 	require.NoError(t, dataNodeMedium.Write("b/c.txt", "charlie"))
 
-	snap, err := dataNodeMedium.Snapshot()
+	snapshotData, err := dataNodeMedium.Snapshot()
 	require.NoError(t, err)
-	assert.NotEmpty(t, snap)
+	assert.NotEmpty(t, snapshotData)
 
-	restoredNode, err := FromTar(snap)
+	restoredNode, err := FromTar(snapshotData)
 	require.NoError(t, err)
 
 	got, err := restoredNode.Read("a.txt")
@@ -355,13 +355,13 @@ func TestDataNode_Restore_Good(t *testing.T) {
 
 	require.NoError(t, dataNodeMedium.Write("original.txt", "before"))
 
-	snap, err := dataNodeMedium.Snapshot()
+	snapshotData, err := dataNodeMedium.Snapshot()
 	require.NoError(t, err)
 
 	require.NoError(t, dataNodeMedium.Write("original.txt", "after"))
 	require.NoError(t, dataNodeMedium.Write("extra.txt", "extra"))
 
-	require.NoError(t, dataNodeMedium.Restore(snap))
+	require.NoError(t, dataNodeMedium.Restore(snapshotData))
 
 	got, err := dataNodeMedium.Read("original.txt")
 	require.NoError(t, err)
@@ -375,14 +375,14 @@ func TestDataNode_DataNode_Good(t *testing.T) {
 
 	require.NoError(t, dataNodeMedium.Write("test.txt", "borg"))
 
-	dn := dataNodeMedium.DataNode()
-	assert.NotNil(t, dn)
+	dataNode := dataNodeMedium.DataNode()
+	assert.NotNil(t, dataNode)
 
-	f, err := dn.Open("test.txt")
+	file, err := dataNode.Open("test.txt")
 	require.NoError(t, err)
-	defer f.Close()
+	defer file.Close()
 
-	data, err := io.ReadAll(f)
+	data, err := io.ReadAll(file)
 	require.NoError(t, err)
 	assert.Equal(t, "borg", string(data))
 }
