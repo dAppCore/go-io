@@ -159,12 +159,12 @@ func (medium *Medium) Write(filePath, content string) error {
 }
 
 // Example: _ = medium.WriteMode("keys/private.key", key, 0600)
-func (medium *Medium) WriteMode(filePath, content string, _ fs.FileMode) error {
+func (medium *Medium) WriteMode(filePath, content string, mode fs.FileMode) error {
 	return medium.Write(filePath, content)
 }
 
 // Example: _ = medium.EnsureDir("reports/2026")
-func (medium *Medium) EnsureDir(_ string) error {
+func (medium *Medium) EnsureDir(directoryPath string) error {
 	return nil
 }
 

@@ -178,8 +178,8 @@ type ChaChaPolySigil struct {
 }
 
 // Example: cipherSigil, _ := sigil.NewChaChaPolySigil([]byte("0123456789abcdef0123456789abcdef"))
-// ciphertext, _ := cipherSigil.In([]byte("payload"))
-// plaintext, _ := cipherSigil.Out(ciphertext)
+// Example: ciphertext, _ := cipherSigil.In([]byte("payload"))
+// Example: plaintext, _ := cipherSigil.Out(ciphertext)
 func NewChaChaPolySigil(key []byte) (*ChaChaPolySigil, error) {
 	if len(key) != 32 {
 		return nil, InvalidKeyError
@@ -196,13 +196,11 @@ func NewChaChaPolySigil(key []byte) (*ChaChaPolySigil, error) {
 }
 
 // Example: cipherSigil, _ := sigil.NewChaChaPolySigilWithObfuscator(
-//
-//	[]byte("0123456789abcdef0123456789abcdef"),
-//	&sigil.ShuffleMaskObfuscator{},
-//
-// )
-// ciphertext, _ := cipherSigil.In([]byte("payload"))
-// plaintext, _ := cipherSigil.Out(ciphertext)
+// Example:     []byte("0123456789abcdef0123456789abcdef"),
+// Example:     &sigil.ShuffleMaskObfuscator{},
+// Example: )
+// Example: ciphertext, _ := cipherSigil.In([]byte("payload"))
+// Example: plaintext, _ := cipherSigil.Out(ciphertext)
 func NewChaChaPolySigilWithObfuscator(key []byte, obfuscator PreObfuscator) (*ChaChaPolySigil, error) {
 	cipherSigil, err := NewChaChaPolySigil(key)
 	if err != nil {

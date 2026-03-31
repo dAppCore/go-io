@@ -1,7 +1,7 @@
-// hexSigil, _ := sigil.NewSigil("hex")
-// gzipSigil, _ := sigil.NewSigil("gzip")
-// encoded, _ := sigil.Transmute([]byte("payload"), []sigil.Sigil{hexSigil, gzipSigil})
-// decoded, _ := sigil.Untransmute(encoded, []sigil.Sigil{hexSigil, gzipSigil})
+// Example: hexSigil, _ := sigil.NewSigil("hex")
+// Example: gzipSigil, _ := sigil.NewSigil("gzip")
+// Example: encoded, _ := sigil.Transmute([]byte("payload"), []sigil.Sigil{hexSigil, gzipSigil})
+// Example: decoded, _ := sigil.Untransmute(encoded, []sigil.Sigil{hexSigil, gzipSigil})
 package sigil
 
 import core "dappco.re/go/core"

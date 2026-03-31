@@ -23,7 +23,7 @@ type Options struct {
 }
 
 // Example: keyValueStore, _ := store.New(store.Options{Path: ":memory:"})
-// _ = keyValueStore.Set("app", "theme", "midnight")
+// Example: _ = keyValueStore.Set("app", "theme", "midnight")
 func New(options Options) (*Store, error) {
 	if options.Path == "" {
 		return nil, core.E("store.New", "database path is required", fs.ErrInvalid)
@@ -131,8 +131,8 @@ func (store *Store) GetAll(group string) (map[string]string, error) {
 }
 
 // Example: keyValueStore, _ := store.New(store.Options{Path: ":memory:"})
-// _ = keyValueStore.Set("user", "name", "alice")
-// out, _ := keyValueStore.Render("hello {{ .name }}", "user")
+// Example: _ = keyValueStore.Set("user", "name", "alice")
+// Example: out, _ := keyValueStore.Render("hello {{ .name }}", "user")
 func (store *Store) Render(templateText, group string) (string, error) {
 	rows, err := store.database.Query("SELECT key, value FROM kv WHERE grp = ?", group)
 	if err != nil {

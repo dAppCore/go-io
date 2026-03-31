@@ -11,9 +11,9 @@ import (
 )
 
 // Example: medium, _ := store.NewMedium(store.Options{Path: "config.db"})
-// _ = medium.Write("app/theme", "midnight")
-// entries, _ := medium.List("")
-// entries, _ := medium.List("app")
+// Example: _ = medium.Write("app/theme", "midnight")
+// Example: entries, _ := medium.List("")
+// Example: entries, _ := medium.List("app")
 type Medium struct {
 	store *Store
 }
@@ -21,7 +21,7 @@ type Medium struct {
 var _ coreio.Medium = (*Medium)(nil)
 
 // Example: medium, _ := store.NewMedium(store.Options{Path: "config.db"})
-// _ = medium.Write("app/theme", "midnight")
+// Example: _ = medium.Write("app/theme", "midnight")
 func NewMedium(options Options) (*Medium, error) {
 	store, err := New(options)
 	if err != nil {
@@ -75,12 +75,12 @@ func (medium *Medium) Write(entryPath, content string) error {
 }
 
 // Example: _ = medium.WriteMode("app/theme", "midnight", 0600)
-func (medium *Medium) WriteMode(entryPath, content string, _ fs.FileMode) error {
+func (medium *Medium) WriteMode(entryPath, content string, mode fs.FileMode) error {
 	return medium.Write(entryPath, content)
 }
 
 // Example: _ = medium.EnsureDir("app")
-func (medium *Medium) EnsureDir(_ string) error {
+func (medium *Medium) EnsureDir(entryPath string) error {
 	return nil
 }
 

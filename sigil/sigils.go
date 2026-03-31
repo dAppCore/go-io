@@ -147,8 +147,8 @@ type HashSigil struct {
 	Hash crypto.Hash
 }
 
-// hashSigil := sigil.NewHashSigil(crypto.SHA256)
-// digest, _ := hashSigil.In([]byte("payload"))
+// Example: hashSigil := sigil.NewHashSigil(crypto.SHA256)
+// Example: digest, _ := hashSigil.In([]byte("payload"))
 func NewHashSigil(h crypto.Hash) *HashSigil {
 	return &HashSigil{Hash: h}
 }
@@ -204,9 +204,9 @@ func (sigil *HashSigil) Out(data []byte) ([]byte, error) {
 	return data, nil
 }
 
-// hexSigil, _ := sigil.NewSigil("hex")
-// gzipSigil, _ := sigil.NewSigil("gzip")
-// transformed, _ := sigil.Transmute([]byte("payload"), []sigil.Sigil{hexSigil, gzipSigil})
+// Example: hexSigil, _ := sigil.NewSigil("hex")
+// Example: gzipSigil, _ := sigil.NewSigil("gzip")
+// Example: transformed, _ := sigil.Transmute([]byte("payload"), []sigil.Sigil{hexSigil, gzipSigil})
 func NewSigil(name string) (Sigil, error) {
 	switch name {
 	case "reverse":

@@ -11,9 +11,9 @@ import (
 )
 
 // Example: medium, _ := io.NewSandboxed("/srv/app")
-// _ = medium.Write("config/app.yaml", "port: 8080")
-// backup, _ := io.NewSandboxed("/srv/backup")
-// _ = io.Copy(medium, "data/report.json", backup, "daily/report.json")
+// Example: _ = medium.Write("config/app.yaml", "port: 8080")
+// Example: backup, _ := io.NewSandboxed("/srv/backup")
+// Example: _ = io.Copy(medium, "data/report.json", backup, "daily/report.json")
 type Medium interface {
 	Read(path string) (string, error)
 
@@ -133,7 +133,7 @@ func init() {
 }
 
 // Example: medium, _ := io.NewSandboxed("/srv/app")
-// _ = medium.Write("config/app.yaml", "port: 8080")
+// Example: _ = medium.Write("config/app.yaml", "port: 8080")
 func NewSandboxed(root string) (Medium, error) {
 	return local.New(root)
 }
@@ -181,7 +181,7 @@ func Copy(source Medium, sourcePath string, destination Medium, destinationPath 
 }
 
 // Example: medium := io.NewMemoryMedium()
-// _ = medium.Write("config/app.yaml", "port: 8080")
+// Example: _ = medium.Write("config/app.yaml", "port: 8080")
 type MemoryMedium struct {
 	files    map[string]string
 	dirs     map[string]bool
@@ -193,7 +193,7 @@ type MockMedium = MemoryMedium
 var _ Medium = (*MemoryMedium)(nil)
 
 // Example: medium := io.NewMemoryMedium()
-// _ = medium.Write("config/app.yaml", "port: 8080")
+// Example: _ = medium.Write("config/app.yaml", "port: 8080")
 func NewMemoryMedium() *MemoryMedium {
 	return &MemoryMedium{
 		files:    make(map[string]string),
@@ -203,7 +203,7 @@ func NewMemoryMedium() *MemoryMedium {
 }
 
 // Example: medium := io.NewMockMedium()
-// _ = medium.Write("config/app.yaml", "port: 8080")
+// Example: _ = medium.Write("config/app.yaml", "port: 8080")
 func NewMockMedium() *MemoryMedium {
 	return NewMemoryMedium()
 }

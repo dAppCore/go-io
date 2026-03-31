@@ -1,7 +1,7 @@
-// medium := datanode.New()
-// _ = medium.Write("jobs/run.log", "started")
-// snapshot, _ := medium.Snapshot()
-// restored, _ := datanode.FromTar(snapshot)
+// Example: medium := datanode.New()
+// Example: _ = medium.Write("jobs/run.log", "started")
+// Example: snapshot, _ := medium.Snapshot()
+// Example: restored, _ := datanode.FromTar(snapshot)
 package datanode
 
 import (
@@ -30,8 +30,8 @@ var (
 )
 
 // Example: medium := datanode.New()
-// _ = medium.Write("jobs/run.log", "started")
-// snapshot, _ := medium.Snapshot()
+// Example: _ = medium.Write("jobs/run.log", "started")
+// Example: snapshot, _ := medium.Snapshot()
 type Medium struct {
 	dataNode     *borgdatanode.DataNode
 	directorySet map[string]bool
@@ -46,8 +46,8 @@ func New() *Medium {
 }
 
 // Example: sourceMedium := datanode.New()
-// snapshot, _ := sourceMedium.Snapshot()
-// restored, _ := datanode.FromTar(snapshot)
+// Example: snapshot, _ := sourceMedium.Snapshot()
+// Example: restored, _ := datanode.FromTar(snapshot)
 func FromTar(data []byte) (*Medium, error) {
 	dataNode, err := borgdatanode.FromTar(data)
 	if err != nil {

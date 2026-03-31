@@ -12,7 +12,7 @@ import (
 )
 
 // Example: medium, _ := local.New("/srv/app")
-// _ = medium.Write("config/app.yaml", "port: 8080")
+// Example: _ = medium.Write("config/app.yaml", "port: 8080")
 type Medium struct {
 	filesystemRoot string
 }
@@ -20,7 +20,7 @@ type Medium struct {
 var unrestrictedFileSystem = (&core.Fs{}).NewUnrestricted()
 
 // Example: medium, _ := local.New("/srv/app")
-// _ = medium.Write("config/app.yaml", "port: 8080")
+// Example: _ = medium.Write("config/app.yaml", "port: 8080")
 func New(root string) (*Medium, error) {
 	absoluteRoot := absolutePath(root)
 	if resolvedRoot, err := resolveSymlinksPath(absoluteRoot); err == nil {

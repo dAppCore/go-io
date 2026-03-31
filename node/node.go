@@ -346,7 +346,7 @@ func (node *Node) FileSet(filePath, content string) error {
 }
 
 // Example: _ = nodeTree.EnsureDir("config")
-func (node *Node) EnsureDir(_ string) error {
+func (node *Node) EnsureDir(directoryPath string) error {
 	return nil
 }
 
@@ -479,7 +479,7 @@ type dataFile struct {
 
 func (file *dataFile) Stat() (fs.FileInfo, error) { return &dataFileInfo{file: file}, nil }
 
-func (file *dataFile) Read(_ []byte) (int, error) { return 0, goio.EOF }
+func (file *dataFile) Read(buffer []byte) (int, error) { return 0, goio.EOF }
 
 func (file *dataFile) Close() error { return nil }
 
