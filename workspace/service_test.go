@@ -1,6 +1,7 @@
 package workspace
 
 import (
+	"io/fs"
 	"testing"
 
 	core "dappco.re/go/core"
@@ -115,6 +116,15 @@ func TestService_WriteWorkspaceFile_TraversalBlocked_Bad(t *testing.T) {
 
 	_, err = service.ReadWorkspaceFile("../keys/private.key")
 	require.Error(t, err)
+}
+
+func TestService_JoinPathWithinRoot_DefaultSeparator_Good(t *testing.T) {
+	t.Setenv("DS", "")
+
+	path, err := joinPathWithinRoot("/tmp/workspaces", "../workspaces2")
+	require.Error(t, err)
+	assert.ErrorIs(t, err, fs.ErrPermission)
+	assert.Empty(t, path)
 }
 
 func TestService_HandleWorkspaceMessage_Command_Good(t *testing.T) {

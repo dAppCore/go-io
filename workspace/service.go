@@ -17,7 +17,7 @@ import (
 // Example:     Medium: io.NewMemoryMedium(),
 // Example: })
 type Workspace interface {
-	CreateWorkspace(identifier, password string) (string, error)
+	CreateWorkspace(identifier, passphrase string) (string, error)
 	SwitchWorkspace(workspaceID string) error
 	ReadWorkspaceFile(workspaceFilePath string) (string, error)
 	WriteWorkspaceFile(workspaceFilePath, content string) error
@@ -109,7 +109,7 @@ func New(options Options) (*Service, error) {
 }
 
 // Example: workspaceID, _ := service.CreateWorkspace("alice", "pass123")
-func (service *Service) CreateWorkspace(identifier, password string) (string, error) {
+func (service *Service) CreateWorkspace(identifier, passphrase string) (string, error) {
 	service.stateLock.Lock()
 	defer service.stateLock.Unlock()
 
@@ -134,7 +134,7 @@ func (service *Service) CreateWorkspace(identifier, password string) (string, er
 		}
 	}
 
-	privateKey, err := service.keyPairProvider.CreateKeyPair(identifier, password)
+	privateKey, err := service.keyPairProvider.CreateKeyPair(identifier, passphrase)
 	if err != nil {
 		return "", core.E("workspace.CreateWorkspace", "failed to generate keys", err)
 	}
@@ -206,7 +206,8 @@ func (service *Service) WriteWorkspaceFile(workspaceFilePath, content string) er
 func (service *Service) HandleWorkspaceCommand(command WorkspaceCommand) core.Result {
 	switch command.Action {
 	case WorkspaceCreateAction:
-		workspaceID, err := service.CreateWorkspace(command.Identifier, command.Password)
+		passphrase := command.Password
+		workspaceID, err := service.CreateWorkspace(command.Identifier, passphrase)
 		if err != nil {
 			return core.Result{}.New(err)
 		}
@@ -221,7 +222,7 @@ func (service *Service) HandleWorkspaceCommand(command WorkspaceCommand) core.Re
 }
 
 // Example: result := service.HandleWorkspaceMessage(core.New(), WorkspaceCommand{Action: WorkspaceSwitchAction, WorkspaceID: "f3f0d7"})
-func (service *Service) HandleWorkspaceMessage(coreRuntime *core.Core, message core.Message) core.Result {
+func (service *Service) HandleWorkspaceMessage(_ *core.Core, message core.Message) core.Result {
 	switch command := message.(type) {
 	case WorkspaceCommand:
 		return service.HandleWorkspaceCommand(command)
@@ -242,6 +243,9 @@ func resolveWorkspaceHomeDirectory() string {
 func joinPathWithinRoot(root string, parts ...string) (string, error) {
 	candidate := core.Path(append([]string{root}, parts...)...)
 	sep := core.Env("DS")
+	if sep == "" {
+		sep = "/"
+	}
 	if candidate == root || core.HasPrefix(candidate, root+sep) {
 		return candidate, nil
 	}

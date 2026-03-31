@@ -2077,7 +2077,7 @@ service, _ := workspace.New(workspace.Options{KeyPairProvider: stubKeyPairProvid
 _ = service
 ```
 
-**CreateWorkspace(identifier, password string) (string, error)**
+**CreateWorkspace(identifier, passphrase string) (string, error)**
 Example:
 ```go
 service, _ := workspace.New(workspace.Options{KeyPairProvider: stubKeyPairProvider{}})
