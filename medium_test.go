@@ -11,12 +11,12 @@ import (
 )
 
 func TestMemoryMedium_NewMemoryMedium_Good(t *testing.T) {
-	medium := NewMemoryMedium()
-	assert.NotNil(t, medium)
-	assert.NotNil(t, medium.files)
-	assert.NotNil(t, medium.dirs)
-	assert.Empty(t, medium.files)
-	assert.Empty(t, medium.dirs)
+	memoryMedium := NewMemoryMedium()
+	assert.NotNil(t, memoryMedium)
+	assert.NotNil(t, memoryMedium.files)
+	assert.NotNil(t, memoryMedium.dirs)
+	assert.Empty(t, memoryMedium.files)
+	assert.Empty(t, memoryMedium.dirs)
 }
 
 func TestMemoryMedium_NewFileInfo_Good(t *testing.T) {
@@ -45,124 +45,124 @@ func TestMemoryMedium_NewDirEntry_Good(t *testing.T) {
 }
 
 func TestMemoryMedium_Read_Good(t *testing.T) {
-	m := NewMemoryMedium()
-	m.files["test.txt"] = "hello world"
-	content, err := m.Read("test.txt")
+	memoryMedium := NewMemoryMedium()
+	memoryMedium.files["test.txt"] = "hello world"
+	content, err := memoryMedium.Read("test.txt")
 	assert.NoError(t, err)
 	assert.Equal(t, "hello world", content)
 }
 
 func TestMemoryMedium_Read_Bad(t *testing.T) {
-	m := NewMemoryMedium()
-	_, err := m.Read("nonexistent.txt")
+	memoryMedium := NewMemoryMedium()
+	_, err := memoryMedium.Read("nonexistent.txt")
 	assert.Error(t, err)
 }
 
 func TestMemoryMedium_Write_Good(t *testing.T) {
-	m := NewMemoryMedium()
-	err := m.Write("test.txt", "content")
+	memoryMedium := NewMemoryMedium()
+	err := memoryMedium.Write("test.txt", "content")
 	assert.NoError(t, err)
-	assert.Equal(t, "content", m.files["test.txt"])
+	assert.Equal(t, "content", memoryMedium.files["test.txt"])
 
-	err = m.Write("test.txt", "new content")
+	err = memoryMedium.Write("test.txt", "new content")
 	assert.NoError(t, err)
-	assert.Equal(t, "new content", m.files["test.txt"])
+	assert.Equal(t, "new content", memoryMedium.files["test.txt"])
 }
 
 func TestMemoryMedium_WriteMode_Good(t *testing.T) {
-	m := NewMemoryMedium()
+	memoryMedium := NewMemoryMedium()
 
-	err := m.WriteMode("secure.txt", "secret", 0600)
+	err := memoryMedium.WriteMode("secure.txt", "secret", 0600)
 	require.NoError(t, err)
 
-	content, err := m.Read("secure.txt")
+	content, err := memoryMedium.Read("secure.txt")
 	require.NoError(t, err)
 	assert.Equal(t, "secret", content)
 }
 
 func TestMemoryMedium_EnsureDir_Good(t *testing.T) {
-	m := NewMemoryMedium()
-	err := m.EnsureDir("/path/to/dir")
+	memoryMedium := NewMemoryMedium()
+	err := memoryMedium.EnsureDir("/path/to/dir")
 	assert.NoError(t, err)
-	assert.True(t, m.dirs["/path/to/dir"])
+	assert.True(t, memoryMedium.dirs["/path/to/dir"])
 }
 
 func TestMemoryMedium_IsFile_Good(t *testing.T) {
-	m := NewMemoryMedium()
-	m.files["exists.txt"] = "content"
+	memoryMedium := NewMemoryMedium()
+	memoryMedium.files["exists.txt"] = "content"
 
-	assert.True(t, m.IsFile("exists.txt"))
-	assert.False(t, m.IsFile("nonexistent.txt"))
+	assert.True(t, memoryMedium.IsFile("exists.txt"))
+	assert.False(t, memoryMedium.IsFile("nonexistent.txt"))
 }
 
 func TestMemoryMedium_Delete_Good(t *testing.T) {
-	m := NewMemoryMedium()
-	m.files["test.txt"] = "content"
+	memoryMedium := NewMemoryMedium()
+	memoryMedium.files["test.txt"] = "content"
 
-	err := m.Delete("test.txt")
+	err := memoryMedium.Delete("test.txt")
 	assert.NoError(t, err)
-	assert.False(t, m.IsFile("test.txt"))
+	assert.False(t, memoryMedium.IsFile("test.txt"))
 }
 
 func TestMemoryMedium_Delete_NotFound_Bad(t *testing.T) {
-	m := NewMemoryMedium()
-	err := m.Delete("nonexistent.txt")
+	memoryMedium := NewMemoryMedium()
+	err := memoryMedium.Delete("nonexistent.txt")
 	assert.Error(t, err)
 }
 
 func TestMemoryMedium_Delete_DirNotEmpty_Bad(t *testing.T) {
-	m := NewMemoryMedium()
-	m.dirs["mydir"] = true
-	m.files["mydir/file.txt"] = "content"
+	memoryMedium := NewMemoryMedium()
+	memoryMedium.dirs["mydir"] = true
+	memoryMedium.files["mydir/file.txt"] = "content"
 
-	err := m.Delete("mydir")
+	err := memoryMedium.Delete("mydir")
 	assert.Error(t, err)
 }
 
 func TestMemoryMedium_DeleteAll_Good(t *testing.T) {
-	m := NewMemoryMedium()
-	m.dirs["mydir"] = true
-	m.dirs["mydir/subdir"] = true
-	m.files["mydir/file.txt"] = "content"
-	m.files["mydir/subdir/nested.txt"] = "nested"
+	memoryMedium := NewMemoryMedium()
+	memoryMedium.dirs["mydir"] = true
+	memoryMedium.dirs["mydir/subdir"] = true
+	memoryMedium.files["mydir/file.txt"] = "content"
+	memoryMedium.files["mydir/subdir/nested.txt"] = "nested"
 
-	err := m.DeleteAll("mydir")
+	err := memoryMedium.DeleteAll("mydir")
 	assert.NoError(t, err)
-	assert.Empty(t, m.dirs)
-	assert.Empty(t, m.files)
+	assert.Empty(t, memoryMedium.dirs)
+	assert.Empty(t, memoryMedium.files)
 }
 
 func TestMemoryMedium_Rename_Good(t *testing.T) {
-	m := NewMemoryMedium()
-	m.files["old.txt"] = "content"
+	memoryMedium := NewMemoryMedium()
+	memoryMedium.files["old.txt"] = "content"
 
-	err := m.Rename("old.txt", "new.txt")
+	err := memoryMedium.Rename("old.txt", "new.txt")
 	assert.NoError(t, err)
-	assert.False(t, m.IsFile("old.txt"))
-	assert.True(t, m.IsFile("new.txt"))
-	assert.Equal(t, "content", m.files["new.txt"])
+	assert.False(t, memoryMedium.IsFile("old.txt"))
+	assert.True(t, memoryMedium.IsFile("new.txt"))
+	assert.Equal(t, "content", memoryMedium.files["new.txt"])
 }
 
 func TestMemoryMedium_Rename_Dir_Good(t *testing.T) {
-	m := NewMemoryMedium()
-	m.dirs["olddir"] = true
-	m.files["olddir/file.txt"] = "content"
+	memoryMedium := NewMemoryMedium()
+	memoryMedium.dirs["olddir"] = true
+	memoryMedium.files["olddir/file.txt"] = "content"
 
-	err := m.Rename("olddir", "newdir")
+	err := memoryMedium.Rename("olddir", "newdir")
 	assert.NoError(t, err)
-	assert.False(t, m.dirs["olddir"])
-	assert.True(t, m.dirs["newdir"])
-	assert.Equal(t, "content", m.files["newdir/file.txt"])
+	assert.False(t, memoryMedium.dirs["olddir"])
+	assert.True(t, memoryMedium.dirs["newdir"])
+	assert.Equal(t, "content", memoryMedium.files["newdir/file.txt"])
 }
 
 func TestMemoryMedium_List_Good(t *testing.T) {
-	m := NewMemoryMedium()
-	m.dirs["mydir"] = true
-	m.files["mydir/file1.txt"] = "content1"
-	m.files["mydir/file2.txt"] = "content2"
-	m.dirs["mydir/subdir"] = true
+	memoryMedium := NewMemoryMedium()
+	memoryMedium.dirs["mydir"] = true
+	memoryMedium.files["mydir/file1.txt"] = "content1"
+	memoryMedium.files["mydir/file2.txt"] = "content2"
+	memoryMedium.dirs["mydir/subdir"] = true
 
-	entries, err := m.List("mydir")
+	entries, err := memoryMedium.List("mydir")
 	assert.NoError(t, err)
 	assert.Len(t, entries, 3)
 
@@ -176,10 +176,10 @@ func TestMemoryMedium_List_Good(t *testing.T) {
 }
 
 func TestMemoryMedium_Stat_Good(t *testing.T) {
-	m := NewMemoryMedium()
-	m.files["test.txt"] = "hello world"
+	memoryMedium := NewMemoryMedium()
+	memoryMedium.files["test.txt"] = "hello world"
 
-	info, err := m.Stat("test.txt")
+	info, err := memoryMedium.Stat("test.txt")
 	assert.NoError(t, err)
 	assert.Equal(t, "test.txt", info.Name())
 	assert.Equal(t, int64(11), info.Size())
@@ -187,41 +187,41 @@ func TestMemoryMedium_Stat_Good(t *testing.T) {
 }
 
 func TestMemoryMedium_Stat_Dir_Good(t *testing.T) {
-	m := NewMemoryMedium()
-	m.dirs["mydir"] = true
+	memoryMedium := NewMemoryMedium()
+	memoryMedium.dirs["mydir"] = true
 
-	info, err := m.Stat("mydir")
+	info, err := memoryMedium.Stat("mydir")
 	assert.NoError(t, err)
 	assert.Equal(t, "mydir", info.Name())
 	assert.True(t, info.IsDir())
 }
 
 func TestMemoryMedium_Exists_Good(t *testing.T) {
-	m := NewMemoryMedium()
-	m.files["file.txt"] = "content"
-	m.dirs["mydir"] = true
+	memoryMedium := NewMemoryMedium()
+	memoryMedium.files["file.txt"] = "content"
+	memoryMedium.dirs["mydir"] = true
 
-	assert.True(t, m.Exists("file.txt"))
-	assert.True(t, m.Exists("mydir"))
-	assert.False(t, m.Exists("nonexistent"))
+	assert.True(t, memoryMedium.Exists("file.txt"))
+	assert.True(t, memoryMedium.Exists("mydir"))
+	assert.False(t, memoryMedium.Exists("nonexistent"))
 }
 
 func TestMemoryMedium_IsDir_Good(t *testing.T) {
-	m := NewMemoryMedium()
-	m.files["file.txt"] = "content"
-	m.dirs["mydir"] = true
+	memoryMedium := NewMemoryMedium()
+	memoryMedium.files["file.txt"] = "content"
+	memoryMedium.dirs["mydir"] = true
 
-	assert.False(t, m.IsDir("file.txt"))
-	assert.True(t, m.IsDir("mydir"))
-	assert.False(t, m.IsDir("nonexistent"))
+	assert.False(t, memoryMedium.IsDir("file.txt"))
+	assert.True(t, memoryMedium.IsDir("mydir"))
+	assert.False(t, memoryMedium.IsDir("nonexistent"))
 }
 
 func TestMemoryMedium_StreamAndFSHelpers_Good(t *testing.T) {
-	m := NewMemoryMedium()
-	require.NoError(t, m.EnsureDir("dir"))
-	require.NoError(t, m.Write("dir/file.txt", "alpha"))
+	memoryMedium := NewMemoryMedium()
+	require.NoError(t, memoryMedium.EnsureDir("dir"))
+	require.NoError(t, memoryMedium.Write("dir/file.txt", "alpha"))
 
-	file, err := m.Open("dir/file.txt")
+	file, err := memoryMedium.Open("dir/file.txt")
 	require.NoError(t, err)
 
 	info, err := file.Stat()
@@ -238,7 +238,7 @@ func TestMemoryMedium_StreamAndFSHelpers_Good(t *testing.T) {
 	assert.Equal(t, "alpha", string(data))
 	require.NoError(t, file.Close())
 
-	entries, err := m.List("dir")
+	entries, err := memoryMedium.List("dir")
 	require.NoError(t, err)
 	require.Len(t, entries, 1)
 	assert.Equal(t, "file.txt", entries[0].Name())
@@ -250,88 +250,88 @@ func TestMemoryMedium_StreamAndFSHelpers_Good(t *testing.T) {
 	assert.Equal(t, "file.txt", entryInfo.Name())
 	assert.Equal(t, int64(5), entryInfo.Size())
 
-	writer, err := m.Create("created.txt")
+	writer, err := memoryMedium.Create("created.txt")
 	require.NoError(t, err)
 	_, err = writer.Write([]byte("created"))
 	require.NoError(t, err)
 	require.NoError(t, writer.Close())
 
-	appendWriter, err := m.Append("created.txt")
+	appendWriter, err := memoryMedium.Append("created.txt")
 	require.NoError(t, err)
 	_, err = appendWriter.Write([]byte(" later"))
 	require.NoError(t, err)
 	require.NoError(t, appendWriter.Close())
 
-	reader, err := m.ReadStream("created.txt")
+	reader, err := memoryMedium.ReadStream("created.txt")
 	require.NoError(t, err)
 	streamed, err := goio.ReadAll(reader)
 	require.NoError(t, err)
 	assert.Equal(t, "created later", string(streamed))
 	require.NoError(t, reader.Close())
 
-	writeStream, err := m.WriteStream("streamed.txt")
+	writeStream, err := memoryMedium.WriteStream("streamed.txt")
 	require.NoError(t, err)
 	_, err = writeStream.Write([]byte("stream output"))
 	require.NoError(t, err)
 	require.NoError(t, writeStream.Close())
 
-	assert.Equal(t, "stream output", m.files["streamed.txt"])
+	assert.Equal(t, "stream output", memoryMedium.files["streamed.txt"])
 }
 
 func TestIO_Read_Good(t *testing.T) {
-	m := NewMemoryMedium()
-	m.files["test.txt"] = "hello"
-	content, err := Read(m, "test.txt")
+	memoryMedium := NewMemoryMedium()
+	memoryMedium.files["test.txt"] = "hello"
+	content, err := Read(memoryMedium, "test.txt")
 	assert.NoError(t, err)
 	assert.Equal(t, "hello", content)
 }
 
 func TestIO_Write_Good(t *testing.T) {
-	m := NewMemoryMedium()
-	err := Write(m, "test.txt", "hello")
+	memoryMedium := NewMemoryMedium()
+	err := Write(memoryMedium, "test.txt", "hello")
 	assert.NoError(t, err)
-	assert.Equal(t, "hello", m.files["test.txt"])
+	assert.Equal(t, "hello", memoryMedium.files["test.txt"])
 }
 
 func TestIO_EnsureDir_Good(t *testing.T) {
-	m := NewMemoryMedium()
-	err := EnsureDir(m, "/my/dir")
+	memoryMedium := NewMemoryMedium()
+	err := EnsureDir(memoryMedium, "/my/dir")
 	assert.NoError(t, err)
-	assert.True(t, m.dirs["/my/dir"])
+	assert.True(t, memoryMedium.dirs["/my/dir"])
 }
 
 func TestIO_IsFile_Good(t *testing.T) {
-	m := NewMemoryMedium()
-	m.files["exists.txt"] = "content"
+	memoryMedium := NewMemoryMedium()
+	memoryMedium.files["exists.txt"] = "content"
 
-	assert.True(t, IsFile(m, "exists.txt"))
-	assert.False(t, IsFile(m, "nonexistent.txt"))
+	assert.True(t, IsFile(memoryMedium, "exists.txt"))
+	assert.False(t, IsFile(memoryMedium, "nonexistent.txt"))
 }
 
 func TestIO_NewSandboxed_Good(t *testing.T) {
 	root := t.TempDir()
 
-	m, err := NewSandboxed(root)
+	memoryMedium, err := NewSandboxed(root)
 	require.NoError(t, err)
 
-	require.NoError(t, m.Write("config/app.yaml", "port: 8080"))
+	require.NoError(t, memoryMedium.Write("config/app.yaml", "port: 8080"))
 
-	content, err := m.Read("config/app.yaml")
+	content, err := memoryMedium.Read("config/app.yaml")
 	require.NoError(t, err)
 	assert.Equal(t, "port: 8080", content)
-	assert.True(t, m.IsDir("config"))
+	assert.True(t, memoryMedium.IsDir("config"))
 }
 
 func TestIO_ReadWriteStream_Good(t *testing.T) {
-	m := NewMemoryMedium()
+	memoryMedium := NewMemoryMedium()
 
-	writer, err := WriteStream(m, "logs/run.txt")
+	writer, err := WriteStream(memoryMedium, "logs/run.txt")
 	require.NoError(t, err)
 	_, err = writer.Write([]byte("started"))
 	require.NoError(t, err)
 	require.NoError(t, writer.Close())
 
-	reader, err := ReadStream(m, "logs/run.txt")
+	reader, err := ReadStream(memoryMedium, "logs/run.txt")
 	require.NoError(t, err)
 	data, err := goio.ReadAll(reader)
 	require.NoError(t, err)
@@ -363,6 +363,6 @@ func TestIO_Copy_Bad(t *testing.T) {
 func TestIO_LocalGlobal_Good(t *testing.T) {
 	assert.NotNil(t, Local, "io.Local should be initialised")
 
-	var m = Local
-	assert.NotNil(t, m)
+	var memoryMedium = Local
+	assert.NotNil(t, memoryMedium)
 }

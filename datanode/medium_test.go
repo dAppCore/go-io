@@ -14,96 +14,96 @@ import (
 var _ coreio.Medium = (*Medium)(nil)
 
 func TestDataNode_ReadWrite_Good(t *testing.T) {
-	m := New()
+	dataNodeMedium := New()
 
-	err := m.Write("hello.txt", "world")
+	err := dataNodeMedium.Write("hello.txt", "world")
 	require.NoError(t, err)
 
-	got, err := m.Read("hello.txt")
+	got, err := dataNodeMedium.Read("hello.txt")
 	require.NoError(t, err)
 	assert.Equal(t, "world", got)
 }
 
 func TestDataNode_ReadWrite_Bad(t *testing.T) {
-	m := New()
+	dataNodeMedium := New()
 
-	_, err := m.Read("missing.txt")
+	_, err := dataNodeMedium.Read("missing.txt")
 	assert.Error(t, err)
 
-	err = m.Write("", "content")
+	err = dataNodeMedium.Write("", "content")
 	assert.Error(t, err)
 }
 
 func TestDataNode_NestedPaths_Good(t *testing.T) {
-	m := New()
+	dataNodeMedium := New()
 
-	require.NoError(t, m.Write("a/b/c/deep.txt", "deep"))
+	require.NoError(t, dataNodeMedium.Write("a/b/c/deep.txt", "deep"))
 
-	got, err := m.Read("a/b/c/deep.txt")
+	got, err := dataNodeMedium.Read("a/b/c/deep.txt")
 	require.NoError(t, err)
 	assert.Equal(t, "deep", got)
 
-	assert.True(t, m.IsDir("a"))
-	assert.True(t, m.IsDir("a/b"))
-	assert.True(t, m.IsDir("a/b/c"))
+	assert.True(t, dataNodeMedium.IsDir("a"))
+	assert.True(t, dataNodeMedium.IsDir("a/b"))
+	assert.True(t, dataNodeMedium.IsDir("a/b/c"))
 }
 
 func TestDataNode_LeadingSlash_Good(t *testing.T) {
-	m := New()
+	dataNodeMedium := New()
 
-	require.NoError(t, m.Write("/leading/file.txt", "stripped"))
-	got, err := m.Read("leading/file.txt")
+	require.NoError(t, dataNodeMedium.Write("/leading/file.txt", "stripped"))
+	got, err := dataNodeMedium.Read("leading/file.txt")
 	require.NoError(t, err)
 	assert.Equal(t, "stripped", got)
 
-	got, err = m.Read("/leading/file.txt")
+	got, err = dataNodeMedium.Read("/leading/file.txt")
 	require.NoError(t, err)
 	assert.Equal(t, "stripped", got)
 }
 
 func TestDataNode_IsFile_Good(t *testing.T) {
-	m := New()
+	dataNodeMedium := New()
 
-	require.NoError(t, m.Write("file.go", "package main"))
+	require.NoError(t, dataNodeMedium.Write("file.go", "package main"))
 
-	assert.True(t, m.IsFile("file.go"))
-	assert.False(t, m.IsFile("missing.go"))
-	assert.False(t, m.IsFile(""))
+	assert.True(t, dataNodeMedium.IsFile("file.go"))
+	assert.False(t, dataNodeMedium.IsFile("missing.go"))
+	assert.False(t, dataNodeMedium.IsFile(""))
 }
 
 func TestDataNode_EnsureDir_Good(t *testing.T) {
-	m := New()
+	dataNodeMedium := New()
 
-	require.NoError(t, m.EnsureDir("foo/bar/baz"))
+	require.NoError(t, dataNodeMedium.EnsureDir("foo/bar/baz"))
 
-	assert.True(t, m.IsDir("foo"))
-	assert.True(t, m.IsDir("foo/bar"))
-	assert.True(t, m.IsDir("foo/bar/baz"))
-	assert.True(t, m.Exists("foo/bar/baz"))
+	assert.True(t, dataNodeMedium.IsDir("foo"))
+	assert.True(t, dataNodeMedium.IsDir("foo/bar"))
+	assert.True(t, dataNodeMedium.IsDir("foo/bar/baz"))
+	assert.True(t, dataNodeMedium.Exists("foo/bar/baz"))
 }
 
 func TestDataNode_Delete_Good(t *testing.T) {
-	m := New()
+	dataNodeMedium := New()
 
-	require.NoError(t, m.Write("delete-me.txt", "bye"))
-	assert.True(t, m.Exists("delete-me.txt"))
+	require.NoError(t, dataNodeMedium.Write("delete-me.txt", "bye"))
+	assert.True(t, dataNodeMedium.Exists("delete-me.txt"))
 
-	require.NoError(t, m.Delete("delete-me.txt"))
-	assert.False(t, m.Exists("delete-me.txt"))
+	require.NoError(t, dataNodeMedium.Delete("delete-me.txt"))
+	assert.False(t, dataNodeMedium.Exists("delete-me.txt"))
 }
 
 func TestDataNode_Delete_Bad(t *testing.T) {
-	medium := New()
+	dataNodeMedium := New()
 
-	assert.Error(t, medium.Delete("ghost.txt"))
+	assert.Error(t, dataNodeMedium.Delete("ghost.txt"))
 
-	require.NoError(t, medium.Write("dir/file.txt", "content"))
-	assert.Error(t, medium.Delete("dir"))
+	require.NoError(t, dataNodeMedium.Write("dir/file.txt", "content"))
+	assert.Error(t, dataNodeMedium.Delete("dir"))
 }
 
 func TestDataNode_Delete_DirectoryInspectionFailure_Bad(t *testing.T) {
-	m := New()
-	require.NoError(t, m.Write("dir/file.txt", "content"))
+	dataNodeMedium := New()
+	require.NoError(t, dataNodeMedium.Write("dir/file.txt", "content"))
 
 	original := dataNodeWalkDir
 	dataNodeWalkDir = func(_ fs.FS, _ string, _ fs.WalkDirFunc) error {
@@ -113,28 +113,28 @@ func TestDataNode_Delete_DirectoryInspectionFailure_Bad(t *testing.T) {
 		dataNodeWalkDir = original
 	})
 
-	err := m.Delete("dir")
+	err := dataNodeMedium.Delete("dir")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to inspect directory")
 }
 
 func TestDataNode_DeleteAll_Good(t *testing.T) {
-	m := New()
+	dataNodeMedium := New()
 
-	require.NoError(t, m.Write("tree/a.txt", "a"))
-	require.NoError(t, m.Write("tree/sub/b.txt", "b"))
-	require.NoError(t, m.Write("keep.txt", "keep"))
+	require.NoError(t, dataNodeMedium.Write("tree/a.txt", "a"))
+	require.NoError(t, dataNodeMedium.Write("tree/sub/b.txt", "b"))
+	require.NoError(t, dataNodeMedium.Write("keep.txt", "keep"))
 
-	require.NoError(t, m.DeleteAll("tree"))
+	require.NoError(t, dataNodeMedium.DeleteAll("tree"))
 
-	assert.False(t, m.Exists("tree/a.txt"))
-	assert.False(t, m.Exists("tree/sub/b.txt"))
-	assert.True(t, m.Exists("keep.txt"))
+	assert.False(t, dataNodeMedium.Exists("tree/a.txt"))
+	assert.False(t, dataNodeMedium.Exists("tree/sub/b.txt"))
+	assert.True(t, dataNodeMedium.Exists("keep.txt"))
 }
 
 func TestDataNode_DeleteAll_WalkFailure_Bad(t *testing.T) {
-	m := New()
-	require.NoError(t, m.Write("tree/a.txt", "a"))
+	dataNodeMedium := New()
+	require.NoError(t, dataNodeMedium.Write("tree/a.txt", "a"))
 
 	original := dataNodeWalkDir
 	dataNodeWalkDir = func(_ fs.FS, _ string, _ fs.WalkDirFunc) error {
@@ -144,15 +144,15 @@ func TestDataNode_DeleteAll_WalkFailure_Bad(t *testing.T) {
 		dataNodeWalkDir = original
 	})
 
-	err := m.DeleteAll("tree")
+	err := dataNodeMedium.DeleteAll("tree")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to inspect tree")
 }
 
 func TestDataNode_Delete_RemoveFailure_Bad(t *testing.T) {
-	m := New()
-	require.NoError(t, m.Write("keep.txt", "keep"))
-	require.NoError(t, m.Write("bad.txt", "bad"))
+	dataNodeMedium := New()
+	require.NoError(t, dataNodeMedium.Write("keep.txt", "keep"))
+	require.NoError(t, dataNodeMedium.Write("bad.txt", "bad"))
 
 	original := dataNodeReadAll
 	dataNodeReadAll = func(_ io.Reader) ([]byte, error) {
@@ -162,45 +162,45 @@ func TestDataNode_Delete_RemoveFailure_Bad(t *testing.T) {
 		dataNodeReadAll = original
 	})
 
-	err := m.Delete("bad.txt")
+	err := dataNodeMedium.Delete("bad.txt")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to delete file")
 }
 
 func TestDataNode_Rename_Good(t *testing.T) {
-	m := New()
+	dataNodeMedium := New()
 
-	require.NoError(t, m.Write("old.txt", "content"))
-	require.NoError(t, m.Rename("old.txt", "new.txt"))
+	require.NoError(t, dataNodeMedium.Write("old.txt", "content"))
+	require.NoError(t, dataNodeMedium.Rename("old.txt", "new.txt"))
 
-	assert.False(t, m.Exists("old.txt"))
-	got, err := m.Read("new.txt")
+	assert.False(t, dataNodeMedium.Exists("old.txt"))
+	got, err := dataNodeMedium.Read("new.txt")
 	require.NoError(t, err)
 	assert.Equal(t, "content", got)
 }
 
 func TestDataNode_RenameDir_Good(t *testing.T) {
-	m := New()
+	dataNodeMedium := New()
 
-	require.NoError(t, m.Write("src/a.go", "package a"))
-	require.NoError(t, m.Write("src/sub/b.go", "package b"))
+	require.NoError(t, dataNodeMedium.Write("src/a.go", "package a"))
+	require.NoError(t, dataNodeMedium.Write("src/sub/b.go", "package b"))
 
-	require.NoError(t, m.Rename("src", "destination"))
+	require.NoError(t, dataNodeMedium.Rename("src", "destination"))
 
-	assert.False(t, m.Exists("src/a.go"))
+	assert.False(t, dataNodeMedium.Exists("src/a.go"))
 
-	got, err := m.Read("destination/a.go")
+	got, err := dataNodeMedium.Read("destination/a.go")
 	require.NoError(t, err)
 	assert.Equal(t, "package a", got)
 
-	got, err = m.Read("destination/sub/b.go")
+	got, err = dataNodeMedium.Read("destination/sub/b.go")
 	require.NoError(t, err)
 	assert.Equal(t, "package b", got)
 }
 
 func TestDataNode_RenameDir_ReadFailure_Bad(t *testing.T) {
-	m := New()
-	require.NoError(t, m.Write("src/a.go", "package a"))
+	dataNodeMedium := New()
+	require.NoError(t, dataNodeMedium.Write("src/a.go", "package a"))
 
 	original := dataNodeReadAll
 	dataNodeReadAll = func(_ io.Reader) ([]byte, error) {
@@ -210,20 +210,20 @@ func TestDataNode_RenameDir_ReadFailure_Bad(t *testing.T) {
 		dataNodeReadAll = original
 	})
 
-	err := m.Rename("src", "destination")
+	err := dataNodeMedium.Rename("src", "destination")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to read source file")
 }
 
 func TestDataNode_List_Good(t *testing.T) {
-	m := New()
+	dataNodeMedium := New()
 
-	require.NoError(t, m.Write("root.txt", "r"))
-	require.NoError(t, m.Write("pkg/a.go", "a"))
-	require.NoError(t, m.Write("pkg/b.go", "b"))
-	require.NoError(t, m.Write("pkg/sub/c.go", "c"))
+	require.NoError(t, dataNodeMedium.Write("root.txt", "r"))
+	require.NoError(t, dataNodeMedium.Write("pkg/a.go", "a"))
+	require.NoError(t, dataNodeMedium.Write("pkg/b.go", "b"))
+	require.NoError(t, dataNodeMedium.Write("pkg/sub/c.go", "c"))
 
-	entries, err := m.List("")
+	entries, err := dataNodeMedium.List("")
 	require.NoError(t, err)
 
 	names := make([]string, len(entries))
@@ -233,7 +233,7 @@ func TestDataNode_List_Good(t *testing.T) {
 	assert.Contains(t, names, "root.txt")
 	assert.Contains(t, names, "pkg")
 
-	entries, err = m.List("pkg")
+	entries, err = dataNodeMedium.List("pkg")
 	require.NoError(t, err)
 	names = make([]string, len(entries))
 	for i, e := range entries {
@@ -245,26 +245,26 @@ func TestDataNode_List_Good(t *testing.T) {
 }
 
 func TestDataNode_Stat_Good(t *testing.T) {
-	m := New()
+	dataNodeMedium := New()
 
-	require.NoError(t, m.Write("stat.txt", "hello"))
+	require.NoError(t, dataNodeMedium.Write("stat.txt", "hello"))
 
-	info, err := m.Stat("stat.txt")
+	info, err := dataNodeMedium.Stat("stat.txt")
 	require.NoError(t, err)
 	assert.Equal(t, int64(5), info.Size())
 	assert.False(t, info.IsDir())
 
-	info, err = m.Stat("")
+	info, err = dataNodeMedium.Stat("")
 	require.NoError(t, err)
 	assert.True(t, info.IsDir())
 }
 
 func TestDataNode_Open_Good(t *testing.T) {
-	m := New()
+	dataNodeMedium := New()
 
-	require.NoError(t, m.Write("open.txt", "opened"))
+	require.NoError(t, dataNodeMedium.Write("open.txt", "opened"))
 
-	f, err := m.Open("open.txt")
+	f, err := dataNodeMedium.Open("open.txt")
 	require.NoError(t, err)
 	defer f.Close()
 
@@ -274,30 +274,30 @@ func TestDataNode_Open_Good(t *testing.T) {
 }
 
 func TestDataNode_CreateAppend_Good(t *testing.T) {
-	m := New()
+	dataNodeMedium := New()
 
-	w, err := m.Create("new.txt")
+	w, err := dataNodeMedium.Create("new.txt")
 	require.NoError(t, err)
 	w.Write([]byte("hello"))
 	w.Close()
 
-	got, err := m.Read("new.txt")
+	got, err := dataNodeMedium.Read("new.txt")
 	require.NoError(t, err)
 	assert.Equal(t, "hello", got)
 
-	w, err = m.Append("new.txt")
+	w, err = dataNodeMedium.Append("new.txt")
 	require.NoError(t, err)
 	w.Write([]byte(" world"))
 	w.Close()
 
-	got, err = m.Read("new.txt")
+	got, err = dataNodeMedium.Read("new.txt")
 	require.NoError(t, err)
 	assert.Equal(t, "hello world", got)
 }
 
 func TestDataNode_Append_ReadFailure_Bad(t *testing.T) {
-	m := New()
-	require.NoError(t, m.Write("new.txt", "hello"))
+	dataNodeMedium := New()
+	require.NoError(t, dataNodeMedium.Write("new.txt", "hello"))
 
 	original := dataNodeReadAll
 	dataNodeReadAll = func(_ io.Reader) ([]byte, error) {
@@ -307,20 +307,20 @@ func TestDataNode_Append_ReadFailure_Bad(t *testing.T) {
 		dataNodeReadAll = original
 	})
 
-	_, err := m.Append("new.txt")
+	_, err := dataNodeMedium.Append("new.txt")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to read existing content")
 }
 
 func TestDataNode_Streams_Good(t *testing.T) {
-	m := New()
+	dataNodeMedium := New()
 
-	ws, err := m.WriteStream("stream.txt")
+	ws, err := dataNodeMedium.WriteStream("stream.txt")
 	require.NoError(t, err)
 	ws.Write([]byte("streamed"))
 	ws.Close()
 
-	rs, err := m.ReadStream("stream.txt")
+	rs, err := dataNodeMedium.ReadStream("stream.txt")
 	require.NoError(t, err)
 	data, err := io.ReadAll(rs)
 	require.NoError(t, err)
@@ -329,12 +329,12 @@ func TestDataNode_Streams_Good(t *testing.T) {
 }
 
 func TestDataNode_SnapshotRestore_Good(t *testing.T) {
-	m := New()
+	dataNodeMedium := New()
 
-	require.NoError(t, m.Write("a.txt", "alpha"))
-	require.NoError(t, m.Write("b/c.txt", "charlie"))
+	require.NoError(t, dataNodeMedium.Write("a.txt", "alpha"))
+	require.NoError(t, dataNodeMedium.Write("b/c.txt", "charlie"))
 
-	snap, err := m.Snapshot()
+	snap, err := dataNodeMedium.Snapshot()
 	require.NoError(t, err)
 	assert.NotEmpty(t, snap)
 
@@ -351,31 +351,31 @@ func TestDataNode_SnapshotRestore_Good(t *testing.T) {
 }
 
 func TestDataNode_Restore_Good(t *testing.T) {
-	m := New()
+	dataNodeMedium := New()
 
-	require.NoError(t, m.Write("original.txt", "before"))
+	require.NoError(t, dataNodeMedium.Write("original.txt", "before"))
 
-	snap, err := m.Snapshot()
+	snap, err := dataNodeMedium.Snapshot()
 	require.NoError(t, err)
 
-	require.NoError(t, m.Write("original.txt", "after"))
-	require.NoError(t, m.Write("extra.txt", "extra"))
+	require.NoError(t, dataNodeMedium.Write("original.txt", "after"))
+	require.NoError(t, dataNodeMedium.Write("extra.txt", "extra"))
 
-	require.NoError(t, m.Restore(snap))
+	require.NoError(t, dataNodeMedium.Restore(snap))
 
-	got, err := m.Read("original.txt")
+	got, err := dataNodeMedium.Read("original.txt")
 	require.NoError(t, err)
 	assert.Equal(t, "before", got)
 
-	assert.False(t, m.Exists("extra.txt"))
+	assert.False(t, dataNodeMedium.Exists("extra.txt"))
 }
 
 func TestDataNode_DataNode_Good(t *testing.T) {
-	m := New()
+	dataNodeMedium := New()
 
-	require.NoError(t, m.Write("test.txt", "borg"))
+	require.NoError(t, dataNodeMedium.Write("test.txt", "borg"))
 
-	dn := m.DataNode()
+	dn := dataNodeMedium.DataNode()
 	assert.NotNil(t, dn)
 
 	f, err := dn.Open("test.txt")
@@ -388,31 +388,31 @@ func TestDataNode_DataNode_Good(t *testing.T) {
 }
 
 func TestDataNode_Overwrite_Good(t *testing.T) {
-	m := New()
+	dataNodeMedium := New()
 
-	require.NoError(t, m.Write("file.txt", "v1"))
-	require.NoError(t, m.Write("file.txt", "v2"))
+	require.NoError(t, dataNodeMedium.Write("file.txt", "v1"))
+	require.NoError(t, dataNodeMedium.Write("file.txt", "v2"))
 
-	got, err := m.Read("file.txt")
+	got, err := dataNodeMedium.Read("file.txt")
 	require.NoError(t, err)
 	assert.Equal(t, "v2", got)
 }
 
 func TestDataNode_Exists_Good(t *testing.T) {
-	m := New()
+	dataNodeMedium := New()
 
-	assert.True(t, m.Exists(""))
-	assert.False(t, m.Exists("x"))
+	assert.True(t, dataNodeMedium.Exists(""))
+	assert.False(t, dataNodeMedium.Exists("x"))
 
-	require.NoError(t, m.Write("x", "y"))
-	assert.True(t, m.Exists("x"))
+	require.NoError(t, dataNodeMedium.Write("x", "y"))
+	assert.True(t, dataNodeMedium.Exists("x"))
 }
 
 func TestDataNode_ReadExistingFile_Good(t *testing.T) {
-	m := New()
+	dataNodeMedium := New()
 
-	require.NoError(t, m.Write("file.txt", "content"))
-	got, err := m.Read("file.txt")
+	require.NoError(t, dataNodeMedium.Write("file.txt", "content"))
+	got, err := dataNodeMedium.Read("file.txt")
 	require.NoError(t, err)
 	assert.Equal(t, "content", got)
 }

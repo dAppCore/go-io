@@ -92,14 +92,14 @@ Use `MemoryMedium` from the root package for unit tests that need a storage back
 
 ```go
 func TestMyFeature(t *testing.T) {
-    m := io.NewMemoryMedium()
-    _ = m.Write("config.yaml", "key: value")
-    _ = m.EnsureDir("data")
+    memoryMedium := io.NewMemoryMedium()
+    _ = memoryMedium.Write("config.yaml", "key: value")
+    _ = memoryMedium.EnsureDir("data")
 
-    // Your code under test receives m as an io.Medium
-    result, err := myFunction(m)
+    // Your code under test receives memoryMedium as an io.Medium
+    result, err := myFunction(memoryMedium)
     assert.NoError(t, err)
-    output, err := m.Read("output.txt")
+    output, err := memoryMedium.Read("output.txt")
     require.NoError(t, err)
     assert.Equal(t, "expected", output)
 }
@@ -109,11 +109,11 @@ For tests that need a real but ephemeral filesystem, use `local.New` with `t.Tem
 
 ```go
 func TestWithRealFS(t *testing.T) {
-    m, err := local.New(t.TempDir())
+    localMedium, err := local.New(t.TempDir())
     require.NoError(t, err)
 
-    _ = m.Write("file.txt", "hello")
-    content, _ := m.Read("file.txt")
+    _ = localMedium.Write("file.txt", "hello")
+    content, _ := localMedium.Read("file.txt")
     assert.Equal(t, "hello", content)
 }
 ```
@@ -122,11 +122,11 @@ For SQLite-backed tests, use `:memory:`:
 
 ```go
 func TestWithSQLite(t *testing.T) {
-    m, err := sqlite.New(sqlite.Options{Path: ":memory:"})
+    sqliteMedium, err := sqlite.New(sqlite.Options{Path: ":memory:"})
     require.NoError(t, err)
-    defer m.Close()
+    defer sqliteMedium.Close()
 
-    _ = m.Write("file.txt", "hello")
+    _ = sqliteMedium.Write("file.txt", "hello")
 }
 ```
 

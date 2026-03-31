@@ -11,90 +11,90 @@ import (
 
 func newTestKeyValueMedium(t *testing.T) *Medium {
 	t.Helper()
-	medium, err := NewMedium(Options{Path: ":memory:"})
+	keyValueMedium, err := NewMedium(Options{Path: ":memory:"})
 	require.NoError(t, err)
-	t.Cleanup(func() { medium.Close() })
-	return medium
+	t.Cleanup(func() { keyValueMedium.Close() })
+	return keyValueMedium
 }
 
 func TestKeyValueMedium_ReadWrite_Good(t *testing.T) {
-	m := newTestKeyValueMedium(t)
+	keyValueMedium := newTestKeyValueMedium(t)
 
-	err := m.Write("config/theme", "dark")
+	err := keyValueMedium.Write("config/theme", "dark")
 	require.NoError(t, err)
 
-	value, err := m.Read("config/theme")
+	value, err := keyValueMedium.Read("config/theme")
 	require.NoError(t, err)
 	assert.Equal(t, "dark", value)
 }
 
 func TestKeyValueMedium_Read_NoKey_Bad(t *testing.T) {
-	m := newTestKeyValueMedium(t)
-	_, err := m.Read("config")
+	keyValueMedium := newTestKeyValueMedium(t)
+	_, err := keyValueMedium.Read("config")
 	assert.Error(t, err)
 }
 
 func TestKeyValueMedium_Read_NotFound_Bad(t *testing.T) {
-	m := newTestKeyValueMedium(t)
-	_, err := m.Read("config/missing")
+	keyValueMedium := newTestKeyValueMedium(t)
+	_, err := keyValueMedium.Read("config/missing")
 	assert.Error(t, err)
 }
 
 func TestKeyValueMedium_IsFile_Good(t *testing.T) {
-	m := newTestKeyValueMedium(t)
-	_ = m.Write("group/key", "val")
+	keyValueMedium := newTestKeyValueMedium(t)
+	_ = keyValueMedium.Write("group/key", "val")
 
-	assert.True(t, m.IsFile("group/key"))
-	assert.False(t, m.IsFile("group/nope"))
-	assert.False(t, m.IsFile("group"))
+	assert.True(t, keyValueMedium.IsFile("group/key"))
+	assert.False(t, keyValueMedium.IsFile("group/nope"))
+	assert.False(t, keyValueMedium.IsFile("group"))
 }
 
 func TestKeyValueMedium_Delete_Good(t *testing.T) {
-	m := newTestKeyValueMedium(t)
-	_ = m.Write("group/key", "val")
+	keyValueMedium := newTestKeyValueMedium(t)
+	_ = keyValueMedium.Write("group/key", "val")
 
-	err := m.Delete("group/key")
+	err := keyValueMedium.Delete("group/key")
 	require.NoError(t, err)
-	assert.False(t, m.IsFile("group/key"))
+	assert.False(t, keyValueMedium.IsFile("group/key"))
 }
 
 func TestKeyValueMedium_Delete_NonEmptyGroup_Bad(t *testing.T) {
-	m := newTestKeyValueMedium(t)
-	_ = m.Write("group/key", "val")
+	keyValueMedium := newTestKeyValueMedium(t)
+	_ = keyValueMedium.Write("group/key", "val")
 
-	err := m.Delete("group")
+	err := keyValueMedium.Delete("group")
 	assert.Error(t, err)
 }
 
 func TestKeyValueMedium_DeleteAll_Good(t *testing.T) {
-	m := newTestKeyValueMedium(t)
-	_ = m.Write("group/a", "1")
-	_ = m.Write("group/b", "2")
+	keyValueMedium := newTestKeyValueMedium(t)
+	_ = keyValueMedium.Write("group/a", "1")
+	_ = keyValueMedium.Write("group/b", "2")
 
-	err := m.DeleteAll("group")
+	err := keyValueMedium.DeleteAll("group")
 	require.NoError(t, err)
-	assert.False(t, m.Exists("group"))
+	assert.False(t, keyValueMedium.Exists("group"))
 }
 
 func TestKeyValueMedium_Rename_Good(t *testing.T) {
-	m := newTestKeyValueMedium(t)
-	_ = m.Write("old/key", "val")
+	keyValueMedium := newTestKeyValueMedium(t)
+	_ = keyValueMedium.Write("old/key", "val")
 
-	err := m.Rename("old/key", "new/key")
+	err := keyValueMedium.Rename("old/key", "new/key")
 	require.NoError(t, err)
 
-	value, err := m.Read("new/key")
+	value, err := keyValueMedium.Read("new/key")
 	require.NoError(t, err)
 	assert.Equal(t, "val", value)
-	assert.False(t, m.IsFile("old/key"))
+	assert.False(t, keyValueMedium.IsFile("old/key"))
 }
 
 func TestKeyValueMedium_List_Groups_Good(t *testing.T) {
-	m := newTestKeyValueMedium(t)
-	_ = m.Write("alpha/a", "1")
-	_ = m.Write("beta/b", "2")
+	keyValueMedium := newTestKeyValueMedium(t)
+	_ = keyValueMedium.Write("alpha/a", "1")
+	_ = keyValueMedium.Write("beta/b", "2")
 
-	entries, err := m.List("")
+	entries, err := keyValueMedium.List("")
 	require.NoError(t, err)
 	assert.Len(t, entries, 2)
 
@@ -108,45 +108,45 @@ func TestKeyValueMedium_List_Groups_Good(t *testing.T) {
 }
 
 func TestKeyValueMedium_List_Keys_Good(t *testing.T) {
-	m := newTestKeyValueMedium(t)
-	_ = m.Write("group/a", "1")
-	_ = m.Write("group/b", "22")
+	keyValueMedium := newTestKeyValueMedium(t)
+	_ = keyValueMedium.Write("group/a", "1")
+	_ = keyValueMedium.Write("group/b", "22")
 
-	entries, err := m.List("group")
+	entries, err := keyValueMedium.List("group")
 	require.NoError(t, err)
 	assert.Len(t, entries, 2)
 }
 
 func TestKeyValueMedium_Stat_Good(t *testing.T) {
-	m := newTestKeyValueMedium(t)
-	_ = m.Write("group/key", "hello")
+	keyValueMedium := newTestKeyValueMedium(t)
+	_ = keyValueMedium.Write("group/key", "hello")
 
-	info, err := m.Stat("group")
+	info, err := keyValueMedium.Stat("group")
 	require.NoError(t, err)
 	assert.True(t, info.IsDir())
 
-	info, err = m.Stat("group/key")
+	info, err = keyValueMedium.Stat("group/key")
 	require.NoError(t, err)
 	assert.Equal(t, int64(5), info.Size())
 	assert.False(t, info.IsDir())
 }
 
 func TestKeyValueMedium_Exists_IsDir_Good(t *testing.T) {
-	m := newTestKeyValueMedium(t)
-	_ = m.Write("group/key", "val")
+	keyValueMedium := newTestKeyValueMedium(t)
+	_ = keyValueMedium.Write("group/key", "val")
 
-	assert.True(t, m.Exists("group"))
-	assert.True(t, m.Exists("group/key"))
-	assert.True(t, m.IsDir("group"))
-	assert.False(t, m.IsDir("group/key"))
-	assert.False(t, m.Exists("nope"))
+	assert.True(t, keyValueMedium.Exists("group"))
+	assert.True(t, keyValueMedium.Exists("group/key"))
+	assert.True(t, keyValueMedium.IsDir("group"))
+	assert.False(t, keyValueMedium.IsDir("group/key"))
+	assert.False(t, keyValueMedium.Exists("nope"))
 }
 
 func TestKeyValueMedium_Open_Read_Good(t *testing.T) {
-	m := newTestKeyValueMedium(t)
-	_ = m.Write("group/key", "hello world")
+	keyValueMedium := newTestKeyValueMedium(t)
+	_ = keyValueMedium.Write("group/key", "hello world")
 
-	f, err := m.Open("group/key")
+	f, err := keyValueMedium.Open("group/key")
 	require.NoError(t, err)
 	defer f.Close()
 
@@ -156,28 +156,28 @@ func TestKeyValueMedium_Open_Read_Good(t *testing.T) {
 }
 
 func TestKeyValueMedium_CreateClose_Good(t *testing.T) {
-	m := newTestKeyValueMedium(t)
+	keyValueMedium := newTestKeyValueMedium(t)
 
-	w, err := m.Create("group/key")
+	w, err := keyValueMedium.Create("group/key")
 	require.NoError(t, err)
 	_, _ = w.Write([]byte("streamed"))
 	require.NoError(t, w.Close())
 
-	value, err := m.Read("group/key")
+	value, err := keyValueMedium.Read("group/key")
 	require.NoError(t, err)
 	assert.Equal(t, "streamed", value)
 }
 
 func TestKeyValueMedium_Append_Good(t *testing.T) {
-	m := newTestKeyValueMedium(t)
-	_ = m.Write("group/key", "hello")
+	keyValueMedium := newTestKeyValueMedium(t)
+	_ = keyValueMedium.Write("group/key", "hello")
 
-	w, err := m.Append("group/key")
+	w, err := keyValueMedium.Append("group/key")
 	require.NoError(t, err)
 	_, _ = w.Write([]byte(" world"))
 	require.NoError(t, w.Close())
 
-	value, err := m.Read("group/key")
+	value, err := keyValueMedium.Read("group/key")
 	require.NoError(t, err)
 	assert.Equal(t, "hello world", value)
 }
@@ -185,53 +185,53 @@ func TestKeyValueMedium_Append_Good(t *testing.T) {
 func TestKeyValueMedium_AsMedium_Good(t *testing.T) {
 	keyValueStore := newTestKeyValueStore(t)
 
-	m := keyValueStore.AsMedium()
-	require.NoError(t, m.Write("group/key", "val"))
+	keyValueMedium := keyValueStore.AsMedium()
+	require.NoError(t, keyValueMedium.Write("group/key", "val"))
 
 	value, err := keyValueStore.Get("group", "key")
 	require.NoError(t, err)
 	assert.Equal(t, "val", value)
 
-	value, err = m.Read("group/key")
+	value, err = keyValueMedium.Read("group/key")
 	require.NoError(t, err)
 	assert.Equal(t, "val", value)
 }
 
 func TestKeyValueMedium_KeyValueStore_Good(t *testing.T) {
-	m := newTestKeyValueMedium(t)
+	keyValueMedium := newTestKeyValueMedium(t)
 
-	assert.NotNil(t, m.KeyValueStore())
-	assert.Same(t, m.KeyValueStore(), m.KeyValueStore())
+	assert.NotNil(t, keyValueMedium.KeyValueStore())
+	assert.Same(t, keyValueMedium.KeyValueStore(), keyValueMedium.KeyValueStore())
 }
 
 func TestKeyValueMedium_EnsureDir_ReadWrite_Good(t *testing.T) {
-	m := newTestKeyValueMedium(t)
+	keyValueMedium := newTestKeyValueMedium(t)
 
-	require.NoError(t, m.EnsureDir("ignored"))
-	require.NoError(t, m.Write("group/key", "value"))
+	require.NoError(t, keyValueMedium.EnsureDir("ignored"))
+	require.NoError(t, keyValueMedium.Write("group/key", "value"))
 
-	value, err := m.Read("group/key")
+	value, err := keyValueMedium.Read("group/key")
 	require.NoError(t, err)
 	assert.Equal(t, "value", value)
 }
 
 func TestKeyValueMedium_StreamHelpers_Good(t *testing.T) {
-	m := newTestKeyValueMedium(t)
+	keyValueMedium := newTestKeyValueMedium(t)
 
-	writer, err := m.WriteStream("group/key")
+	writer, err := keyValueMedium.WriteStream("group/key")
 	require.NoError(t, err)
 	_, err = writer.Write([]byte("streamed"))
 	require.NoError(t, err)
 	require.NoError(t, writer.Close())
 
-	reader, err := m.ReadStream("group/key")
+	reader, err := keyValueMedium.ReadStream("group/key")
 	require.NoError(t, err)
 	data, err := io.ReadAll(reader)
 	require.NoError(t, err)
 	assert.Equal(t, "streamed", string(data))
 	require.NoError(t, reader.Close())
 
-	file, err := m.Open("group/key")
+	file, err := keyValueMedium.Open("group/key")
 	require.NoError(t, err)
 	info, err := file.Stat()
 	require.NoError(t, err)
@@ -243,7 +243,7 @@ func TestKeyValueMedium_StreamHelpers_Good(t *testing.T) {
 	assert.Nil(t, info.Sys())
 	require.NoError(t, file.Close())
 
-	entries, err := m.List("group")
+	entries, err := keyValueMedium.List("group")
 	require.NoError(t, err)
 	require.Len(t, entries, 1)
 	assert.Equal(t, "key", entries[0].Name())
