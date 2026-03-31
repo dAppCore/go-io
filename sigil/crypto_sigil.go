@@ -1,4 +1,4 @@
-// Example: cipherSigil, _ := sigil.NewChaChaPolySigil([]byte("0123456789abcdef0123456789abcdef"))
+// Example: cipherSigil, _ := sigil.NewChaChaPolySigil([]byte("0123456789abcdef0123456789abcdef"), nil)
 // Example: ciphertext, _ := cipherSigil.In([]byte("payload"))
 // Example: plaintext, _ := cipherSigil.Out(ciphertext)
 package sigil
@@ -171,7 +171,7 @@ func (obfuscator *ShuffleMaskObfuscator) deriveMask(entropy []byte, length int) 
 }
 
 // Example: cipherSigil, _ := sigil.NewChaChaPolySigil(
-// Example:     key,
+// Example:     []byte("0123456789abcdef0123456789abcdef"),
 // Example:     &sigil.ShuffleMaskObfuscator{},
 // Example: )
 type ChaChaPolySigil struct {
@@ -180,10 +180,10 @@ type ChaChaPolySigil struct {
 	randomReader goio.Reader
 }
 
-// Example: cipherSigil, _ := sigil.NewChaChaPolySigil([]byte("0123456789abcdef0123456789abcdef"))
+// Example: cipherSigil, _ := sigil.NewChaChaPolySigil([]byte("0123456789abcdef0123456789abcdef"), nil)
 // Example: ciphertext, _ := cipherSigil.In([]byte("payload"))
 // Example: plaintext, _ := cipherSigil.Out(ciphertext)
-func NewChaChaPolySigil(key []byte, obfuscators ...PreObfuscator) (*ChaChaPolySigil, error) {
+func NewChaChaPolySigil(key []byte, obfuscator PreObfuscator) (*ChaChaPolySigil, error) {
 	if len(key) != 32 {
 		return nil, InvalidKeyError
 	}
@@ -191,9 +191,8 @@ func NewChaChaPolySigil(key []byte, obfuscators ...PreObfuscator) (*ChaChaPolySi
 	keyCopy := make([]byte, 32)
 	copy(keyCopy, key)
 
-	obfuscator := PreObfuscator(&XORObfuscator{})
-	if len(obfuscators) > 0 && obfuscators[0] != nil {
-		obfuscator = obfuscators[0]
+	if obfuscator == nil {
+		obfuscator = &XORObfuscator{}
 	}
 
 	return &ChaChaPolySigil{
@@ -201,23 +200,6 @@ func NewChaChaPolySigil(key []byte, obfuscators ...PreObfuscator) (*ChaChaPolySi
 		Obfuscator:   obfuscator,
 		randomReader: rand.Reader,
 	}, nil
-}
-
-// Example: cipherSigil, _ := sigil.NewChaChaPolySigil(
-// Example:     []byte("0123456789abcdef0123456789abcdef"),
-// Example:     &sigil.ShuffleMaskObfuscator{},
-// Example: )
-// Example: ciphertext, _ := cipherSigil.In([]byte("payload"))
-// Example: plaintext, _ := cipherSigil.Out(ciphertext)
-func NewChaChaPolySigilWithObfuscator(key []byte, obfuscator PreObfuscator) (*ChaChaPolySigil, error) {
-	cipherSigil, err := NewChaChaPolySigil(key, obfuscator)
-	if err != nil {
-		return nil, err
-	}
-	if obfuscator != nil {
-		cipherSigil.Obfuscator = obfuscator
-	}
-	return cipherSigil, nil
 }
 
 func (sigil *ChaChaPolySigil) In(data []byte) ([]byte, error) {

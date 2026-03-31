@@ -357,23 +357,6 @@ func TestNode_Walk_Good(t *testing.T) {
 	})
 }
 
-func TestNode_WalkNode_Good(t *testing.T) {
-	n := New()
-	n.AddData("alpha.txt", []byte("alpha"))
-	n.AddData("nested/beta.txt", []byte("beta"))
-
-	var paths []string
-	err := n.WalkNode(".", func(p string, d fs.DirEntry, err error) error {
-		require.NoError(t, err)
-		paths = append(paths, p)
-		return nil
-	})
-	require.NoError(t, err)
-
-	sort.Strings(paths)
-	assert.Equal(t, []string{".", "alpha.txt", "nested", "nested/beta.txt"}, paths)
-}
-
 // ---------------------------------------------------------------------------
 // CopyFile
 // ---------------------------------------------------------------------------

@@ -150,7 +150,7 @@ func TestCryptoSigil_NewChaChaPolySigil_Good(t *testing.T) {
 	key := make([]byte, 32)
 	_, _ = rand.Read(key)
 
-	s, err := NewChaChaPolySigil(key)
+	s, err := NewChaChaPolySigil(key, nil)
 	require.NoError(t, err)
 	assert.NotNil(t, s)
 	assert.Equal(t, key, s.Key)
@@ -163,7 +163,7 @@ func TestCryptoSigil_NewChaChaPolySigil_KeyIsCopied_Good(t *testing.T) {
 	original := make([]byte, 32)
 	copy(original, key)
 
-	s, err := NewChaChaPolySigil(key)
+	s, err := NewChaChaPolySigil(key, nil)
 	require.NoError(t, err)
 
 	// Mutating the original key should not affect the sigil.
@@ -172,17 +172,17 @@ func TestCryptoSigil_NewChaChaPolySigil_KeyIsCopied_Good(t *testing.T) {
 }
 
 func TestCryptoSigil_NewChaChaPolySigil_ShortKey_Bad(t *testing.T) {
-	_, err := NewChaChaPolySigil([]byte("too short"))
+	_, err := NewChaChaPolySigil([]byte("too short"), nil)
 	assert.ErrorIs(t, err, InvalidKeyError)
 }
 
 func TestCryptoSigil_NewChaChaPolySigil_LongKey_Bad(t *testing.T) {
-	_, err := NewChaChaPolySigil(make([]byte, 64))
+	_, err := NewChaChaPolySigil(make([]byte, 64), nil)
 	assert.ErrorIs(t, err, InvalidKeyError)
 }
 
 func TestCryptoSigil_NewChaChaPolySigil_EmptyKey_Bad(t *testing.T) {
-	_, err := NewChaChaPolySigil(nil)
+	_, err := NewChaChaPolySigil(nil, nil)
 	assert.ErrorIs(t, err, InvalidKeyError)
 }
 
@@ -219,7 +219,7 @@ func TestCryptoSigil_ChaChaPolySigil_RoundTrip_Good(t *testing.T) {
 	key := make([]byte, 32)
 	_, _ = rand.Read(key)
 
-	s, err := NewChaChaPolySigil(key)
+	s, err := NewChaChaPolySigil(key, nil)
 	require.NoError(t, err)
 
 	plaintext := []byte("consciousness does not merely avoid causing harm")
@@ -253,7 +253,7 @@ func TestCryptoSigil_ChaChaPolySigil_NilData_Good(t *testing.T) {
 	key := make([]byte, 32)
 	_, _ = rand.Read(key)
 
-	s, err := NewChaChaPolySigil(key)
+	s, err := NewChaChaPolySigil(key, nil)
 	require.NoError(t, err)
 
 	enc, err := s.In(nil)
@@ -269,7 +269,7 @@ func TestCryptoSigil_ChaChaPolySigil_EmptyPlaintext_Good(t *testing.T) {
 	key := make([]byte, 32)
 	_, _ = rand.Read(key)
 
-	s, err := NewChaChaPolySigil(key)
+	s, err := NewChaChaPolySigil(key, nil)
 	require.NoError(t, err)
 
 	ciphertext, err := s.In([]byte{})
@@ -285,7 +285,7 @@ func TestCryptoSigil_ChaChaPolySigil_DifferentCiphertextsPerCall_Good(t *testing
 	key := make([]byte, 32)
 	_, _ = rand.Read(key)
 
-	s, err := NewChaChaPolySigil(key)
+	s, err := NewChaChaPolySigil(key, nil)
 	require.NoError(t, err)
 
 	plaintext := []byte("same input")
@@ -312,8 +312,8 @@ func TestCryptoSigil_ChaChaPolySigil_WrongKey_Bad(t *testing.T) {
 	_, _ = rand.Read(key1)
 	_, _ = rand.Read(key2)
 
-	s1, _ := NewChaChaPolySigil(key1)
-	s2, _ := NewChaChaPolySigil(key2)
+	s1, _ := NewChaChaPolySigil(key1, nil)
+	s2, _ := NewChaChaPolySigil(key2, nil)
 
 	ciphertext, err := s1.In([]byte("secret"))
 	require.NoError(t, err)
@@ -326,7 +326,7 @@ func TestCryptoSigil_ChaChaPolySigil_TruncatedCiphertext_Bad(t *testing.T) {
 	key := make([]byte, 32)
 	_, _ = rand.Read(key)
 
-	s, _ := NewChaChaPolySigil(key)
+	s, _ := NewChaChaPolySigil(key, nil)
 	_, err := s.Out([]byte("too short"))
 	assert.ErrorIs(t, err, CiphertextTooShortError)
 }
@@ -335,7 +335,7 @@ func TestCryptoSigil_ChaChaPolySigil_TamperedCiphertext_Bad(t *testing.T) {
 	key := make([]byte, 32)
 	_, _ = rand.Read(key)
 
-	s, _ := NewChaChaPolySigil(key)
+	s, _ := NewChaChaPolySigil(key, nil)
 	ciphertext, _ := s.In([]byte("authentic data"))
 
 	// Flip a bit in the ciphertext body (after nonce).
@@ -356,7 +356,7 @@ func TestCryptoSigil_ChaChaPolySigil_RandomReaderFailure_Bad(t *testing.T) {
 	key := make([]byte, 32)
 	_, _ = rand.Read(key)
 
-	s, _ := NewChaChaPolySigil(key)
+	s, _ := NewChaChaPolySigil(key, nil)
 	s.randomReader = &failReader{}
 
 	_, err := s.In([]byte("data"))
@@ -369,7 +369,7 @@ func TestCryptoSigil_ChaChaPolySigil_NoObfuscator_Good(t *testing.T) {
 	key := make([]byte, 32)
 	_, _ = rand.Read(key)
 
-	s, _ := NewChaChaPolySigil(key)
+	s, _ := NewChaChaPolySigil(key, nil)
 	s.Obfuscator = nil // Disable pre-obfuscation.
 
 	plaintext := []byte("raw encryption without pre-obfuscation")
@@ -387,7 +387,7 @@ func TestCryptoSigil_GetNonceFromCiphertext_Good(t *testing.T) {
 	key := make([]byte, 32)
 	_, _ = rand.Read(key)
 
-	s, _ := NewChaChaPolySigil(key)
+	s, _ := NewChaChaPolySigil(key, nil)
 	ciphertext, _ := s.In([]byte("nonce extraction test"))
 
 	nonce, err := GetNonceFromCiphertext(ciphertext)
@@ -402,7 +402,7 @@ func TestCryptoSigil_GetNonceFromCiphertext_NonceCopied_Good(t *testing.T) {
 	key := make([]byte, 32)
 	_, _ = rand.Read(key)
 
-	s, _ := NewChaChaPolySigil(key)
+	s, _ := NewChaChaPolySigil(key, nil)
 	ciphertext, _ := s.In([]byte("data"))
 
 	nonce, _ := GetNonceFromCiphertext(ciphertext)
@@ -430,7 +430,7 @@ func TestCryptoSigil_ChaChaPolySigil_InTransmutePipeline_Good(t *testing.T) {
 	key := make([]byte, 32)
 	_, _ = rand.Read(key)
 
-	s, _ := NewChaChaPolySigil(key)
+	s, _ := NewChaChaPolySigil(key, nil)
 	hexSigil, _ := NewSigil("hex")
 
 	chain := []Sigil{s, hexSigil}
@@ -509,7 +509,7 @@ func TestCryptoSigil_ChaChaPolySigil_NilRandomReader_Good(t *testing.T) {
 	key := make([]byte, 32)
 	_, _ = rand.Read(key)
 
-	s, _ := NewChaChaPolySigil(key)
+	s, _ := NewChaChaPolySigil(key, nil)
 	s.randomReader = nil // Should fall back to crypto/rand.Reader.
 
 	ciphertext, err := s.In([]byte("fallback reader"))
