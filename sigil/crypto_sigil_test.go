@@ -186,30 +186,30 @@ func TestCryptoSigil_NewChaChaPolySigil_EmptyKey_Bad(t *testing.T) {
 	assert.ErrorIs(t, err, InvalidKeyError)
 }
 
-// ── NewChaChaPolySigilWithObfuscator ───────────────────────────────
+// ── NewChaChaPolySigil Custom Obfuscator ───────────────────────────
 
-func TestCryptoSigil_NewChaChaPolySigilWithObfuscator_Good(t *testing.T) {
+func TestCryptoSigil_NewChaChaPolySigil_CustomObfuscator_Good(t *testing.T) {
 	key := make([]byte, 32)
 	_, _ = rand.Read(key)
 
 	ob := &ShuffleMaskObfuscator{}
-	s, err := NewChaChaPolySigilWithObfuscator(key, ob)
+	s, err := NewChaChaPolySigil(key, ob)
 	require.NoError(t, err)
 	assert.Equal(t, ob, s.Obfuscator)
 }
 
-func TestCryptoSigil_NewChaChaPolySigilWithObfuscator_NilObfuscator_Good(t *testing.T) {
+func TestCryptoSigil_NewChaChaPolySigil_CustomObfuscatorNil_Good(t *testing.T) {
 	key := make([]byte, 32)
 	_, _ = rand.Read(key)
 
-	s, err := NewChaChaPolySigilWithObfuscator(key, nil)
+	s, err := NewChaChaPolySigil(key, nil)
 	require.NoError(t, err)
 	// Falls back to default XORObfuscator.
 	assert.IsType(t, &XORObfuscator{}, s.Obfuscator)
 }
 
-func TestCryptoSigil_NewChaChaPolySigilWithObfuscator_InvalidKey_Bad(t *testing.T) {
-	_, err := NewChaChaPolySigilWithObfuscator([]byte("bad"), &XORObfuscator{})
+func TestCryptoSigil_NewChaChaPolySigil_CustomObfuscator_InvalidKey_Bad(t *testing.T) {
+	_, err := NewChaChaPolySigil([]byte("bad"), &XORObfuscator{})
 	assert.ErrorIs(t, err, InvalidKeyError)
 }
 
@@ -233,11 +233,11 @@ func TestCryptoSigil_ChaChaPolySigil_RoundTrip_Good(t *testing.T) {
 	assert.Equal(t, plaintext, decrypted)
 }
 
-func TestCryptoSigil_ChaChaPolySigil_WithShuffleMask_Good(t *testing.T) {
+func TestCryptoSigil_ChaChaPolySigil_CustomShuffleMask_Good(t *testing.T) {
 	key := make([]byte, 32)
 	_, _ = rand.Read(key)
 
-	s, err := NewChaChaPolySigilWithObfuscator(key, &ShuffleMaskObfuscator{})
+	s, err := NewChaChaPolySigil(key, &ShuffleMaskObfuscator{})
 	require.NoError(t, err)
 
 	plaintext := []byte("shuffle mask pre-obfuscation layer")

@@ -168,7 +168,7 @@ func (medium *Medium) EnsureDir(directoryPath string) error {
 	return nil
 }
 
-// Example: ok := medium.IsFile("reports/daily.txt")
+// Example: isFile := medium.IsFile("reports/daily.txt")
 func (medium *Medium) IsFile(filePath string) bool {
 	key := medium.objectKey(filePath)
 	if key == "" {
@@ -498,7 +498,7 @@ func (medium *Medium) WriteStream(filePath string) (goio.WriteCloser, error) {
 	return medium.Create(filePath)
 }
 
-// Example: ok := medium.Exists("reports/daily.txt")
+// Example: exists := medium.Exists("reports/daily.txt")
 func (medium *Medium) Exists(filePath string) bool {
 	key := medium.objectKey(filePath)
 	if key == "" {
@@ -528,7 +528,7 @@ func (medium *Medium) Exists(filePath string) bool {
 	return len(listOutput.Contents) > 0 || len(listOutput.CommonPrefixes) > 0
 }
 
-// Example: ok := medium.IsDir("reports")
+// Example: isDirectory := medium.IsDir("reports")
 func (medium *Medium) IsDir(filePath string) bool {
 	key := medium.objectKey(filePath)
 	if key == "" {

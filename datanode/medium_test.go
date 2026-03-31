@@ -94,14 +94,14 @@ func TestClient_Delete_Good(t *testing.T) {
 }
 
 func TestClient_Delete_Bad(t *testing.T) {
-	m := New()
+	medium := New()
 
-	// Example: m.Delete("ghost.txt")
-	assert.Error(t, m.Delete("ghost.txt"))
+	// Example: medium.Delete("ghost.txt")
+	assert.Error(t, medium.Delete("ghost.txt"))
 
 	// Delete non-empty dir
-	require.NoError(t, m.Write("dir/file.txt", "content"))
-	assert.Error(t, m.Delete("dir"))
+	require.NoError(t, medium.Write("dir/file.txt", "content"))
+	assert.Error(t, medium.Delete("dir"))
 }
 
 func TestClient_Delete_DirectoryInspectionFailure_Bad(t *testing.T) {

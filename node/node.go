@@ -124,7 +124,7 @@ func (node *Node) LoadTar(data []byte) error {
 
 // Example: _ = nodeTree.WalkNode("config", func(_ string, _ fs.DirEntry, _ error) error { return nil })
 func (node *Node) WalkNode(root string, fn fs.WalkDirFunc) error {
-	return fs.WalkDir(node, root, fn)
+	return node.Walk(root, fn)
 }
 
 // Example: options := node.WalkOptions{MaxDepth: 1, SkipErrors: true}
@@ -134,17 +134,22 @@ type WalkOptions struct {
 	SkipErrors bool
 }
 
-// Example: _ = nodeTree.WalkWithOptions(".", callback, node.WalkOptions{MaxDepth: 1, SkipErrors: true})
-func (node *Node) WalkWithOptions(root string, fn fs.WalkDirFunc, options WalkOptions) error {
-	if options.SkipErrors {
+// Example: _ = nodeTree.Walk(".", func(_ string, _ fs.DirEntry, _ error) error { return nil }, node.WalkOptions{MaxDepth: 1, SkipErrors: true})
+func (node *Node) Walk(root string, fn fs.WalkDirFunc, options ...WalkOptions) error {
+	walkOptions := WalkOptions{}
+	if len(options) > 0 {
+		walkOptions = options[0]
+	}
+
+	if walkOptions.SkipErrors {
 		if _, err := node.Stat(root); err != nil {
 			return nil
 		}
 	}
 
 	return fs.WalkDir(node, root, func(entryPath string, entry fs.DirEntry, err error) error {
-		if options.Filter != nil && err == nil {
-			if !options.Filter(entryPath, entry) {
+		if walkOptions.Filter != nil && err == nil {
+			if !walkOptions.Filter(entryPath, entry) {
 				if entry != nil && entry.IsDir() {
 					return fs.SkipDir
 				}
@@ -154,17 +159,22 @@ func (node *Node) WalkWithOptions(root string, fn fs.WalkDirFunc, options WalkOp
 
 		result := fn(entryPath, entry, err)
 
-		if result == nil && options.MaxDepth > 0 && entry != nil && entry.IsDir() && entryPath != root {
+		if result == nil && walkOptions.MaxDepth > 0 && entry != nil && entry.IsDir() && entryPath != root {
 			rel := core.TrimPrefix(entryPath, root)
 			rel = core.TrimPrefix(rel, "/")
 			depth := len(core.Split(rel, "/"))
-			if depth >= options.MaxDepth {
+			if depth >= walkOptions.MaxDepth {
 				return fs.SkipDir
 			}
 		}
 
 		return result
 	})
+}
+
+// Example: _ = nodeTree.WalkWithOptions(".", func(_ string, _ fs.DirEntry, _ error) error { return nil }, node.WalkOptions{MaxDepth: 1, SkipErrors: true})
+func (node *Node) WalkWithOptions(root string, fn fs.WalkDirFunc, options WalkOptions) error {
+	return node.Walk(root, fn, options)
 }
 
 // Example: content, _ := nodeTree.ReadFile("config/app.yaml")

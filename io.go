@@ -52,10 +52,10 @@ type Medium interface {
 	// Example: writer, _ := medium.WriteStream("logs/app.log")
 	WriteStream(path string) (goio.WriteCloser, error)
 
-	// Example: ok := medium.Exists("config/app.yaml")
+	// Example: exists := medium.Exists("config/app.yaml")
 	Exists(path string) bool
 
-	// Example: ok := medium.IsDir("config")
+	// Example: isDirectory := medium.IsDir("config")
 	IsDir(path string) bool
 }
 
@@ -163,7 +163,7 @@ func EnsureDir(medium Medium, path string) error {
 	return medium.EnsureDir(path)
 }
 
-// Example: ok := io.IsFile(medium, "config/app.yaml")
+// Example: isFile := io.IsFile(medium, "config/app.yaml")
 func IsFile(medium Medium, path string) bool {
 	return medium.IsFile(path)
 }

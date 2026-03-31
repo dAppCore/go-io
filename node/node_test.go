@@ -259,17 +259,17 @@ func TestNode_Exists_RootAndEmptyPath_Good(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// WalkWithOptions
+// Walk
 // ---------------------------------------------------------------------------
 
-func TestNode_WalkWithOptions_Default_Good(t *testing.T) {
+func TestNode_Walk_Default_Good(t *testing.T) {
 	n := New()
 	n.AddData("foo.txt", []byte("foo"))
 	n.AddData("bar/baz.txt", []byte("baz"))
 	n.AddData("bar/qux.txt", []byte("qux"))
 
 	var paths []string
-	err := n.WalkWithOptions(".", func(p string, d fs.DirEntry, err error) error {
+	err := n.Walk(".", func(p string, d fs.DirEntry, err error) error {
 		paths = append(paths, p)
 		return nil
 	}, WalkOptions{})
@@ -279,11 +279,11 @@ func TestNode_WalkWithOptions_Default_Good(t *testing.T) {
 	assert.Equal(t, []string{".", "bar", "bar/baz.txt", "bar/qux.txt", "foo.txt"}, paths)
 }
 
-func TestNode_WalkWithOptions_Default_Bad(t *testing.T) {
+func TestNode_Walk_Default_Bad(t *testing.T) {
 	n := New()
 
 	var called bool
-	err := n.WalkWithOptions("nonexistent", func(p string, d fs.DirEntry, err error) error {
+	err := n.Walk("nonexistent", func(p string, d fs.DirEntry, err error) error {
 		called = true
 		assert.Error(t, err)
 		assert.ErrorIs(t, err, fs.ErrNotExist)
@@ -293,7 +293,7 @@ func TestNode_WalkWithOptions_Default_Bad(t *testing.T) {
 	assert.ErrorIs(t, err, fs.ErrNotExist)
 }
 
-func TestNode_WalkWithOptions_CallbackError_Good(t *testing.T) {
+func TestNode_Walk_CallbackError_Good(t *testing.T) {
 	n := New()
 	n.AddData("a/b.txt", []byte("b"))
 	n.AddData("a/c.txt", []byte("c"))
@@ -301,7 +301,7 @@ func TestNode_WalkWithOptions_CallbackError_Good(t *testing.T) {
 	// Stop walk early with a custom error.
 	walkErr := core.NewError("stop walking")
 	var paths []string
-	err := n.WalkWithOptions(".", func(p string, d fs.DirEntry, err error) error {
+	err := n.Walk(".", func(p string, d fs.DirEntry, err error) error {
 		if p == "a/b.txt" {
 			return walkErr
 		}
@@ -312,7 +312,7 @@ func TestNode_WalkWithOptions_CallbackError_Good(t *testing.T) {
 	assert.Equal(t, walkErr, err, "Walk must propagate the callback error")
 }
 
-func TestNode_WalkWithOptions_Good(t *testing.T) {
+func TestNode_Walk_Good(t *testing.T) {
 	n := New()
 	n.AddData("root.txt", []byte("root"))
 	n.AddData("a/a1.txt", []byte("a1"))
@@ -321,7 +321,7 @@ func TestNode_WalkWithOptions_Good(t *testing.T) {
 
 	t.Run("MaxDepth", func(t *testing.T) {
 		var paths []string
-		err := n.WalkWithOptions(".", func(p string, d fs.DirEntry, err error) error {
+		err := n.Walk(".", func(p string, d fs.DirEntry, err error) error {
 			paths = append(paths, p)
 			return nil
 		}, WalkOptions{MaxDepth: 1})
@@ -333,7 +333,7 @@ func TestNode_WalkWithOptions_Good(t *testing.T) {
 
 	t.Run("Filter", func(t *testing.T) {
 		var paths []string
-		err := n.WalkWithOptions(".", func(p string, d fs.DirEntry, err error) error {
+		err := n.Walk(".", func(p string, d fs.DirEntry, err error) error {
 			paths = append(paths, p)
 			return nil
 		}, WalkOptions{Filter: func(p string, d fs.DirEntry) bool {
@@ -347,7 +347,7 @@ func TestNode_WalkWithOptions_Good(t *testing.T) {
 
 	t.Run("SkipErrors", func(t *testing.T) {
 		var called bool
-		err := n.WalkWithOptions("nonexistent", func(p string, d fs.DirEntry, err error) error {
+		err := n.Walk("nonexistent", func(p string, d fs.DirEntry, err error) error {
 			called = true
 			return err
 		}, WalkOptions{SkipErrors: true})

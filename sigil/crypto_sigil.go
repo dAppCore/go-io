@@ -170,7 +170,10 @@ func (obfuscator *ShuffleMaskObfuscator) deriveMask(entropy []byte, length int) 
 	return mask
 }
 
-// Example: cipherSigil, _ := sigil.NewChaChaPolySigilWithObfuscator(key, &sigil.ShuffleMaskObfuscator{})
+// Example: cipherSigil, _ := sigil.NewChaChaPolySigil(
+// Example:     key,
+// Example:     &sigil.ShuffleMaskObfuscator{},
+// Example: )
 type ChaChaPolySigil struct {
 	Key          []byte
 	Obfuscator   PreObfuscator
@@ -180,7 +183,7 @@ type ChaChaPolySigil struct {
 // Example: cipherSigil, _ := sigil.NewChaChaPolySigil([]byte("0123456789abcdef0123456789abcdef"))
 // Example: ciphertext, _ := cipherSigil.In([]byte("payload"))
 // Example: plaintext, _ := cipherSigil.Out(ciphertext)
-func NewChaChaPolySigil(key []byte) (*ChaChaPolySigil, error) {
+func NewChaChaPolySigil(key []byte, obfuscators ...PreObfuscator) (*ChaChaPolySigil, error) {
 	if len(key) != 32 {
 		return nil, InvalidKeyError
 	}
@@ -188,21 +191,26 @@ func NewChaChaPolySigil(key []byte) (*ChaChaPolySigil, error) {
 	keyCopy := make([]byte, 32)
 	copy(keyCopy, key)
 
+	obfuscator := PreObfuscator(&XORObfuscator{})
+	if len(obfuscators) > 0 && obfuscators[0] != nil {
+		obfuscator = obfuscators[0]
+	}
+
 	return &ChaChaPolySigil{
 		Key:          keyCopy,
-		Obfuscator:   &XORObfuscator{},
+		Obfuscator:   obfuscator,
 		randomReader: rand.Reader,
 	}, nil
 }
 
-// Example: cipherSigil, _ := sigil.NewChaChaPolySigilWithObfuscator(
+// Example: cipherSigil, _ := sigil.NewChaChaPolySigil(
 // Example:     []byte("0123456789abcdef0123456789abcdef"),
 // Example:     &sigil.ShuffleMaskObfuscator{},
 // Example: )
 // Example: ciphertext, _ := cipherSigil.In([]byte("payload"))
 // Example: plaintext, _ := cipherSigil.Out(ciphertext)
 func NewChaChaPolySigilWithObfuscator(key []byte, obfuscator PreObfuscator) (*ChaChaPolySigil, error) {
-	cipherSigil, err := NewChaChaPolySigil(key)
+	cipherSigil, err := NewChaChaPolySigil(key, obfuscator)
 	if err != nil {
 		return nil, err
 	}
