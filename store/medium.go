@@ -151,7 +151,7 @@ func (medium *Medium) List(entryPath string) ([]fs.DirEntry, error) {
 	group, key := splitGroupKeyPath(entryPath)
 
 	if group == "" {
-		rows, err := medium.store.database.Query("SELECT DISTINCT grp FROM kv ORDER BY grp")
+		rows, err := medium.store.database.Query("SELECT DISTINCT group_name FROM entries ORDER BY group_name")
 		if err != nil {
 			return nil, core.E("store.List", "query groups", err)
 		}

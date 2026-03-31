@@ -44,7 +44,7 @@ func TestMemoryMedium_NewDirEntry_Good(t *testing.T) {
 	assert.Equal(t, int64(8), entryInfo.Size())
 }
 
-func TestClient_MockMedium_Read_Good(t *testing.T) {
+func TestMockMedium_Read_Good(t *testing.T) {
 	m := NewMockMedium()
 	m.files["test.txt"] = "hello world"
 	content, err := m.Read("test.txt")
@@ -52,13 +52,13 @@ func TestClient_MockMedium_Read_Good(t *testing.T) {
 	assert.Equal(t, "hello world", content)
 }
 
-func TestClient_MockMedium_Read_Bad(t *testing.T) {
+func TestMockMedium_Read_Bad(t *testing.T) {
 	m := NewMockMedium()
 	_, err := m.Read("nonexistent.txt")
 	assert.Error(t, err)
 }
 
-func TestClient_MockMedium_Write_Good(t *testing.T) {
+func TestMockMedium_Write_Good(t *testing.T) {
 	m := NewMockMedium()
 	err := m.Write("test.txt", "content")
 	assert.NoError(t, err)
@@ -69,7 +69,7 @@ func TestClient_MockMedium_Write_Good(t *testing.T) {
 	assert.Equal(t, "new content", m.files["test.txt"])
 }
 
-func TestClient_MockMedium_WriteMode_Good(t *testing.T) {
+func TestMockMedium_WriteMode_Good(t *testing.T) {
 	m := NewMockMedium()
 
 	err := m.WriteMode("secure.txt", "secret", 0600)
@@ -80,14 +80,14 @@ func TestClient_MockMedium_WriteMode_Good(t *testing.T) {
 	assert.Equal(t, "secret", content)
 }
 
-func TestClient_MockMedium_EnsureDir_Good(t *testing.T) {
+func TestMockMedium_EnsureDir_Good(t *testing.T) {
 	m := NewMockMedium()
 	err := m.EnsureDir("/path/to/dir")
 	assert.NoError(t, err)
 	assert.True(t, m.dirs["/path/to/dir"])
 }
 
-func TestClient_MockMedium_IsFile_Good(t *testing.T) {
+func TestMockMedium_IsFile_Good(t *testing.T) {
 	m := NewMockMedium()
 	m.files["exists.txt"] = "content"
 
@@ -95,7 +95,7 @@ func TestClient_MockMedium_IsFile_Good(t *testing.T) {
 	assert.False(t, m.IsFile("nonexistent.txt"))
 }
 
-func TestClient_MockMedium_FileGet_Good(t *testing.T) {
+func TestMockMedium_FileGet_Good(t *testing.T) {
 	m := NewMockMedium()
 	m.files["test.txt"] = "content"
 	content, err := m.FileGet("test.txt")
@@ -103,14 +103,14 @@ func TestClient_MockMedium_FileGet_Good(t *testing.T) {
 	assert.Equal(t, "content", content)
 }
 
-func TestClient_MockMedium_FileSet_Good(t *testing.T) {
+func TestMockMedium_FileSet_Good(t *testing.T) {
 	m := NewMockMedium()
 	err := m.FileSet("test.txt", "content")
 	assert.NoError(t, err)
 	assert.Equal(t, "content", m.files["test.txt"])
 }
 
-func TestClient_MockMedium_Delete_Good(t *testing.T) {
+func TestMockMedium_Delete_Good(t *testing.T) {
 	m := NewMockMedium()
 	m.files["test.txt"] = "content"
 
@@ -119,13 +119,13 @@ func TestClient_MockMedium_Delete_Good(t *testing.T) {
 	assert.False(t, m.IsFile("test.txt"))
 }
 
-func TestClient_MockMedium_Delete_NotFound_Bad(t *testing.T) {
+func TestMockMedium_Delete_NotFound_Bad(t *testing.T) {
 	m := NewMockMedium()
 	err := m.Delete("nonexistent.txt")
 	assert.Error(t, err)
 }
 
-func TestClient_MockMedium_Delete_DirNotEmpty_Bad(t *testing.T) {
+func TestMockMedium_Delete_DirNotEmpty_Bad(t *testing.T) {
 	m := NewMockMedium()
 	m.dirs["mydir"] = true
 	m.files["mydir/file.txt"] = "content"
@@ -134,7 +134,7 @@ func TestClient_MockMedium_Delete_DirNotEmpty_Bad(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestClient_MockMedium_DeleteAll_Good(t *testing.T) {
+func TestMockMedium_DeleteAll_Good(t *testing.T) {
 	m := NewMockMedium()
 	m.dirs["mydir"] = true
 	m.dirs["mydir/subdir"] = true
@@ -147,7 +147,7 @@ func TestClient_MockMedium_DeleteAll_Good(t *testing.T) {
 	assert.Empty(t, m.files)
 }
 
-func TestClient_MockMedium_Rename_Good(t *testing.T) {
+func TestMockMedium_Rename_Good(t *testing.T) {
 	m := NewMockMedium()
 	m.files["old.txt"] = "content"
 
@@ -158,7 +158,7 @@ func TestClient_MockMedium_Rename_Good(t *testing.T) {
 	assert.Equal(t, "content", m.files["new.txt"])
 }
 
-func TestClient_MockMedium_Rename_Dir_Good(t *testing.T) {
+func TestMockMedium_Rename_Dir_Good(t *testing.T) {
 	m := NewMockMedium()
 	m.dirs["olddir"] = true
 	m.files["olddir/file.txt"] = "content"
@@ -170,7 +170,7 @@ func TestClient_MockMedium_Rename_Dir_Good(t *testing.T) {
 	assert.Equal(t, "content", m.files["newdir/file.txt"])
 }
 
-func TestClient_MockMedium_List_Good(t *testing.T) {
+func TestMockMedium_List_Good(t *testing.T) {
 	m := NewMockMedium()
 	m.dirs["mydir"] = true
 	m.files["mydir/file1.txt"] = "content1"
@@ -190,7 +190,7 @@ func TestClient_MockMedium_List_Good(t *testing.T) {
 	assert.True(t, names["subdir"])
 }
 
-func TestClient_MockMedium_Stat_Good(t *testing.T) {
+func TestMockMedium_Stat_Good(t *testing.T) {
 	m := NewMockMedium()
 	m.files["test.txt"] = "hello world"
 
@@ -201,7 +201,7 @@ func TestClient_MockMedium_Stat_Good(t *testing.T) {
 	assert.False(t, info.IsDir())
 }
 
-func TestClient_MockMedium_Stat_Dir_Good(t *testing.T) {
+func TestMockMedium_Stat_Dir_Good(t *testing.T) {
 	m := NewMockMedium()
 	m.dirs["mydir"] = true
 
@@ -211,7 +211,7 @@ func TestClient_MockMedium_Stat_Dir_Good(t *testing.T) {
 	assert.True(t, info.IsDir())
 }
 
-func TestClient_MockMedium_Exists_Good(t *testing.T) {
+func TestMockMedium_Exists_Good(t *testing.T) {
 	m := NewMockMedium()
 	m.files["file.txt"] = "content"
 	m.dirs["mydir"] = true
@@ -221,7 +221,7 @@ func TestClient_MockMedium_Exists_Good(t *testing.T) {
 	assert.False(t, m.Exists("nonexistent"))
 }
 
-func TestClient_MockMedium_IsDir_Good(t *testing.T) {
+func TestMockMedium_IsDir_Good(t *testing.T) {
 	m := NewMockMedium()
 	m.files["file.txt"] = "content"
 	m.dirs["mydir"] = true
@@ -231,7 +231,7 @@ func TestClient_MockMedium_IsDir_Good(t *testing.T) {
 	assert.False(t, m.IsDir("nonexistent"))
 }
 
-func TestClient_MockMedium_StreamAndFSHelpers_Good(t *testing.T) {
+func TestMockMedium_StreamAndFSHelpers_Good(t *testing.T) {
 	m := NewMockMedium()
 	require.NoError(t, m.EnsureDir("dir"))
 	require.NoError(t, m.Write("dir/file.txt", "alpha"))
@@ -293,7 +293,7 @@ func TestClient_MockMedium_StreamAndFSHelpers_Good(t *testing.T) {
 	assert.Equal(t, "stream output", m.files["streamed.txt"])
 }
 
-func TestClient_Read_Good(t *testing.T) {
+func TestIO_Read_Good(t *testing.T) {
 	m := NewMockMedium()
 	m.files["test.txt"] = "hello"
 	content, err := Read(m, "test.txt")
@@ -301,21 +301,21 @@ func TestClient_Read_Good(t *testing.T) {
 	assert.Equal(t, "hello", content)
 }
 
-func TestClient_Write_Good(t *testing.T) {
+func TestIO_Write_Good(t *testing.T) {
 	m := NewMockMedium()
 	err := Write(m, "test.txt", "hello")
 	assert.NoError(t, err)
 	assert.Equal(t, "hello", m.files["test.txt"])
 }
 
-func TestClient_EnsureDir_Good(t *testing.T) {
+func TestIO_EnsureDir_Good(t *testing.T) {
 	m := NewMockMedium()
 	err := EnsureDir(m, "/my/dir")
 	assert.NoError(t, err)
 	assert.True(t, m.dirs["/my/dir"])
 }
 
-func TestClient_IsFile_Good(t *testing.T) {
+func TestIO_IsFile_Good(t *testing.T) {
 	m := NewMockMedium()
 	m.files["exists.txt"] = "content"
 
@@ -323,7 +323,7 @@ func TestClient_IsFile_Good(t *testing.T) {
 	assert.False(t, IsFile(m, "nonexistent.txt"))
 }
 
-func TestClient_NewSandboxed_Good(t *testing.T) {
+func TestIO_NewSandboxed_Good(t *testing.T) {
 	root := t.TempDir()
 
 	m, err := NewSandboxed(root)
@@ -337,7 +337,7 @@ func TestClient_NewSandboxed_Good(t *testing.T) {
 	assert.True(t, m.IsDir("config"))
 }
 
-func TestClient_ReadWriteStream_Good(t *testing.T) {
+func TestIO_ReadWriteStream_Good(t *testing.T) {
 	m := NewMockMedium()
 
 	writer, err := WriteStream(m, "logs/run.txt")
@@ -354,7 +354,7 @@ func TestClient_ReadWriteStream_Good(t *testing.T) {
 	require.NoError(t, reader.Close())
 }
 
-func TestClient_Copy_Good(t *testing.T) {
+func TestIO_Copy_Good(t *testing.T) {
 	source := NewMockMedium()
 	dest := NewMockMedium()
 	source.files["test.txt"] = "hello"
@@ -368,14 +368,14 @@ func TestClient_Copy_Good(t *testing.T) {
 	assert.Equal(t, "content", dest.files["copied.txt"])
 }
 
-func TestClient_Copy_Bad(t *testing.T) {
+func TestIO_Copy_Bad(t *testing.T) {
 	source := NewMockMedium()
 	dest := NewMockMedium()
 	err := Copy(source, "nonexistent.txt", dest, "dest.txt")
 	assert.Error(t, err)
 }
 
-func TestClient_LocalGlobal_Good(t *testing.T) {
+func TestIO_LocalGlobal_Good(t *testing.T) {
 	assert.NotNil(t, Local, "io.Local should be initialised")
 
 	var m = Local

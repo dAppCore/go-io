@@ -60,11 +60,11 @@ func TestStore_Delete_Good(t *testing.T) {
 func TestStore_Count_Good(t *testing.T) {
 	s := newTestStore(t)
 
-	_ = s.Set("grp", "a", "1")
-	_ = s.Set("grp", "b", "2")
+	_ = s.Set("group", "a", "1")
+	_ = s.Set("group", "b", "2")
 	_ = s.Set("other", "c", "3")
 
-	n, err := s.Count("grp")
+	n, err := s.Count("group")
 	require.NoError(t, err)
 	assert.Equal(t, 2, n)
 }
@@ -72,23 +72,23 @@ func TestStore_Count_Good(t *testing.T) {
 func TestStore_DeleteGroup_Good(t *testing.T) {
 	s := newTestStore(t)
 
-	_ = s.Set("grp", "a", "1")
-	_ = s.Set("grp", "b", "2")
-	err := s.DeleteGroup("grp")
+	_ = s.Set("group", "a", "1")
+	_ = s.Set("group", "b", "2")
+	err := s.DeleteGroup("group")
 	require.NoError(t, err)
 
-	n, _ := s.Count("grp")
+	n, _ := s.Count("group")
 	assert.Equal(t, 0, n)
 }
 
 func TestStore_GetAll_Good(t *testing.T) {
 	s := newTestStore(t)
 
-	_ = s.Set("grp", "a", "1")
-	_ = s.Set("grp", "b", "2")
+	_ = s.Set("group", "a", "1")
+	_ = s.Set("group", "b", "2")
 	_ = s.Set("other", "c", "3")
 
-	all, err := s.GetAll("grp")
+	all, err := s.GetAll("group")
 	require.NoError(t, err)
 	assert.Equal(t, map[string]string{"a": "1", "b": "2"}, all)
 }
