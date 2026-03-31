@@ -11,7 +11,11 @@ import (
 	"dappco.re/go/core/io"
 )
 
-// Example: service, _ := workspace.New(workspace.Options{KeyPairProvider: keyPairProvider})
+// Example: service, _ := workspace.New(workspace.Options{
+// Example:     KeyPairProvider: keyPairProvider,
+// Example:     RootPath: "/srv/workspaces",
+// Example:     Medium: io.NewMemoryMedium(),
+// Example: })
 type Workspace interface {
 	CreateWorkspace(identifier, password string) (string, error)
 	SwitchWorkspace(workspaceID string) error
@@ -37,12 +41,22 @@ type WorkspaceCommand struct {
 	WorkspaceID string
 }
 
-// Example: service, _ := workspace.New(workspace.Options{KeyPairProvider: keyPairProvider})
+// Example: service, _ := workspace.New(workspace.Options{
+// Example:     KeyPairProvider: keyPairProvider,
+// Example:     RootPath: "/srv/workspaces",
+// Example:     Medium: io.NewMemoryMedium(),
+// Example: })
 type Options struct {
 	KeyPairProvider KeyPairProvider
+	RootPath        string
+	Medium          io.Medium
 }
 
-// Example: service, _ := workspace.New(workspace.Options{KeyPairProvider: keyPairProvider})
+// Example: service, _ := workspace.New(workspace.Options{
+// Example:     KeyPairProvider: keyPairProvider,
+// Example:     RootPath: "/srv/workspaces",
+// Example:     Medium: io.NewMemoryMedium(),
+// Example: })
 type Service struct {
 	keyPairProvider   KeyPairProvider
 	activeWorkspaceID string
@@ -53,23 +67,38 @@ type Service struct {
 
 var _ Workspace = (*Service)(nil)
 
-// Example: service, _ := workspace.New(workspace.Options{KeyPairProvider: keyPairProvider})
+// Example: service, _ := workspace.New(workspace.Options{
+// Example:     KeyPairProvider: keyPairProvider,
+// Example:     RootPath: "/srv/workspaces",
+// Example:     Medium: io.NewMemoryMedium(),
+// Example: })
 // Example: workspaceID, _ := service.CreateWorkspace("alice", "pass123")
 func New(options Options) (*Service, error) {
-	home := resolveWorkspaceHomeDirectory()
-	if home == "" {
-		return nil, core.E("workspace.New", "failed to determine home directory", fs.ErrNotExist)
+	rootPath := options.RootPath
+	if rootPath == "" {
+		home := resolveWorkspaceHomeDirectory()
+		if home == "" {
+			return nil, core.E("workspace.New", "failed to determine home directory", fs.ErrNotExist)
+		}
+		rootPath = core.Path(home, ".core", "workspaces")
 	}
-	rootPath := core.Path(home, ".core", "workspaces")
 
 	if options.KeyPairProvider == nil {
 		return nil, core.E("workspace.New", "key pair provider is required", fs.ErrInvalid)
 	}
 
+	medium := options.Medium
+	if medium == nil {
+		medium = io.Local
+	}
+	if medium == nil {
+		return nil, core.E("workspace.New", "storage medium is required", fs.ErrInvalid)
+	}
+
 	service := &Service{
 		keyPairProvider: options.KeyPairProvider,
 		rootPath:        rootPath,
-		medium:          io.Local,
+		medium:          medium,
 	}
 
 	if err := service.medium.EnsureDir(rootPath); err != nil {

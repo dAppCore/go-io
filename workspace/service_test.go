@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	core "dappco.re/go/core"
+	coreio "dappco.re/go/core/io"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -34,6 +35,29 @@ func newTestService(t *testing.T) (*Service, string) {
 func TestService_New_MissingKeyPairProvider_Bad(t *testing.T) {
 	_, err := New(Options{})
 	require.Error(t, err)
+}
+
+func TestService_New_CustomRootPathAndMedium_Good(t *testing.T) {
+	medium := coreio.NewMemoryMedium()
+	rootPath := core.Path(t.TempDir(), "custom", "workspaces")
+
+	service, err := New(Options{
+		KeyPairProvider: stubKeyPairProvider{key: "private-key"},
+		RootPath:        rootPath,
+		Medium:          medium,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, rootPath, service.rootPath)
+	assert.Same(t, medium, service.medium)
+
+	workspaceID, err := service.CreateWorkspace("custom-user", "pass123")
+	require.NoError(t, err)
+	assert.NotEmpty(t, workspaceID)
+
+	expectedWorkspacePath := core.Path(rootPath, workspaceID)
+	assert.True(t, medium.IsDir(rootPath))
+	assert.True(t, medium.IsDir(core.Path(expectedWorkspacePath, "keys")))
+	assert.True(t, medium.Exists(core.Path(expectedWorkspacePath, "keys", "private.key")))
 }
 
 func TestService_WorkspaceFileRoundTrip_Good(t *testing.T) {
