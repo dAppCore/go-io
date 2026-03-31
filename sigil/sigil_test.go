@@ -14,187 +14,187 @@ import (
 )
 
 func TestSigil_ReverseSigil_Good(t *testing.T) {
-	s := &ReverseSigil{}
+	reverseSigil := &ReverseSigil{}
 
-	out, err := s.In([]byte("hello"))
+	out, err := reverseSigil.In([]byte("hello"))
 	require.NoError(t, err)
 	assert.Equal(t, []byte("olleh"), out)
 
-	restored, err := s.Out(out)
+	restored, err := reverseSigil.Out(out)
 	require.NoError(t, err)
 	assert.Equal(t, []byte("hello"), restored)
 }
 
 func TestSigil_ReverseSigil_Bad(t *testing.T) {
-	s := &ReverseSigil{}
+	reverseSigil := &ReverseSigil{}
 
-	out, err := s.In([]byte{})
+	out, err := reverseSigil.In([]byte{})
 	require.NoError(t, err)
 	assert.Equal(t, []byte{}, out)
 }
 
 func TestSigil_ReverseSigil_NilInput_Good(t *testing.T) {
-	s := &ReverseSigil{}
+	reverseSigil := &ReverseSigil{}
 
-	out, err := s.In(nil)
+	out, err := reverseSigil.In(nil)
 	require.NoError(t, err)
 	assert.Nil(t, out)
 
-	out, err = s.Out(nil)
+	out, err = reverseSigil.Out(nil)
 	require.NoError(t, err)
 	assert.Nil(t, out)
 }
 
 func TestSigil_HexSigil_Good(t *testing.T) {
-	s := &HexSigil{}
+	hexSigil := &HexSigil{}
 	data := []byte("hello world")
 
-	encoded, err := s.In(data)
+	encoded, err := hexSigil.In(data)
 	require.NoError(t, err)
 	assert.Equal(t, []byte(hex.EncodeToString(data)), encoded)
 
-	decoded, err := s.Out(encoded)
+	decoded, err := hexSigil.Out(encoded)
 	require.NoError(t, err)
 	assert.Equal(t, data, decoded)
 }
 
 func TestSigil_HexSigil_Bad(t *testing.T) {
-	s := &HexSigil{}
+	hexSigil := &HexSigil{}
 
-	_, err := s.Out([]byte("zzzz"))
+	_, err := hexSigil.Out([]byte("zzzz"))
 	assert.Error(t, err)
 
-	out, err := s.In([]byte{})
+	out, err := hexSigil.In([]byte{})
 	require.NoError(t, err)
 	assert.Equal(t, []byte{}, out)
 }
 
 func TestSigil_HexSigil_NilInput_Good(t *testing.T) {
-	s := &HexSigil{}
+	hexSigil := &HexSigil{}
 
-	out, err := s.In(nil)
+	out, err := hexSigil.In(nil)
 	require.NoError(t, err)
 	assert.Nil(t, out)
 
-	out, err = s.Out(nil)
+	out, err = hexSigil.Out(nil)
 	require.NoError(t, err)
 	assert.Nil(t, out)
 }
 
 func TestSigil_Base64Sigil_Good(t *testing.T) {
-	s := &Base64Sigil{}
+	base64Sigil := &Base64Sigil{}
 	data := []byte("composable transforms")
 
-	encoded, err := s.In(data)
+	encoded, err := base64Sigil.In(data)
 	require.NoError(t, err)
 	assert.Equal(t, []byte(base64.StdEncoding.EncodeToString(data)), encoded)
 
-	decoded, err := s.Out(encoded)
+	decoded, err := base64Sigil.Out(encoded)
 	require.NoError(t, err)
 	assert.Equal(t, data, decoded)
 }
 
 func TestSigil_Base64Sigil_Bad(t *testing.T) {
-	s := &Base64Sigil{}
+	base64Sigil := &Base64Sigil{}
 
-	_, err := s.Out([]byte("!!!"))
+	_, err := base64Sigil.Out([]byte("!!!"))
 	assert.Error(t, err)
 
-	out, err := s.In([]byte{})
+	out, err := base64Sigil.In([]byte{})
 	require.NoError(t, err)
 	assert.Equal(t, []byte{}, out)
 }
 
 func TestSigil_Base64Sigil_NilInput_Good(t *testing.T) {
-	s := &Base64Sigil{}
+	base64Sigil := &Base64Sigil{}
 
-	out, err := s.In(nil)
+	out, err := base64Sigil.In(nil)
 	require.NoError(t, err)
 	assert.Nil(t, out)
 
-	out, err = s.Out(nil)
+	out, err = base64Sigil.Out(nil)
 	require.NoError(t, err)
 	assert.Nil(t, out)
 }
 
 func TestSigil_GzipSigil_Good(t *testing.T) {
-	s := &GzipSigil{}
+	gzipSigil := &GzipSigil{}
 	data := []byte("the quick brown fox jumps over the lazy dog")
 
-	compressed, err := s.In(data)
+	compressed, err := gzipSigil.In(data)
 	require.NoError(t, err)
 	assert.NotEqual(t, data, compressed)
 
-	decompressed, err := s.Out(compressed)
+	decompressed, err := gzipSigil.Out(compressed)
 	require.NoError(t, err)
 	assert.Equal(t, data, decompressed)
 }
 
 func TestSigil_GzipSigil_Bad(t *testing.T) {
-	s := &GzipSigil{}
+	gzipSigil := &GzipSigil{}
 
-	_, err := s.Out([]byte("not gzip"))
+	_, err := gzipSigil.Out([]byte("not gzip"))
 	assert.Error(t, err)
 
-	compressed, err := s.In([]byte{})
+	compressed, err := gzipSigil.In([]byte{})
 	require.NoError(t, err)
 	assert.NotEmpty(t, compressed)
 
-	decompressed, err := s.Out(compressed)
+	decompressed, err := gzipSigil.Out(compressed)
 	require.NoError(t, err)
 	assert.Equal(t, []byte{}, decompressed)
 }
 
 func TestSigil_GzipSigil_NilInput_Good(t *testing.T) {
-	s := &GzipSigil{}
+	gzipSigil := &GzipSigil{}
 
-	out, err := s.In(nil)
+	out, err := gzipSigil.In(nil)
 	require.NoError(t, err)
 	assert.Nil(t, out)
 
-	out, err = s.Out(nil)
+	out, err = gzipSigil.Out(nil)
 	require.NoError(t, err)
 	assert.Nil(t, out)
 }
 
 func TestSigil_JSONSigil_Good(t *testing.T) {
-	s := &JSONSigil{Indent: false}
+	jsonSigil := &JSONSigil{Indent: false}
 	data := []byte(`{  "key" :   "value"  }`)
 
-	compacted, err := s.In(data)
+	compacted, err := jsonSigil.In(data)
 	require.NoError(t, err)
 	assert.Equal(t, []byte(`{"key":"value"}`), compacted)
 
-	passthrough, err := s.Out(compacted)
+	passthrough, err := jsonSigil.Out(compacted)
 	require.NoError(t, err)
 	assert.Equal(t, compacted, passthrough)
 }
 
 func TestSigil_JSONSigil_Indent_Good(t *testing.T) {
-	s := &JSONSigil{Indent: true}
+	jsonSigil := &JSONSigil{Indent: true}
 	data := []byte(`{"key":"value"}`)
 
-	indented, err := s.In(data)
+	indented, err := jsonSigil.In(data)
 	require.NoError(t, err)
 	assert.Contains(t, string(indented), "\n")
 	assert.Contains(t, string(indented), "  ")
 }
 
 func TestSigil_JSONSigil_Bad(t *testing.T) {
-	s := &JSONSigil{Indent: false}
+	jsonSigil := &JSONSigil{Indent: false}
 
-	_, err := s.In([]byte("not json"))
+	_, err := jsonSigil.In([]byte("not json"))
 	assert.Error(t, err)
 }
 
 func TestSigil_JSONSigil_NilInput_Good(t *testing.T) {
-	s := &JSONSigil{Indent: false}
+	jsonSigil := &JSONSigil{Indent: false}
 
-	out, err := s.In(nil)
+	out, err := jsonSigil.In(nil)
 	require.NoError(t, err)
 	assert.Nil(t, out)
 
-	out, err = s.Out(nil)
+	out, err = jsonSigil.Out(nil)
 	require.NoError(t, err)
 	assert.Nil(t, out)
 }
@@ -229,14 +229,14 @@ func TestSigil_HashSigil_Good(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, err := NewSigil(tt.sigilName)
+			sigilValue, err := NewSigil(tt.sigilName)
 			require.NoError(t, err)
 
-			hashed, err := s.In(data)
+			hashed, err := sigilValue.In(data)
 			require.NoError(t, err)
 			assert.Len(t, hashed, tt.size)
 
-			passthrough, err := s.Out(hashed)
+			passthrough, err := sigilValue.Out(hashed)
 			require.NoError(t, err)
 			assert.Equal(t, hashed, passthrough)
 		})
@@ -244,17 +244,17 @@ func TestSigil_HashSigil_Good(t *testing.T) {
 }
 
 func TestSigil_HashSigil_Bad(t *testing.T) {
-	s := &HashSigil{Hash: 0}
-	_, err := s.In([]byte("data"))
+	hashSigil := &HashSigil{Hash: 0}
+	_, err := hashSigil.In([]byte("data"))
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "not available")
 }
 
 func TestSigil_HashSigil_EmptyInput_Good(t *testing.T) {
-	s, err := NewSigil("sha256")
+	sigilValue, err := NewSigil("sha256")
 	require.NoError(t, err)
 
-	hashed, err := s.In([]byte{})
+	hashed, err := sigilValue.In([]byte{})
 	require.NoError(t, err)
 	assert.Len(t, hashed, sha256.Size)
 }
@@ -271,9 +271,9 @@ func TestSigil_NewSigil_Good(t *testing.T) {
 
 	for _, name := range names {
 		t.Run(name, func(t *testing.T) {
-			s, err := NewSigil(name)
+			sigilValue, err := NewSigil(name)
 			require.NoError(t, err)
-			assert.NotNil(t, s)
+			assert.NotNil(t, sigilValue)
 		})
 	}
 }

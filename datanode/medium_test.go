@@ -185,15 +185,15 @@ func TestDataNode_RenameDir_Good(t *testing.T) {
 	require.NoError(t, m.Write("src/a.go", "package a"))
 	require.NoError(t, m.Write("src/sub/b.go", "package b"))
 
-	require.NoError(t, m.Rename("src", "dst"))
+	require.NoError(t, m.Rename("src", "destination"))
 
 	assert.False(t, m.Exists("src/a.go"))
 
-	got, err := m.Read("dst/a.go")
+	got, err := m.Read("destination/a.go")
 	require.NoError(t, err)
 	assert.Equal(t, "package a", got)
 
-	got, err = m.Read("dst/sub/b.go")
+	got, err = m.Read("destination/sub/b.go")
 	require.NoError(t, err)
 	assert.Equal(t, "package b", got)
 }
@@ -210,7 +210,7 @@ func TestDataNode_RenameDir_ReadFailure_Bad(t *testing.T) {
 		dataNodeReadAll = original
 	})
 
-	err := m.Rename("src", "dst")
+	err := m.Rename("src", "destination")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to read source file")
 }

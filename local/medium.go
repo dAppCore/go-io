@@ -387,13 +387,13 @@ func isSymlink(mode uint32) bool {
 func readlink(path string) (string, error) {
 	size := 256
 	for {
-		buf := make([]byte, size)
-		n, err := syscall.Readlink(path, buf)
+		linkBuffer := make([]byte, size)
+		bytesRead, err := syscall.Readlink(path, linkBuffer)
 		if err != nil {
 			return "", err
 		}
-		if n < len(buf) {
-			return string(buf[:n]), nil
+		if bytesRead < len(linkBuffer) {
+			return string(linkBuffer[:bytesRead]), nil
 		}
 		size *= 2
 	}

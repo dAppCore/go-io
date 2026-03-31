@@ -107,9 +107,9 @@ func TestStore_Render_Good(t *testing.T) {
 	_ = keyValueStore.Set("user", "pool", "pool.lthn.io:3333")
 	_ = keyValueStore.Set("user", "wallet", "iz...")
 
-	tmpl := `{"pool":"{{ .pool }}","wallet":"{{ .wallet }}"}`
-	out, err := keyValueStore.Render(tmpl, "user")
+	templateText := `{"pool":"{{ .pool }}","wallet":"{{ .wallet }}"}`
+	renderedText, err := keyValueStore.Render(templateText, "user")
 	require.NoError(t, err)
-	assert.Contains(t, out, "pool.lthn.io:3333")
-	assert.Contains(t, out, "iz...")
+	assert.Contains(t, renderedText, "pool.lthn.io:3333")
+	assert.Contains(t, renderedText, "iz...")
 }

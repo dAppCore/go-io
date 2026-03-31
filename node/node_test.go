@@ -69,10 +69,10 @@ func TestNode_Open_Good(t *testing.T) {
 	require.NoError(t, err)
 	defer file.Close()
 
-	buf := make([]byte, 10)
-	nr, err := file.Read(buf)
+	readBuffer := make([]byte, 10)
+	nr, err := file.Read(readBuffer)
 	require.True(t, nr > 0 || err == io.EOF)
-	assert.Equal(t, "foo", string(buf[:nr]))
+	assert.Equal(t, "foo", string(readBuffer[:nr]))
 }
 
 func TestNode_Open_Bad(t *testing.T) {
@@ -93,9 +93,9 @@ func TestNode_Open_Directory_Good(t *testing.T) {
 	_, err = file.Read(make([]byte, 1))
 	require.Error(t, err)
 
-	var pathErr *fs.PathError
-	require.True(t, core.As(err, &pathErr))
-	assert.Equal(t, fs.ErrInvalid, pathErr.Err)
+	var pathError *fs.PathError
+	require.True(t, core.As(err, &pathError))
+	assert.Equal(t, fs.ErrInvalid, pathError.Err)
 }
 
 func TestNode_Stat_Good(t *testing.T) {
@@ -182,9 +182,9 @@ func TestNode_ReadDir_Bad(t *testing.T) {
 
 	_, err := nodeTree.ReadDir("foo.txt")
 	require.Error(t, err)
-	var pathErr *fs.PathError
-	require.True(t, core.As(err, &pathErr))
-	assert.Equal(t, fs.ErrInvalid, pathErr.Err)
+	var pathError *fs.PathError
+	require.True(t, core.As(err, &pathError))
+	assert.Equal(t, fs.ErrInvalid, pathError.Err)
 }
 
 func TestNode_ReadDir_IgnoresEmptyEntry_Good(t *testing.T) {
@@ -317,20 +317,20 @@ func TestNode_CopyFile_Good(t *testing.T) {
 	nodeTree := New()
 	nodeTree.AddData("foo.txt", []byte("foo"))
 
-	tmpfile := core.Path(t.TempDir(), "test.txt")
-	err := nodeTree.CopyFile("foo.txt", tmpfile, 0644)
+	destinationPath := core.Path(t.TempDir(), "test.txt")
+	err := nodeTree.CopyFile("foo.txt", destinationPath, 0644)
 	require.NoError(t, err)
 
-	content, err := coreio.Local.Read(tmpfile)
+	content, err := coreio.Local.Read(destinationPath)
 	require.NoError(t, err)
 	assert.Equal(t, "foo", content)
 }
 
 func TestNode_CopyFile_Bad(t *testing.T) {
 	nodeTree := New()
-	tmpfile := core.Path(t.TempDir(), "test.txt")
+	destinationPath := core.Path(t.TempDir(), "test.txt")
 
-	err := nodeTree.CopyFile("nonexistent.txt", tmpfile, 0644)
+	err := nodeTree.CopyFile("nonexistent.txt", destinationPath, 0644)
 	assert.Error(t, err)
 
 	nodeTree.AddData("foo.txt", []byte("foo"))
@@ -341,9 +341,9 @@ func TestNode_CopyFile_Bad(t *testing.T) {
 func TestNode_CopyFile_DirectorySource_Bad(t *testing.T) {
 	nodeTree := New()
 	nodeTree.AddData("bar/baz.txt", []byte("baz"))
-	tmpfile := core.Path(t.TempDir(), "test.txt")
+	destinationPath := core.Path(t.TempDir(), "test.txt")
 
-	err := nodeTree.CopyFile("bar", tmpfile, 0644)
+	err := nodeTree.CopyFile("bar", destinationPath, 0644)
 	assert.Error(t, err)
 }
 

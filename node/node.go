@@ -174,8 +174,8 @@ func (node *Node) ReadFile(name string) ([]byte, error) {
 	return result, nil
 }
 
-// Example: _ = nodeTree.CopyFile("config/app.yaml", "/tmp/app.yaml", 0644)
-func (node *Node) CopyFile(sourcePath, destinationPath string, perm fs.FileMode) error {
+// Example: _ = nodeTree.CopyFile("config/app.yaml", "backup/app.yaml", 0644)
+func (node *Node) CopyFile(sourcePath, destinationPath string, permissions fs.FileMode) error {
 	sourcePath = core.TrimPrefix(sourcePath, "/")
 	file, ok := node.files[sourcePath]
 	if !ok {
@@ -192,11 +192,11 @@ func (node *Node) CopyFile(sourcePath, destinationPath string, perm fs.FileMode)
 	if parent != "." && parent != "" && parent != destinationPath && !coreio.Local.IsDir(parent) {
 		return &fs.PathError{Op: "copyfile", Path: destinationPath, Err: fs.ErrNotExist}
 	}
-	return coreio.Local.WriteMode(destinationPath, string(file.content), perm)
+	return coreio.Local.WriteMode(destinationPath, string(file.content), permissions)
 }
 
 // Example: _ = nodeTree.CopyTo(io.NewMemoryMedium(), "config", "backup/config")
-func (node *Node) CopyTo(target coreio.Medium, sourcePath, destPath string) error {
+func (node *Node) CopyTo(target coreio.Medium, sourcePath, destinationPath string) error {
 	sourcePath = core.TrimPrefix(sourcePath, "/")
 	info, err := node.Stat(sourcePath)
 	if err != nil {
@@ -208,7 +208,7 @@ func (node *Node) CopyTo(target coreio.Medium, sourcePath, destPath string) erro
 		if !ok {
 			return core.E("node.CopyTo", core.Concat("path not found: ", sourcePath), fs.ErrNotExist)
 		}
-		return target.Write(destPath, string(file.content))
+		return target.Write(destinationPath, string(file.content))
 	}
 
 	prefix := sourcePath
@@ -220,12 +220,12 @@ func (node *Node) CopyTo(target coreio.Medium, sourcePath, destPath string) erro
 		if !core.HasPrefix(filePath, prefix) && filePath != sourcePath {
 			continue
 		}
-		rel := core.TrimPrefix(filePath, prefix)
-		dest := destPath
-		if rel != "" {
-			dest = core.Concat(destPath, "/", rel)
+		relativePath := core.TrimPrefix(filePath, prefix)
+		copyDestinationPath := destinationPath
+		if relativePath != "" {
+			copyDestinationPath = core.Concat(destinationPath, "/", relativePath)
 		}
-		if err := target.Write(dest, string(file.content)); err != nil {
+		if err := target.Write(copyDestinationPath, string(file.content)); err != nil {
 			return err
 		}
 	}
@@ -438,7 +438,7 @@ func (node *Node) Append(filePath string) (goio.WriteCloser, error) {
 		existing = make([]byte, len(file.content))
 		copy(existing, file.content)
 	}
-	return &nodeWriter{node: node, path: filePath, buf: existing}, nil
+	return &nodeWriter{node: node, path: filePath, buffer: existing}, nil
 }
 
 func (node *Node) ReadStream(filePath string) (goio.ReadCloser, error) {
@@ -454,20 +454,20 @@ func (node *Node) WriteStream(filePath string) (goio.WriteCloser, error) {
 }
 
 type nodeWriter struct {
-	node *Node
-	path string
-	buf  []byte
+	node   *Node
+	path   string
+	buffer []byte
 }
 
 func (writer *nodeWriter) Write(data []byte) (int, error) {
-	writer.buf = append(writer.buf, data...)
+	writer.buffer = append(writer.buffer, data...)
 	return len(data), nil
 }
 
 func (writer *nodeWriter) Close() error {
 	writer.node.files[writer.path] = &dataFile{
 		name:    writer.path,
-		content: writer.buf,
+		content: writer.buffer,
 		modTime: time.Now(),
 	}
 	return nil

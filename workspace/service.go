@@ -25,7 +25,7 @@ type Workspace interface {
 
 // Example: key, _ := keyPairProvider.CreateKeyPair("alice", "pass123")
 type KeyPairProvider interface {
-	CreateKeyPair(name, passphrase string) (string, error)
+	CreateKeyPair(identifier, passphrase string) (string, error)
 }
 
 const (
@@ -202,7 +202,7 @@ func (service *Service) WriteWorkspaceFile(workspaceFilePath, content string) er
 	return service.medium.Write(filePath, content)
 }
 
-// Example: result := service.HandleWorkspaceCommand(WorkspaceCommand{Action: WorkspaceCreateAction, Identifier: "alice", Password: "pass123"})
+// Example: commandResult := service.HandleWorkspaceCommand(WorkspaceCommand{Action: WorkspaceCreateAction, Identifier: "alice", Password: "pass123"})
 func (service *Service) HandleWorkspaceCommand(command WorkspaceCommand) core.Result {
 	switch command.Action {
 	case WorkspaceCreateAction:
@@ -221,7 +221,7 @@ func (service *Service) HandleWorkspaceCommand(command WorkspaceCommand) core.Re
 }
 
 // Example: result := service.HandleWorkspaceMessage(core.New(), WorkspaceCommand{Action: WorkspaceSwitchAction, WorkspaceID: "f3f0d7"})
-func (service *Service) HandleWorkspaceMessage(_ *core.Core, message core.Message) core.Result {
+func (service *Service) HandleWorkspaceMessage(coreRuntime *core.Core, message core.Message) core.Result {
 	switch command := message.(type) {
 	case WorkspaceCommand:
 		return service.HandleWorkspaceCommand(command)

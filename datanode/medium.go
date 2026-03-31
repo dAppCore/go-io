@@ -425,7 +425,7 @@ func (medium *Medium) Append(filePath string) (goio.WriteCloser, error) {
 	}
 	medium.lock.RUnlock()
 
-	return &writeCloser{medium: medium, path: filePath, buf: existing}, nil
+	return &writeCloser{medium: medium, path: filePath, buffer: existing}, nil
 }
 
 func (medium *Medium) ReadStream(filePath string) (goio.ReadCloser, error) {
@@ -545,11 +545,11 @@ func (medium *Medium) removeFileLocked(target string) error {
 type writeCloser struct {
 	medium *Medium
 	path   string
-	buf    []byte
+	buffer []byte
 }
 
 func (writer *writeCloser) Write(data []byte) (int, error) {
-	writer.buf = append(writer.buf, data...)
+	writer.buffer = append(writer.buffer, data...)
 	return len(data), nil
 }
 
@@ -557,7 +557,7 @@ func (writer *writeCloser) Close() error {
 	writer.medium.lock.Lock()
 	defer writer.medium.lock.Unlock()
 
-	writer.medium.dataNode.AddData(writer.path, writer.buf)
+	writer.medium.dataNode.AddData(writer.path, writer.buffer)
 	writer.medium.ensureDirsLocked(path.Dir(writer.path))
 	return nil
 }

@@ -58,17 +58,17 @@ func (obfuscator *XORObfuscator) transform(data []byte, entropy []byte) []byte {
 
 func (obfuscator *XORObfuscator) deriveKeyStream(entropy []byte, length int) []byte {
 	stream := make([]byte, length)
-	h := sha256.New()
+	hashFunction := sha256.New()
 
 	blockNum := uint64(0)
 	offset := 0
 	for offset < length {
-		h.Reset()
-		h.Write(entropy)
+		hashFunction.Reset()
+		hashFunction.Write(entropy)
 		var blockBytes [8]byte
 		binary.BigEndian.PutUint64(blockBytes[:], blockNum)
-		h.Write(blockBytes[:])
-		block := h.Sum(nil)
+		hashFunction.Write(blockBytes[:])
+		block := hashFunction.Sum(nil)
 
 		copyLen := min(len(block), length-offset)
 		copy(stream[offset:], block[:copyLen])
@@ -89,7 +89,7 @@ func (obfuscator *ShuffleMaskObfuscator) Obfuscate(data []byte, entropy []byte) 
 	result := make([]byte, len(data))
 	copy(result, data)
 
-	perm := obfuscator.generatePermutation(entropy, len(data))
+	permutation := obfuscator.generatePermutation(entropy, len(data))
 	mask := obfuscator.deriveMask(entropy, len(data))
 
 	for i := range result {
@@ -97,8 +97,8 @@ func (obfuscator *ShuffleMaskObfuscator) Obfuscate(data []byte, entropy []byte) 
 	}
 
 	shuffled := make([]byte, len(data))
-	for i, p := range perm {
-		shuffled[i] = result[p]
+	for destinationIndex, sourceIndex := range permutation {
+		shuffled[destinationIndex] = result[sourceIndex]
 	}
 
 	return shuffled
@@ -111,11 +111,11 @@ func (obfuscator *ShuffleMaskObfuscator) Deobfuscate(data []byte, entropy []byte
 
 	result := make([]byte, len(data))
 
-	perm := obfuscator.generatePermutation(entropy, len(data))
+	permutation := obfuscator.generatePermutation(entropy, len(data))
 	mask := obfuscator.deriveMask(entropy, len(data))
 
-	for i, p := range perm {
-		result[p] = data[i]
+	for destinationIndex, sourceIndex := range permutation {
+		result[sourceIndex] = data[destinationIndex]
 	}
 
 	for i := range result {
@@ -126,44 +126,44 @@ func (obfuscator *ShuffleMaskObfuscator) Deobfuscate(data []byte, entropy []byte
 }
 
 func (obfuscator *ShuffleMaskObfuscator) generatePermutation(entropy []byte, length int) []int {
-	perm := make([]int, length)
-	for i := range perm {
-		perm[i] = i
+	permutation := make([]int, length)
+	for i := range permutation {
+		permutation[i] = i
 	}
 
-	h := sha256.New()
-	h.Write(entropy)
-	h.Write([]byte("permutation"))
-	seed := h.Sum(nil)
+	hashFunction := sha256.New()
+	hashFunction.Write(entropy)
+	hashFunction.Write([]byte("permutation"))
+	seed := hashFunction.Sum(nil)
 
 	for i := length - 1; i > 0; i-- {
-		h.Reset()
-		h.Write(seed)
+		hashFunction.Reset()
+		hashFunction.Write(seed)
 		var iBytes [8]byte
 		binary.BigEndian.PutUint64(iBytes[:], uint64(i))
-		h.Write(iBytes[:])
-		jBytes := h.Sum(nil)
+		hashFunction.Write(iBytes[:])
+		jBytes := hashFunction.Sum(nil)
 		j := int(binary.BigEndian.Uint64(jBytes[:8]) % uint64(i+1))
-		perm[i], perm[j] = perm[j], perm[i]
+		permutation[i], permutation[j] = permutation[j], permutation[i]
 	}
 
-	return perm
+	return permutation
 }
 
 func (obfuscator *ShuffleMaskObfuscator) deriveMask(entropy []byte, length int) []byte {
 	mask := make([]byte, length)
-	h := sha256.New()
+	hashFunction := sha256.New()
 
 	blockNum := uint64(0)
 	offset := 0
 	for offset < length {
-		h.Reset()
-		h.Write(entropy)
-		h.Write([]byte("mask"))
+		hashFunction.Reset()
+		hashFunction.Write(entropy)
+		hashFunction.Write([]byte("mask"))
 		var blockBytes [8]byte
 		binary.BigEndian.PutUint64(blockBytes[:], blockNum)
-		h.Write(blockBytes[:])
-		block := h.Sum(nil)
+		hashFunction.Write(blockBytes[:])
+		block := hashFunction.Sum(nil)
 
 		copyLen := min(len(block), length-offset)
 		copy(mask[offset:], block[:copyLen])

@@ -133,7 +133,7 @@ func (store *Store) GetAll(group string) (map[string]string, error) {
 
 // Example: keyValueStore, _ := store.New(store.Options{Path: ":memory:"})
 // Example: _ = keyValueStore.Set("user", "name", "alice")
-// Example: out, _ := keyValueStore.Render("hello {{ .name }}", "user")
+// Example: renderedText, _ := keyValueStore.Render("hello {{ .name }}", "user")
 func (store *Store) Render(templateText, group string) (string, error) {
 	rows, err := store.database.Query("SELECT entry_key, entry_value FROM entries WHERE group_name = ?", group)
 	if err != nil {
@@ -153,12 +153,12 @@ func (store *Store) Render(templateText, group string) (string, error) {
 		return "", core.E("store.Render", "rows", err)
 	}
 
-	tmpl, err := template.New("render").Parse(templateText)
+	renderTemplate, err := template.New("render").Parse(templateText)
 	if err != nil {
 		return "", core.E("store.Render", "parse template", err)
 	}
 	builder := core.NewBuilder()
-	if err := tmpl.Execute(builder, templateValues); err != nil {
+	if err := renderTemplate.Execute(builder, templateValues); err != nil {
 		return "", core.E("store.Render", "execute template", err)
 	}
 	return builder.String(), nil

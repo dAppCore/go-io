@@ -46,18 +46,18 @@ func (sigil *HexSigil) In(data []byte) ([]byte, error) {
 	if data == nil {
 		return nil, nil
 	}
-	dst := make([]byte, hex.EncodedLen(len(data)))
-	hex.Encode(dst, data)
-	return dst, nil
+	encodedBytes := make([]byte, hex.EncodedLen(len(data)))
+	hex.Encode(encodedBytes, data)
+	return encodedBytes, nil
 }
 
 func (sigil *HexSigil) Out(data []byte) ([]byte, error) {
 	if data == nil {
 		return nil, nil
 	}
-	dst := make([]byte, hex.DecodedLen(len(data)))
-	_, err := hex.Decode(dst, data)
-	return dst, err
+	decodedBytes := make([]byte, hex.DecodedLen(len(data)))
+	_, err := hex.Decode(decodedBytes, data)
+	return decodedBytes, err
 }
 
 // Example: base64Sigil, _ := sigil.NewSigil("base64")
@@ -67,18 +67,18 @@ func (sigil *Base64Sigil) In(data []byte) ([]byte, error) {
 	if data == nil {
 		return nil, nil
 	}
-	dst := make([]byte, base64.StdEncoding.EncodedLen(len(data)))
-	base64.StdEncoding.Encode(dst, data)
-	return dst, nil
+	encodedBytes := make([]byte, base64.StdEncoding.EncodedLen(len(data)))
+	base64.StdEncoding.Encode(encodedBytes, data)
+	return encodedBytes, nil
 }
 
 func (sigil *Base64Sigil) Out(data []byte) ([]byte, error) {
 	if data == nil {
 		return nil, nil
 	}
-	dst := make([]byte, base64.StdEncoding.DecodedLen(len(data)))
-	n, err := base64.StdEncoding.Decode(dst, data)
-	return dst[:n], err
+	decodedBytes := make([]byte, base64.StdEncoding.DecodedLen(len(data)))
+	decodedCount, err := base64.StdEncoding.Decode(decodedBytes, data)
+	return decodedBytes[:decodedCount], err
 }
 
 // Example: gzipSigil, _ := sigil.NewSigil("gzip")
@@ -90,10 +90,10 @@ func (sigil *GzipSigil) In(data []byte) ([]byte, error) {
 	if data == nil {
 		return nil, nil
 	}
-	var b bytes.Buffer
+	var buffer bytes.Buffer
 	outputWriter := sigil.outputWriter
 	if outputWriter == nil {
-		outputWriter = &b
+		outputWriter = &buffer
 	}
 	gzipWriter := gzip.NewWriter(outputWriter)
 	if _, err := gzipWriter.Write(data); err != nil {
@@ -102,7 +102,7 @@ func (sigil *GzipSigil) In(data []byte) ([]byte, error) {
 	if err := gzipWriter.Close(); err != nil {
 		return nil, core.E("sigil.GzipSigil.In", "close gzip writer", err)
 	}
-	return b.Bytes(), nil
+	return buffer.Bytes(), nil
 }
 
 func (sigil *GzipSigil) Out(data []byte) ([]byte, error) {
@@ -156,8 +156,8 @@ type HashSigil struct {
 
 // Example: hashSigil := sigil.NewHashSigil(crypto.SHA256)
 // Example: digest, _ := hashSigil.In([]byte("payload"))
-func NewHashSigil(h crypto.Hash) *HashSigil {
-	return &HashSigil{Hash: h}
+func NewHashSigil(hashAlgorithm crypto.Hash) *HashSigil {
+	return &HashSigil{Hash: hashAlgorithm}
 }
 
 func (sigil *HashSigil) In(data []byte) ([]byte, error) {
@@ -214,8 +214,8 @@ func (sigil *HashSigil) Out(data []byte) ([]byte, error) {
 // Example: hexSigil, _ := sigil.NewSigil("hex")
 // Example: gzipSigil, _ := sigil.NewSigil("gzip")
 // Example: transformed, _ := sigil.Transmute([]byte("payload"), []sigil.Sigil{hexSigil, gzipSigil})
-func NewSigil(name string) (Sigil, error) {
-	switch name {
+func NewSigil(sigilName string) (Sigil, error) {
+	switch sigilName {
 	case "reverse":
 		return &ReverseSigil{}, nil
 	case "hex":
@@ -265,7 +265,7 @@ func NewSigil(name string) (Sigil, error) {
 	case "blake2b-512":
 		return NewHashSigil(crypto.BLAKE2b_512), nil
 	default:
-		return nil, core.E("sigil.NewSigil", core.Concat("unknown sigil name: ", name), fs.ErrInvalid)
+		return nil, core.E("sigil.NewSigil", core.Concat("unknown sigil name: ", sigilName), fs.ErrInvalid)
 	}
 }
 

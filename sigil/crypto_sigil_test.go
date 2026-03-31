@@ -142,11 +142,11 @@ func TestCryptoSigil_NewChaChaPolySigil_Good(t *testing.T) {
 	key := make([]byte, 32)
 	_, _ = rand.Read(key)
 
-	s, err := NewChaChaPolySigil(key, nil)
+	cipherSigil, err := NewChaChaPolySigil(key, nil)
 	require.NoError(t, err)
-	assert.NotNil(t, s)
-	assert.Equal(t, key, s.Key)
-	assert.NotNil(t, s.Obfuscator)
+	assert.NotNil(t, cipherSigil)
+	assert.Equal(t, key, cipherSigil.Key)
+	assert.NotNil(t, cipherSigil.Obfuscator)
 }
 
 func TestCryptoSigil_NewChaChaPolySigil_KeyIsCopied_Good(t *testing.T) {
@@ -155,11 +155,11 @@ func TestCryptoSigil_NewChaChaPolySigil_KeyIsCopied_Good(t *testing.T) {
 	original := make([]byte, 32)
 	copy(original, key)
 
-	s, err := NewChaChaPolySigil(key, nil)
+	cipherSigil, err := NewChaChaPolySigil(key, nil)
 	require.NoError(t, err)
 
 	key[0] ^= 0xFF
-	assert.Equal(t, original, s.Key)
+	assert.Equal(t, original, cipherSigil.Key)
 }
 
 func TestCryptoSigil_NewChaChaPolySigil_ShortKey_Bad(t *testing.T) {
@@ -182,18 +182,18 @@ func TestCryptoSigil_NewChaChaPolySigil_CustomObfuscator_Good(t *testing.T) {
 	_, _ = rand.Read(key)
 
 	ob := &ShuffleMaskObfuscator{}
-	s, err := NewChaChaPolySigil(key, ob)
+	cipherSigil, err := NewChaChaPolySigil(key, ob)
 	require.NoError(t, err)
-	assert.Equal(t, ob, s.Obfuscator)
+	assert.Equal(t, ob, cipherSigil.Obfuscator)
 }
 
 func TestCryptoSigil_NewChaChaPolySigil_CustomObfuscatorNil_Good(t *testing.T) {
 	key := make([]byte, 32)
 	_, _ = rand.Read(key)
 
-	s, err := NewChaChaPolySigil(key, nil)
+	cipherSigil, err := NewChaChaPolySigil(key, nil)
 	require.NoError(t, err)
-	assert.IsType(t, &XORObfuscator{}, s.Obfuscator)
+	assert.IsType(t, &XORObfuscator{}, cipherSigil.Obfuscator)
 }
 
 func TestCryptoSigil_NewChaChaPolySigil_CustomObfuscator_InvalidKey_Bad(t *testing.T) {
@@ -205,16 +205,16 @@ func TestCryptoSigil_ChaChaPolySigil_RoundTrip_Good(t *testing.T) {
 	key := make([]byte, 32)
 	_, _ = rand.Read(key)
 
-	s, err := NewChaChaPolySigil(key, nil)
+	cipherSigil, err := NewChaChaPolySigil(key, nil)
 	require.NoError(t, err)
 
 	plaintext := []byte("consciousness does not merely avoid causing harm")
-	ciphertext, err := s.In(plaintext)
+	ciphertext, err := cipherSigil.In(plaintext)
 	require.NoError(t, err)
 	assert.NotEqual(t, plaintext, ciphertext)
 	assert.Greater(t, len(ciphertext), len(plaintext))
 
-	decrypted, err := s.Out(ciphertext)
+	decrypted, err := cipherSigil.Out(ciphertext)
 	require.NoError(t, err)
 	assert.Equal(t, plaintext, decrypted)
 }
@@ -223,14 +223,14 @@ func TestCryptoSigil_ChaChaPolySigil_CustomShuffleMask_Good(t *testing.T) {
 	key := make([]byte, 32)
 	_, _ = rand.Read(key)
 
-	s, err := NewChaChaPolySigil(key, &ShuffleMaskObfuscator{})
+	cipherSigil, err := NewChaChaPolySigil(key, &ShuffleMaskObfuscator{})
 	require.NoError(t, err)
 
 	plaintext := []byte("shuffle mask pre-obfuscation layer")
-	ciphertext, err := s.In(plaintext)
+	ciphertext, err := cipherSigil.In(plaintext)
 	require.NoError(t, err)
 
-	decrypted, err := s.Out(ciphertext)
+	decrypted, err := cipherSigil.Out(ciphertext)
 	require.NoError(t, err)
 	assert.Equal(t, plaintext, decrypted)
 }
@@ -239,14 +239,14 @@ func TestCryptoSigil_ChaChaPolySigil_NilData_Good(t *testing.T) {
 	key := make([]byte, 32)
 	_, _ = rand.Read(key)
 
-	s, err := NewChaChaPolySigil(key, nil)
+	cipherSigil, err := NewChaChaPolySigil(key, nil)
 	require.NoError(t, err)
 
-	enc, err := s.In(nil)
+	enc, err := cipherSigil.In(nil)
 	require.NoError(t, err)
 	assert.Nil(t, enc)
 
-	dec, err := s.Out(nil)
+	dec, err := cipherSigil.Out(nil)
 	require.NoError(t, err)
 	assert.Nil(t, dec)
 }
@@ -255,14 +255,14 @@ func TestCryptoSigil_ChaChaPolySigil_EmptyPlaintext_Good(t *testing.T) {
 	key := make([]byte, 32)
 	_, _ = rand.Read(key)
 
-	s, err := NewChaChaPolySigil(key, nil)
+	cipherSigil, err := NewChaChaPolySigil(key, nil)
 	require.NoError(t, err)
 
-	ciphertext, err := s.In([]byte{})
+	ciphertext, err := cipherSigil.In([]byte{})
 	require.NoError(t, err)
 	assert.NotEmpty(t, ciphertext)
 
-	decrypted, err := s.Out(ciphertext)
+	decrypted, err := cipherSigil.Out(ciphertext)
 	require.NoError(t, err)
 	assert.Equal(t, []byte{}, decrypted)
 }
@@ -271,23 +271,23 @@ func TestCryptoSigil_ChaChaPolySigil_DifferentCiphertextsPerCall_Good(t *testing
 	key := make([]byte, 32)
 	_, _ = rand.Read(key)
 
-	s, err := NewChaChaPolySigil(key, nil)
+	cipherSigil, err := NewChaChaPolySigil(key, nil)
 	require.NoError(t, err)
 
 	plaintext := []byte("same input")
-	ct1, _ := s.In(plaintext)
-	ct2, _ := s.In(plaintext)
+	ct1, _ := cipherSigil.In(plaintext)
+	ct2, _ := cipherSigil.In(plaintext)
 
 	assert.NotEqual(t, ct1, ct2)
 }
 
 func TestCryptoSigil_ChaChaPolySigil_NoKey_Bad(t *testing.T) {
-	s := &ChaChaPolySigil{}
+	cipherSigil := &ChaChaPolySigil{}
 
-	_, err := s.In([]byte("data"))
+	_, err := cipherSigil.In([]byte("data"))
 	assert.ErrorIs(t, err, NoKeyConfiguredError)
 
-	_, err = s.Out([]byte("data"))
+	_, err = cipherSigil.Out([]byte("data"))
 	assert.ErrorIs(t, err, NoKeyConfiguredError)
 }
 
@@ -297,13 +297,13 @@ func TestCryptoSigil_ChaChaPolySigil_WrongKey_Bad(t *testing.T) {
 	_, _ = rand.Read(key1)
 	_, _ = rand.Read(key2)
 
-	s1, _ := NewChaChaPolySigil(key1, nil)
-	s2, _ := NewChaChaPolySigil(key2, nil)
+	cipherSigilOne, _ := NewChaChaPolySigil(key1, nil)
+	cipherSigilTwo, _ := NewChaChaPolySigil(key2, nil)
 
-	ciphertext, err := s1.In([]byte("secret"))
+	ciphertext, err := cipherSigilOne.In([]byte("secret"))
 	require.NoError(t, err)
 
-	_, err = s2.Out(ciphertext)
+	_, err = cipherSigilTwo.Out(ciphertext)
 	assert.ErrorIs(t, err, DecryptionFailedError)
 }
 
@@ -311,8 +311,8 @@ func TestCryptoSigil_ChaChaPolySigil_TruncatedCiphertext_Bad(t *testing.T) {
 	key := make([]byte, 32)
 	_, _ = rand.Read(key)
 
-	s, _ := NewChaChaPolySigil(key, nil)
-	_, err := s.Out([]byte("too short"))
+	cipherSigil, _ := NewChaChaPolySigil(key, nil)
+	_, err := cipherSigil.Out([]byte("too short"))
 	assert.ErrorIs(t, err, CiphertextTooShortError)
 }
 
@@ -320,12 +320,12 @@ func TestCryptoSigil_ChaChaPolySigil_TamperedCiphertext_Bad(t *testing.T) {
 	key := make([]byte, 32)
 	_, _ = rand.Read(key)
 
-	s, _ := NewChaChaPolySigil(key, nil)
-	ciphertext, _ := s.In([]byte("authentic data"))
+	cipherSigil, _ := NewChaChaPolySigil(key, nil)
+	ciphertext, _ := cipherSigil.In([]byte("authentic data"))
 
 	ciphertext[30] ^= 0xFF
 
-	_, err := s.Out(ciphertext)
+	_, err := cipherSigil.Out(ciphertext)
 	assert.ErrorIs(t, err, DecryptionFailedError)
 }
 
@@ -339,10 +339,10 @@ func TestCryptoSigil_ChaChaPolySigil_RandomReaderFailure_Bad(t *testing.T) {
 	key := make([]byte, 32)
 	_, _ = rand.Read(key)
 
-	s, _ := NewChaChaPolySigil(key, nil)
-	s.randomReader = &failReader{}
+	cipherSigil, _ := NewChaChaPolySigil(key, nil)
+	cipherSigil.randomReader = &failReader{}
 
-	_, err := s.In([]byte("data"))
+	_, err := cipherSigil.In([]byte("data"))
 	assert.Error(t, err)
 }
 
@@ -350,14 +350,14 @@ func TestCryptoSigil_ChaChaPolySigil_NoObfuscator_Good(t *testing.T) {
 	key := make([]byte, 32)
 	_, _ = rand.Read(key)
 
-	s, _ := NewChaChaPolySigil(key, nil)
-	s.Obfuscator = nil
+	cipherSigil, _ := NewChaChaPolySigil(key, nil)
+	cipherSigil.Obfuscator = nil
 
 	plaintext := []byte("raw encryption without pre-obfuscation")
-	ciphertext, err := s.In(plaintext)
+	ciphertext, err := cipherSigil.In(plaintext)
 	require.NoError(t, err)
 
-	decrypted, err := s.Out(ciphertext)
+	decrypted, err := cipherSigil.Out(ciphertext)
 	require.NoError(t, err)
 	assert.Equal(t, plaintext, decrypted)
 }
@@ -366,8 +366,8 @@ func TestCryptoSigil_GetNonceFromCiphertext_Good(t *testing.T) {
 	key := make([]byte, 32)
 	_, _ = rand.Read(key)
 
-	s, _ := NewChaChaPolySigil(key, nil)
-	ciphertext, _ := s.In([]byte("nonce extraction test"))
+	cipherSigil, _ := NewChaChaPolySigil(key, nil)
+	ciphertext, _ := cipherSigil.In([]byte("nonce extraction test"))
 
 	nonce, err := GetNonceFromCiphertext(ciphertext)
 	require.NoError(t, err)
@@ -380,8 +380,8 @@ func TestCryptoSigil_GetNonceFromCiphertext_NonceCopied_Good(t *testing.T) {
 	key := make([]byte, 32)
 	_, _ = rand.Read(key)
 
-	s, _ := NewChaChaPolySigil(key, nil)
-	ciphertext, _ := s.In([]byte("data"))
+	cipherSigil, _ := NewChaChaPolySigil(key, nil)
+	ciphertext, _ := cipherSigil.In([]byte("data"))
 
 	nonce, _ := GetNonceFromCiphertext(ciphertext)
 	original := make([]byte, len(nonce))
@@ -405,10 +405,10 @@ func TestCryptoSigil_ChaChaPolySigil_InTransmutePipeline_Good(t *testing.T) {
 	key := make([]byte, 32)
 	_, _ = rand.Read(key)
 
-	s, _ := NewChaChaPolySigil(key, nil)
+	cipherSigil, _ := NewChaChaPolySigil(key, nil)
 	hexSigil, _ := NewSigil("hex")
 
-	chain := []Sigil{s, hexSigil}
+	chain := []Sigil{cipherSigil, hexSigil}
 	plaintext := []byte("encrypt then hex encode")
 
 	encoded, err := Transmute(plaintext, chain)
@@ -448,12 +448,12 @@ func TestCryptoSigil_Untransmute_ErrorPropagation_Bad(t *testing.T) {
 }
 
 func TestCryptoSigil_GzipSigil_CustomOutputWriter_Good(t *testing.T) {
-	var buf bytes.Buffer
-	s := &GzipSigil{outputWriter: &buf}
+	var outputBuffer bytes.Buffer
+	gzipSigil := &GzipSigil{outputWriter: &outputBuffer}
 
-	_, err := s.In([]byte("test data"))
+	_, err := gzipSigil.In([]byte("test data"))
 	require.NoError(t, err)
-	assert.Greater(t, buf.Len(), 0)
+	assert.Greater(t, outputBuffer.Len(), 0)
 }
 
 func TestCryptoSigil_DeriveKeyStream_ExactBlockSize_Good(t *testing.T) {
@@ -473,13 +473,13 @@ func TestCryptoSigil_ChaChaPolySigil_NilRandomReader_Good(t *testing.T) {
 	key := make([]byte, 32)
 	_, _ = rand.Read(key)
 
-	s, _ := NewChaChaPolySigil(key, nil)
-	s.randomReader = nil
+	cipherSigil, _ := NewChaChaPolySigil(key, nil)
+	cipherSigil.randomReader = nil
 
-	ciphertext, err := s.In([]byte("fallback reader"))
+	ciphertext, err := cipherSigil.In([]byte("fallback reader"))
 	require.NoError(t, err)
 
-	decrypted, err := s.Out(ciphertext)
+	decrypted, err := cipherSigil.Out(ciphertext)
 	require.NoError(t, err)
 	assert.Equal(t, []byte("fallback reader"), decrypted)
 }
@@ -493,7 +493,7 @@ func (l *limitReader) Read(p []byte) (int, error) {
 	if l.pos >= len(l.data) {
 		return 0, goio.EOF
 	}
-	n := copy(p, l.data[l.pos:])
-	l.pos += n
-	return n, nil
+	bytesCopied := copy(p, l.data[l.pos:])
+	l.pos += bytesCopied
+	return bytesCopied, nil
 }
