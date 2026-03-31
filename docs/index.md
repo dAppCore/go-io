@@ -41,7 +41,7 @@ _ = bucket.Write("photo.jpg", rawData)
 
 | Package | Import Path | Purpose |
 |---------|-------------|---------|
-| `io` (root) | `forge.lthn.ai/core/go-io` | `Medium` interface, helper functions, `MockMedium` for tests |
+| `io` (root) | `forge.lthn.ai/core/go-io` | `Medium` interface, helper functions, `MemoryMedium` for tests |
 | `local` | `forge.lthn.ai/core/go-io/local` | Local filesystem backend with path sandboxing and symlink-escape protection |
 | `s3` | `forge.lthn.ai/core/go-io/s3` | Amazon S3 / S3-compatible backend (Garage, MinIO, etc.) |
 | `sqlite` | `forge.lthn.ai/core/go-io/sqlite` | SQLite-backed virtual filesystem (pure Go driver, no CGO) |
@@ -54,15 +54,14 @@ _ = bucket.Write("photo.jpg", rawData)
 
 ## The Medium Interface
 
-Every storage backend implements the same 18-method interface:
+Every storage backend implements the same 17-method interface:
 
 ```go
 type Medium interface {
     // Content operations
     Read(path string) (string, error)
     Write(path, content string) error
-    FileGet(path string) (string, error)   // alias for Read
-    FileSet(path, content string) error    // alias for Write
+    WriteMode(path, content string, mode fs.FileMode) error
 
     // Streaming (for large files)
     ReadStream(path string) (io.ReadCloser, error)

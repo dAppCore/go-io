@@ -25,7 +25,7 @@ The `Medium` interface is defined in `io.go`. It is the only type that consuming
 - **`io.Local`** — a package-level variable initialised in `init()` via `local.New("/")`. This gives unsandboxed access to the host filesystem, mirroring the behaviour of the standard `os` package.
 - **`io.NewSandboxed(root)`** — creates a `local.Medium` restricted to `root`. All path resolution is confined within that directory.
 - **`io.Copy(src, srcPath, dst, dstPath)`** — copies a file between any two mediums by reading from one and writing to the other.
-- **`io.MockMedium`** — a fully functional in-memory implementation for unit tests. It tracks files, directories, and modification times in plain maps.
+- **`io.NewMemoryMedium()`** — a fully functional in-memory implementation for unit tests. It tracks files, directories, and modification times in plain maps.
 
 ### FileInfo and DirEntry (root package)
 
@@ -36,7 +36,7 @@ Simple struct implementations of `fs.FileInfo` and `fs.DirEntry` are exported fr
 
 ### local.Medium
 
-**File:** `local/client.go`
+**File:** `local/medium.go`
 
 The local backend wraps the standard `os` package with two layers of path protection:
 
@@ -100,7 +100,7 @@ Key capabilities beyond `Medium`:
 
 ### datanode.Medium
 
-**File:** `datanode/client.go`
+**File:** `datanode/medium.go`
 
 A thread-safe `Medium` backed by Borg's `DataNode` (an in-memory `fs.FS` with tar serialisation). It adds:
 
@@ -271,7 +271,7 @@ Application code
        +-- node.Node     --> in-memory map + tar serialisation
        +-- datanode.Medium --> Borg DataNode + sync.RWMutex
        +-- store.Medium  --> store.Store (SQLite KV) --> Medium adapter
-       +-- MockMedium    --> map[string]string (for tests)
+       +-- MemoryMedium   --> map[string]string (for tests)
 ```
 
 Every backend normalises paths using the same `path.Clean("/" + p)` pattern, ensuring consistent behaviour regardless of which backend is in use.

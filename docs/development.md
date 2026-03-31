@@ -88,18 +88,20 @@ func TestDelete_Bad_DirNotEmpty(t *testing.T) { /* returns error for non-empty d
 
 ## Writing Tests Against Medium
 
-Use `MockMedium` from the root package for unit tests that need a storage backend but should not touch disk:
+Use `MemoryMedium` from the root package for unit tests that need a storage backend but should not touch disk:
 
 ```go
 func TestMyFeature(t *testing.T) {
-    m := io.NewMockMedium()
-    m.Files["config.yaml"] = "key: value"
-    m.Dirs["data"] = true
+    m := io.NewMemoryMedium()
+    _ = m.Write("config.yaml", "key: value")
+    _ = m.EnsureDir("data")
 
     // Your code under test receives m as an io.Medium
     result, err := myFunction(m)
     assert.NoError(t, err)
-    assert.Equal(t, "expected", m.Files["output.txt"])
+    output, err := m.Read("output.txt")
+    require.NoError(t, err)
+    assert.Equal(t, "expected", output)
 }
 ```
 
@@ -134,7 +136,7 @@ func TestWithSQLite(t *testing.T) {
 To add a new `Medium` implementation:
 
 1. Create a new package directory (e.g., `sftp/`).
-2. Define a struct that implements all 18 methods of `io.Medium`.
+2. Define a struct that implements all 17 methods of `io.Medium`.
 3. Add a compile-time check at the top of your file:
 
 ```go
@@ -142,7 +144,7 @@ var _ coreio.Medium = (*Medium)(nil)
 ```
 
 4. Normalise paths using `path.Clean("/" + p)` to prevent traversal escapes. This is the convention followed by every existing backend.
-5. Handle `nil` and empty input consistently: check how `MockMedium` and `local.Medium` behave and match that behaviour.
+5. Handle `nil` and empty input consistently: check how `MemoryMedium` and `local.Medium` behave and match that behaviour.
 6. Write tests using the `_Good` / `_Bad` / `_Ugly` naming convention.
 7. Add your package to the table in `docs/index.md`.
 
@@ -171,13 +173,13 @@ To add a new data transformation:
 
 ```
 go-io/
-├── io.go               # Medium interface, helpers, MockMedium
-├── client_test.go      # Tests for MockMedium and helpers
+├── io.go               # Medium interface, helpers, MemoryMedium
+├── medium_test.go      # Tests for MemoryMedium and helpers
 ├── bench_test.go       # Benchmarks
 ├── go.mod
 ├── local/
-│   ├── client.go       # Local filesystem backend
-│   └── client_test.go
+│   ├── medium.go       # Local filesystem backend
+│   └── medium_test.go
 ├── s3/
 │   ├── s3.go           # S3 backend
 │   └── s3_test.go
@@ -188,8 +190,8 @@ go-io/
 │   ├── node.go         # In-memory fs.FS + Medium
 │   └── node_test.go
 ├── datanode/
-│   ├── client.go       # Borg DataNode Medium wrapper
-│   └── client_test.go
+│   ├── medium.go       # Borg DataNode Medium wrapper
+│   └── medium_test.go
 ├── store/
 │   ├── store.go        # KV store
 │   ├── medium.go       # Medium adapter for KV store
