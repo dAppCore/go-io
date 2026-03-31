@@ -2341,45 +2341,45 @@ Example:
 s, _ := sigil.NewSigil("hex")
 ```
 
-### ErrInvalidKey
+### InvalidKeyError
 
 Returned when an encryption key is not 32 bytes.
 
 Example:
 ```go
-_, err := sigil.NewChaChaPolySigil([]byte("short"))
-if errors.Is(err, sigil.ErrInvalidKey) {
+_, err := sigil.NewChaChaPolySigil([]byte("short"), nil)
+if errors.Is(err, sigil.InvalidKeyError) {
 	// handle invalid key
 }
 ```
 
-### ErrCiphertextTooShort
+### CiphertextTooShortError
 
 Returned when ciphertext is too short to decrypt.
 
 Example:
 ```go
 _, err := sigil.GetNonceFromCiphertext([]byte("short"))
-if errors.Is(err, sigil.ErrCiphertextTooShort) {
+if errors.Is(err, sigil.CiphertextTooShortError) {
 	// handle truncated payload
 }
 ```
 
-### ErrDecryptionFailed
+### DecryptionFailedError
 
 Returned when decryption or authentication fails.
 
 Example:
 ```go
 key := make([]byte, 32)
-s, _ := sigil.NewChaChaPolySigil(key)
+s, _ := sigil.NewChaChaPolySigil(key, nil)
 _, err := s.Out([]byte("tampered"))
-if errors.Is(err, sigil.ErrDecryptionFailed) {
+if errors.Is(err, sigil.DecryptionFailedError) {
 	// handle failed decrypt
 }
 ```
 
-### ErrNoKeyConfigured
+### NoKeyConfiguredError
 
 Returned when a `ChaChaPolySigil` has no key.
 
@@ -2387,7 +2387,7 @@ Example:
 ```go
 s := &sigil.ChaChaPolySigil{}
 _, err := s.In([]byte("data"))
-if errors.Is(err, sigil.ErrNoKeyConfigured) {
+if errors.Is(err, sigil.NoKeyConfiguredError) {
 	// handle missing key
 }
 ```
@@ -2472,14 +2472,14 @@ XChaCha20-Poly1305 encryption sigil with optional pre-obfuscation.
 Example:
 ```go
 key := make([]byte, 32)
-s, _ := sigil.NewChaChaPolySigil(key)
+s, _ := sigil.NewChaChaPolySigil(key, nil)
 ```
 
 **In(data []byte) ([]byte, error)**
 Example:
 ```go
 key := make([]byte, 32)
-s, _ := sigil.NewChaChaPolySigil(key)
+s, _ := sigil.NewChaChaPolySigil(key, nil)
 ciphertext, _ := s.In([]byte("hello"))
 ```
 
@@ -2487,30 +2487,20 @@ ciphertext, _ := s.In([]byte("hello"))
 Example:
 ```go
 key := make([]byte, 32)
-s, _ := sigil.NewChaChaPolySigil(key)
+s, _ := sigil.NewChaChaPolySigil(key, nil)
 ciphertext, _ := s.In([]byte("hello"))
 plain, _ := s.Out(ciphertext)
 ```
 
-### NewChaChaPolySigil(key []byte) (*ChaChaPolySigil, error)
+### NewChaChaPolySigil(key []byte, obfuscator PreObfuscator) (*ChaChaPolySigil, error)
 
-Creates an encryption sigil with the default XOR obfuscator.
-
-Example:
-```go
-key := make([]byte, 32)
-s, _ := sigil.NewChaChaPolySigil(key)
-```
-
-### NewChaChaPolySigilWithObfuscator(key []byte, obfuscator PreObfuscator) (*ChaChaPolySigil, error)
-
-Creates an encryption sigil with a custom obfuscator.
+Creates an encryption sigil with an optional pre-obfuscator. Pass `nil` to use the default XOR obfuscator.
 
 Example:
 ```go
 key := make([]byte, 32)
 ob := &sigil.ShuffleMaskObfuscator{}
-s, _ := sigil.NewChaChaPolySigilWithObfuscator(key, ob)
+s, _ := sigil.NewChaChaPolySigil(key, ob)
 ```
 
 ### GetNonceFromCiphertext(ciphertext []byte) ([]byte, error)
@@ -2520,7 +2510,7 @@ Extracts the XChaCha20 nonce from encrypted output.
 Example:
 ```go
 key := make([]byte, 32)
-s, _ := sigil.NewChaChaPolySigil(key)
+s, _ := sigil.NewChaChaPolySigil(key, nil)
 ciphertext, _ := s.In([]byte("hello"))
 nonce, _ := sigil.GetNonceFromCiphertext(ciphertext)
 ```

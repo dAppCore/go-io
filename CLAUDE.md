@@ -128,7 +128,7 @@ Backend packages use `var _ io.Medium = (*Medium)(nil)` to verify interface comp
 
 ### Sentinel Errors
 
-Sentinel errors (`var ErrNotFound`, `var ErrInvalidKey`, etc.) use standard `errors.New()` — this is correct Go convention. Only inline error returns in functions should use `coreerr.E()`.
+Sentinel errors (`var NotFoundError`, `var InvalidKeyError`, etc.) use standard `errors.New()` — this is correct Go convention. Only inline error returns in functions should use `coreerr.E()`.
 
 ## Testing
 

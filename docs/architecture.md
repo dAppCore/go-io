@@ -230,12 +230,12 @@ The pre-obfuscation layer ensures that raw plaintext patterns are never sent dir
 key := make([]byte, 32)
 rand.Read(key)
 
-s, _ := sigil.NewChaChaPolySigil(key)
+s, _ := sigil.NewChaChaPolySigil(key, nil)
 ciphertext, _ := s.In([]byte("secret"))
 plaintext, _ := s.Out(ciphertext)
 
 // With stronger obfuscation:
-s2, _ := sigil.NewChaChaPolySigilWithObfuscator(key, &sigil.ShuffleMaskObfuscator{})
+s2, _ := sigil.NewChaChaPolySigil(key, &sigil.ShuffleMaskObfuscator{})
 ```
 
 Each call to `In` generates a fresh random nonce, so encrypting the same plaintext twice produces different ciphertexts.
