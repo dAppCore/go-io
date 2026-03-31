@@ -11,7 +11,7 @@ Examples use the import paths from `docs/index.md` (`forge.lthn.ai/core/go-io`).
 
 ## Package io (`forge.lthn.ai/core/go-io`)
 
-Defines the `Medium` interface, helper functions, and in-memory mock implementations.
+Defines the `Medium` interface, helper functions, and in-memory `MemoryMedium` implementation.
 
 ### Medium (interface)
 
@@ -19,7 +19,7 @@ The common storage abstraction implemented by every backend.
 
 Example:
 ```go
-var m io.Medium = io.NewMockMedium()
+var m io.Medium = io.NewMemoryMedium()
 _ = m.Write("notes.txt", "hello")
 ```
 
@@ -27,7 +27,7 @@ _ = m.Write("notes.txt", "hello")
 Reads a file as a string.
 Example:
 ```go
-m := io.NewMockMedium()
+m := io.NewMemoryMedium()
 _ = m.Write("notes.txt", "hello")
 value, _ := m.Read("notes.txt")
 ```
@@ -36,7 +36,7 @@ value, _ := m.Read("notes.txt")
 Writes content to a file, creating it if needed.
 Example:
 ```go
-m := io.NewMockMedium()
+m := io.NewMemoryMedium()
 _ = m.Write("notes.txt", "hello")
 ```
 
@@ -44,7 +44,7 @@ _ = m.Write("notes.txt", "hello")
 Writes content with explicit permissions.
 Example:
 ```go
-m := io.NewMockMedium()
+m := io.NewMemoryMedium()
 _ = m.WriteMode("secret.txt", "secret", 0600)
 ```
 
@@ -52,7 +52,7 @@ _ = m.WriteMode("secret.txt", "secret", 0600)
 Ensures a directory exists.
 Example:
 ```go
-m := io.NewMockMedium()
+m := io.NewMemoryMedium()
 _ = m.EnsureDir("config")
 ```
 
@@ -60,33 +60,33 @@ _ = m.EnsureDir("config")
 Reports whether a path is a regular file.
 Example:
 ```go
-m := io.NewMockMedium()
+m := io.NewMemoryMedium()
 _ = m.Write("notes.txt", "hello")
 ok := m.IsFile("notes.txt")
 ```
 
-**FileGet(path string) (string, error)**
+**Read(path string) (string, error)**
 Alias for `Read`.
 Example:
 ```go
-m := io.NewMockMedium()
-_ = m.FileSet("notes.txt", "hello")
-value, _ := m.FileGet("notes.txt")
+m := io.NewMemoryMedium()
+_ = m.Write("notes.txt", "hello")
+value, _ := m.Read("notes.txt")
 ```
 
-**FileSet(path, content string) error**
+**Write(path, content string) error**
 Alias for `Write`.
 Example:
 ```go
-m := io.NewMockMedium()
-_ = m.FileSet("notes.txt", "hello")
+m := io.NewMemoryMedium()
+_ = m.Write("notes.txt", "hello")
 ```
 
 **Delete(path string) error**
 Deletes a file or empty directory.
 Example:
 ```go
-m := io.NewMockMedium()
+m := io.NewMemoryMedium()
 _ = m.Write("old.txt", "data")
 _ = m.Delete("old.txt")
 ```
@@ -95,7 +95,7 @@ _ = m.Delete("old.txt")
 Deletes a file or directory tree recursively.
 Example:
 ```go
-m := io.NewMockMedium()
+m := io.NewMemoryMedium()
 _ = m.Write("logs/run.txt", "started")
 _ = m.DeleteAll("logs")
 ```
@@ -104,7 +104,7 @@ _ = m.DeleteAll("logs")
 Moves or renames a file or directory.
 Example:
 ```go
-m := io.NewMockMedium()
+m := io.NewMemoryMedium()
 _ = m.Write("old.txt", "data")
 _ = m.Rename("old.txt", "new.txt")
 ```
@@ -113,7 +113,7 @@ _ = m.Rename("old.txt", "new.txt")
 Lists immediate directory entries.
 Example:
 ```go
-m := io.NewMockMedium()
+m := io.NewMemoryMedium()
 _ = m.Write("dir/file.txt", "data")
 entries, _ := m.List("dir")
 ```
@@ -122,7 +122,7 @@ entries, _ := m.List("dir")
 Returns file metadata.
 Example:
 ```go
-m := io.NewMockMedium()
+m := io.NewMemoryMedium()
 _ = m.Write("notes.txt", "hello")
 info, _ := m.Stat("notes.txt")
 ```
@@ -131,7 +131,7 @@ info, _ := m.Stat("notes.txt")
 Opens a file for reading.
 Example:
 ```go
-m := io.NewMockMedium()
+m := io.NewMemoryMedium()
 _ = m.Write("notes.txt", "hello")
 f, _ := m.Open("notes.txt")
 defer f.Close()
@@ -141,7 +141,7 @@ defer f.Close()
 Creates or truncates a file and returns a writer.
 Example:
 ```go
-m := io.NewMockMedium()
+m := io.NewMemoryMedium()
 w, _ := m.Create("notes.txt")
 _, _ = w.Write([]byte("hello"))
 _ = w.Close()
@@ -151,7 +151,7 @@ _ = w.Close()
 Opens a file for appending, creating it if needed.
 Example:
 ```go
-m := io.NewMockMedium()
+m := io.NewMemoryMedium()
 _ = m.Write("notes.txt", "hello")
 w, _ := m.Append("notes.txt")
 _, _ = w.Write([]byte(" world"))
@@ -162,7 +162,7 @@ _ = w.Close()
 Opens a streaming reader for a file.
 Example:
 ```go
-m := io.NewMockMedium()
+m := io.NewMemoryMedium()
 _ = m.Write("notes.txt", "hello")
 r, _ := m.ReadStream("notes.txt")
 defer r.Close()
@@ -172,7 +172,7 @@ defer r.Close()
 Opens a streaming writer for a file.
 Example:
 ```go
-m := io.NewMockMedium()
+m := io.NewMemoryMedium()
 w, _ := m.WriteStream("notes.txt")
 _, _ = w.Write([]byte("hello"))
 _ = w.Close()
@@ -182,7 +182,7 @@ _ = w.Close()
 Reports whether a path exists.
 Example:
 ```go
-m := io.NewMockMedium()
+m := io.NewMemoryMedium()
 _ = m.Write("notes.txt", "hello")
 ok := m.Exists("notes.txt")
 ```
@@ -191,19 +191,19 @@ ok := m.Exists("notes.txt")
 Reports whether a path is a directory.
 Example:
 ```go
-m := io.NewMockMedium()
+m := io.NewMemoryMedium()
 _ = m.EnsureDir("config")
 ok := m.IsDir("config")
 ```
 
 ### FileInfo
 
-Lightweight `fs.FileInfo` implementation used by `MockMedium`.
+Lightweight `fs.FileInfo` implementation used by `MemoryMedium`.
 
 **Name() string**
 Example:
 ```go
-m := io.NewMockMedium()
+m := io.NewMemoryMedium()
 _ = m.Write("file.txt", "data")
 info, _ := m.Stat("file.txt")
 _ = info.Name()
@@ -212,7 +212,7 @@ _ = info.Name()
 **Size() int64**
 Example:
 ```go
-m := io.NewMockMedium()
+m := io.NewMemoryMedium()
 _ = m.Write("file.txt", "data")
 info, _ := m.Stat("file.txt")
 _ = info.Size()
@@ -221,7 +221,7 @@ _ = info.Size()
 **Mode() fs.FileMode**
 Example:
 ```go
-m := io.NewMockMedium()
+m := io.NewMemoryMedium()
 _ = m.Write("file.txt", "data")
 info, _ := m.Stat("file.txt")
 _ = info.Mode()
@@ -230,7 +230,7 @@ _ = info.Mode()
 **ModTime() time.Time**
 Example:
 ```go
-m := io.NewMockMedium()
+m := io.NewMemoryMedium()
 _ = m.Write("file.txt", "data")
 info, _ := m.Stat("file.txt")
 _ = info.ModTime()
@@ -239,7 +239,7 @@ _ = info.ModTime()
 **IsDir() bool**
 Example:
 ```go
-m := io.NewMockMedium()
+m := io.NewMemoryMedium()
 _ = m.Write("file.txt", "data")
 info, _ := m.Stat("file.txt")
 _ = info.IsDir()
@@ -248,7 +248,7 @@ _ = info.IsDir()
 **Sys() any**
 Example:
 ```go
-m := io.NewMockMedium()
+m := io.NewMemoryMedium()
 _ = m.Write("file.txt", "data")
 info, _ := m.Stat("file.txt")
 _ = info.Sys()
@@ -256,12 +256,12 @@ _ = info.Sys()
 
 ### DirEntry
 
-Lightweight `fs.DirEntry` implementation used by `MockMedium` listings.
+Lightweight `fs.DirEntry` implementation used by `MemoryMedium` listings.
 
 **Name() string**
 Example:
 ```go
-m := io.NewMockMedium()
+m := io.NewMemoryMedium()
 _ = m.Write("dir/file.txt", "data")
 entries, _ := m.List("dir")
 _ = entries[0].Name()
@@ -270,7 +270,7 @@ _ = entries[0].Name()
 **IsDir() bool**
 Example:
 ```go
-m := io.NewMockMedium()
+m := io.NewMemoryMedium()
 _ = m.EnsureDir("dir")
 entries, _ := m.List("")
 _ = entries[0].IsDir()
@@ -279,7 +279,7 @@ _ = entries[0].IsDir()
 **Type() fs.FileMode**
 Example:
 ```go
-m := io.NewMockMedium()
+m := io.NewMemoryMedium()
 _ = m.Write("dir/file.txt", "data")
 entries, _ := m.List("dir")
 _ = entries[0].Type()
@@ -288,7 +288,7 @@ _ = entries[0].Type()
 **Info() (fs.FileInfo, error)**
 Example:
 ```go
-m := io.NewMockMedium()
+m := io.NewMemoryMedium()
 _ = m.Write("dir/file.txt", "data")
 entries, _ := m.List("dir")
 info, _ := entries[0].Info()
@@ -320,7 +320,7 @@ Helper that calls `Medium.Read` on a supplied backend.
 
 Example:
 ```go
-m := io.NewMockMedium()
+m := io.NewMemoryMedium()
 _ = m.Write("notes.txt", "hello")
 value, _ := io.Read(m, "notes.txt")
 ```
@@ -331,7 +331,7 @@ Helper that calls `Medium.Write` on a supplied backend.
 
 Example:
 ```go
-m := io.NewMockMedium()
+m := io.NewMemoryMedium()
 _ = io.Write(m, "notes.txt", "hello")
 ```
 
@@ -341,7 +341,7 @@ Helper that calls `Medium.ReadStream` on a supplied backend.
 
 Example:
 ```go
-m := io.NewMockMedium()
+m := io.NewMemoryMedium()
 _ = m.Write("notes.txt", "hello")
 r, _ := io.ReadStream(m, "notes.txt")
 defer r.Close()
@@ -353,7 +353,7 @@ Helper that calls `Medium.WriteStream` on a supplied backend.
 
 Example:
 ```go
-m := io.NewMockMedium()
+m := io.NewMemoryMedium()
 w, _ := io.WriteStream(m, "notes.txt")
 _, _ = w.Write([]byte("hello"))
 _ = w.Close()
@@ -365,7 +365,7 @@ Helper that calls `Medium.EnsureDir` on a supplied backend.
 
 Example:
 ```go
-m := io.NewMockMedium()
+m := io.NewMemoryMedium()
 _ = io.EnsureDir(m, "config")
 ```
 
@@ -375,7 +375,7 @@ Helper that calls `Medium.IsFile` on a supplied backend.
 
 Example:
 ```go
-m := io.NewMockMedium()
+m := io.NewMemoryMedium()
 _ = m.Write("notes.txt", "hello")
 ok := io.IsFile(m, "notes.txt")
 ```
@@ -386,78 +386,78 @@ Copies a file between two mediums.
 
 Example:
 ```go
-src := io.NewMockMedium()
-dst := io.NewMockMedium()
+src := io.NewMemoryMedium()
+dst := io.NewMemoryMedium()
 _ = src.Write("source.txt", "data")
 _ = io.Copy(src, "source.txt", dst, "dest.txt")
 ```
 
-### MockMedium
+### MemoryMedium
 
-In-memory `Medium` implementation for tests. Exposes `Files`, `Dirs`, and `ModTimes` maps for seeding state.
+In-memory `Medium` implementation for tests.
 
 Example:
 ```go
-m := io.NewMockMedium()
-m.Files["seed.txt"] = "seeded"
+m := io.NewMemoryMedium()
+_ = m.Write("seed.txt", "seeded")
 ```
 
 **Read(path string) (string, error)**
 Example:
 ```go
-m := io.NewMockMedium()
-m.Files["notes.txt"] = "hello"
+m := io.NewMemoryMedium()
+_ = m.Write("notes.txt", "hello")
 value, _ := m.Read("notes.txt")
 ```
 
 **Write(path, content string) error**
 Example:
 ```go
-m := io.NewMockMedium()
+m := io.NewMemoryMedium()
 _ = m.Write("notes.txt", "hello")
 ```
 
 **WriteMode(path, content string, mode fs.FileMode) error**
 Example:
 ```go
-m := io.NewMockMedium()
+m := io.NewMemoryMedium()
 _ = m.WriteMode("secret.txt", "secret", 0600)
 ```
 
 **EnsureDir(path string) error**
 Example:
 ```go
-m := io.NewMockMedium()
+m := io.NewMemoryMedium()
 _ = m.EnsureDir("config")
 ```
 
 **IsFile(path string) bool**
 Example:
 ```go
-m := io.NewMockMedium()
+m := io.NewMemoryMedium()
 _ = m.Write("notes.txt", "hello")
 ok := m.IsFile("notes.txt")
 ```
 
-**FileGet(path string) (string, error)**
+**Read(path string) (string, error)**
 Example:
 ```go
-m := io.NewMockMedium()
-_ = m.FileSet("notes.txt", "hello")
-value, _ := m.FileGet("notes.txt")
+m := io.NewMemoryMedium()
+_ = m.Write("notes.txt", "hello")
+value, _ := m.Read("notes.txt")
 ```
 
-**FileSet(path, content string) error**
+**Write(path, content string) error**
 Example:
 ```go
-m := io.NewMockMedium()
-_ = m.FileSet("notes.txt", "hello")
+m := io.NewMemoryMedium()
+_ = m.Write("notes.txt", "hello")
 ```
 
 **Delete(path string) error**
 Example:
 ```go
-m := io.NewMockMedium()
+m := io.NewMemoryMedium()
 _ = m.Write("old.txt", "data")
 _ = m.Delete("old.txt")
 ```
@@ -465,7 +465,7 @@ _ = m.Delete("old.txt")
 **DeleteAll(path string) error**
 Example:
 ```go
-m := io.NewMockMedium()
+m := io.NewMemoryMedium()
 _ = m.Write("logs/run.txt", "started")
 _ = m.DeleteAll("logs")
 ```
@@ -473,7 +473,7 @@ _ = m.DeleteAll("logs")
 **Rename(oldPath, newPath string) error**
 Example:
 ```go
-m := io.NewMockMedium()
+m := io.NewMemoryMedium()
 _ = m.Write("old.txt", "data")
 _ = m.Rename("old.txt", "new.txt")
 ```
@@ -481,7 +481,7 @@ _ = m.Rename("old.txt", "new.txt")
 **List(path string) ([]fs.DirEntry, error)**
 Example:
 ```go
-m := io.NewMockMedium()
+m := io.NewMemoryMedium()
 _ = m.Write("dir/file.txt", "data")
 entries, _ := m.List("dir")
 ```
@@ -489,7 +489,7 @@ entries, _ := m.List("dir")
 **Stat(path string) (fs.FileInfo, error)**
 Example:
 ```go
-m := io.NewMockMedium()
+m := io.NewMemoryMedium()
 _ = m.Write("notes.txt", "hello")
 info, _ := m.Stat("notes.txt")
 ```
@@ -497,7 +497,7 @@ info, _ := m.Stat("notes.txt")
 **Open(path string) (fs.File, error)**
 Example:
 ```go
-m := io.NewMockMedium()
+m := io.NewMemoryMedium()
 _ = m.Write("notes.txt", "hello")
 f, _ := m.Open("notes.txt")
 defer f.Close()
@@ -506,7 +506,7 @@ defer f.Close()
 **Create(path string) (io.WriteCloser, error)**
 Example:
 ```go
-m := io.NewMockMedium()
+m := io.NewMemoryMedium()
 w, _ := m.Create("notes.txt")
 _, _ = w.Write([]byte("hello"))
 _ = w.Close()
@@ -515,7 +515,7 @@ _ = w.Close()
 **Append(path string) (io.WriteCloser, error)**
 Example:
 ```go
-m := io.NewMockMedium()
+m := io.NewMemoryMedium()
 _ = m.Write("notes.txt", "hello")
 w, _ := m.Append("notes.txt")
 _, _ = w.Write([]byte(" world"))
@@ -525,7 +525,7 @@ _ = w.Close()
 **ReadStream(path string) (io.ReadCloser, error)**
 Example:
 ```go
-m := io.NewMockMedium()
+m := io.NewMemoryMedium()
 _ = m.Write("notes.txt", "hello")
 r, _ := m.ReadStream("notes.txt")
 defer r.Close()
@@ -534,7 +534,7 @@ defer r.Close()
 **WriteStream(path string) (io.WriteCloser, error)**
 Example:
 ```go
-m := io.NewMockMedium()
+m := io.NewMemoryMedium()
 w, _ := m.WriteStream("notes.txt")
 _, _ = w.Write([]byte("hello"))
 _ = w.Close()
@@ -543,7 +543,7 @@ _ = w.Close()
 **Exists(path string) bool**
 Example:
 ```go
-m := io.NewMockMedium()
+m := io.NewMemoryMedium()
 _ = m.Write("notes.txt", "hello")
 ok := m.Exists("notes.txt")
 ```
@@ -551,29 +551,29 @@ ok := m.Exists("notes.txt")
 **IsDir(path string) bool**
 Example:
 ```go
-m := io.NewMockMedium()
+m := io.NewMemoryMedium()
 _ = m.EnsureDir("config")
 ok := m.IsDir("config")
 ```
 
-### NewMockMedium() *MockMedium
+### NewMemoryMedium() *MemoryMedium
 
 Creates a new empty in-memory medium.
 
 Example:
 ```go
-m := io.NewMockMedium()
+m := io.NewMemoryMedium()
 _ = m.Write("notes.txt", "hello")
 ```
 
-### MockFile
+### MemoryFile
 
-`fs.File` implementation returned by `MockMedium.Open`.
+`fs.File` implementation returned by `MemoryMedium.Open`.
 
 **Stat() (fs.FileInfo, error)**
 Example:
 ```go
-m := io.NewMockMedium()
+m := io.NewMemoryMedium()
 _ = m.Write("notes.txt", "hello")
 f, _ := m.Open("notes.txt")
 info, _ := f.Stat()
@@ -583,7 +583,7 @@ _ = info.Name()
 **Read(b []byte) (int, error)**
 Example:
 ```go
-m := io.NewMockMedium()
+m := io.NewMemoryMedium()
 _ = m.Write("notes.txt", "hello")
 f, _ := m.Open("notes.txt")
 buf := make([]byte, 5)
@@ -593,20 +593,20 @@ _, _ = f.Read(buf)
 **Close() error**
 Example:
 ```go
-m := io.NewMockMedium()
+m := io.NewMemoryMedium()
 _ = m.Write("notes.txt", "hello")
 f, _ := m.Open("notes.txt")
 _ = f.Close()
 ```
 
-### MockWriteCloser
+### MemoryWriteCloser
 
-`io.WriteCloser` implementation returned by `MockMedium.Create` and `MockMedium.Append`.
+`io.WriteCloser` implementation returned by `MemoryMedium.Create` and `MemoryMedium.Append`.
 
 **Write(p []byte) (int, error)**
 Example:
 ```go
-m := io.NewMockMedium()
+m := io.NewMemoryMedium()
 w, _ := m.Create("notes.txt")
 _, _ = w.Write([]byte("hello"))
 ```
@@ -614,7 +614,7 @@ _, _ = w.Write([]byte("hello"))
 **Close() error**
 Example:
 ```go
-m := io.NewMockMedium()
+m := io.NewMemoryMedium()
 w, _ := m.Create("notes.txt")
 _, _ = w.Write([]byte("hello"))
 _ = w.Close()
@@ -783,19 +783,19 @@ _ = m.Write("old.txt", "data")
 _ = m.Rename("old.txt", "new.txt")
 ```
 
-**FileGet(path string) (string, error)**
+**Read(path string) (string, error)**
 Example:
 ```go
 m, _ := local.New("/srv/app")
-_ = m.FileSet("notes.txt", "hello")
-value, _ := m.FileGet("notes.txt")
+_ = m.Write("notes.txt", "hello")
+value, _ := m.Read("notes.txt")
 ```
 
-**FileSet(path, content string) error**
+**Write(path, content string) error**
 Example:
 ```go
 m, _ := local.New("/srv/app")
-_ = m.FileSet("notes.txt", "hello")
+_ = m.Write("notes.txt", "hello")
 ```
 
 ## Package node (`forge.lthn.ai/core/go-io/node`)
@@ -827,8 +827,8 @@ Options for `Node.Walk`.
 
 Example:
 ```go
-opts := node.WalkOptions{MaxDepth: 1, SkipErrors: true}
-_ = opts.MaxDepth
+options := node.WalkOptions{MaxDepth: 1, SkipErrors: true}
+_ = options.MaxDepth
 ```
 
 ### Node
@@ -866,24 +866,15 @@ n := node.New()
 _ = n.LoadTar([]byte{})
 ```
 
-**WalkNode(root string, fn fs.WalkDirFunc) error**
-Walks the tree using `fs.WalkDir`.
-Example:
-```go
-n := node.New()
-_ = n.WalkNode(".", func(path string, d fs.DirEntry, err error) error {
-	return nil
-})
-```
-
-**Walk(root string, fn fs.WalkDirFunc, opts ...WalkOptions) error**
+**Walk(root string, fn fs.WalkDirFunc, options WalkOptions) error**
 Walks the tree with optional depth or filter controls.
 Example:
 ```go
 n := node.New()
+options := node.WalkOptions{MaxDepth: 1, SkipErrors: true}
 _ = n.Walk(".", func(path string, d fs.DirEntry, err error) error {
 	return nil
-}, node.WalkOptions{MaxDepth: 1})
+}, options)
 ```
 
 **ReadFile(name string) ([]byte, error)**
@@ -895,7 +886,7 @@ _ = n.Write("file.txt", "data")
 b, _ := n.ReadFile("file.txt")
 ```
 
-**CopyFile(src, dst string, perm fs.FileMode) error**
+**CopyFile(sourcePath, destinationPath string, perm fs.FileMode) error**
 Copies a file to the local filesystem.
 Example:
 ```go
@@ -910,7 +901,7 @@ Example:
 ```go
 n := node.New()
 _ = n.Write("config/app.yaml", "port: 8080")
-copyTarget := io.NewMockMedium()
+copyTarget := io.NewMemoryMedium()
 _ = n.CopyTo(copyTarget, "config", "backup/config")
 ```
 
@@ -967,21 +958,21 @@ n := node.New()
 _ = n.WriteMode("file.txt", "data", 0600)
 ```
 
-**FileGet(p string) (string, error)**
+**Read(p string) (string, error)**
 Alias for `Read`.
 Example:
 ```go
 n := node.New()
-_ = n.FileSet("file.txt", "data")
-value, _ := n.FileGet("file.txt")
+_ = n.Write("file.txt", "data")
+value, _ := n.Read("file.txt")
 ```
 
-**FileSet(p, content string) error**
+**Write(p, content string) error**
 Alias for `Write`.
 Example:
 ```go
 n := node.New()
-_ = n.FileSet("file.txt", "data")
+_ = n.Write("file.txt", "data")
 ```
 
 **EnsureDir(path string) error**
@@ -1100,26 +1091,36 @@ _ = w.Close()
 
 Group-namespaced key-value store backed by SQLite, plus a `Medium` adapter.
 
-### ErrNotFound
+### NotFoundError
 
 Returned when a key does not exist.
 
 Example:
 ```go
-s, _ := store.New(":memory:")
+s, _ := store.New(store.Options{Path: ":memory:"})
 _, err := s.Get("config", "missing")
-if core.Is(err, store.ErrNotFound) {
+if core.Is(err, store.NotFoundError) {
 	// handle missing key
 }
 ```
 
-### New(dbPath string) (*Store, error)
+### Options
 
-Creates a new `Store` at the SQLite path.
+Configures the SQLite database path used by the store.
 
 Example:
 ```go
-s, _ := store.New(":memory:")
+options := store.Options{Path: ":memory:"}
+_ = options
+```
+
+### New(options Options) (*Store, error)
+
+Creates a new `Store` backed by the configured SQLite path.
+
+Example:
+```go
+s, _ := store.New(store.Options{Path: ":memory:"})
 _ = s.Set("config", "theme", "midnight")
 ```
 
@@ -1129,21 +1130,21 @@ Group-namespaced key-value store.
 
 Example:
 ```go
-s, _ := store.New(":memory:")
+s, _ := store.New(store.Options{Path: ":memory:"})
 _ = s.Set("config", "theme", "midnight")
 ```
 
 **Close() error**
 Example:
 ```go
-s, _ := store.New(":memory:")
+s, _ := store.New(store.Options{Path: ":memory:"})
 _ = s.Close()
 ```
 
 **Get(group, key string) (string, error)**
 Example:
 ```go
-s, _ := store.New(":memory:")
+s, _ := store.New(store.Options{Path: ":memory:"})
 _ = s.Set("config", "theme", "midnight")
 value, _ := s.Get("config", "theme")
 ```
@@ -1151,14 +1152,14 @@ value, _ := s.Get("config", "theme")
 **Set(group, key, value string) error**
 Example:
 ```go
-s, _ := store.New(":memory:")
+s, _ := store.New(store.Options{Path: ":memory:"})
 _ = s.Set("config", "theme", "midnight")
 ```
 
 **Delete(group, key string) error**
 Example:
 ```go
-s, _ := store.New(":memory:")
+s, _ := store.New(store.Options{Path: ":memory:"})
 _ = s.Set("config", "theme", "midnight")
 _ = s.Delete("config", "theme")
 ```
@@ -1166,7 +1167,7 @@ _ = s.Delete("config", "theme")
 **Count(group string) (int, error)**
 Example:
 ```go
-s, _ := store.New(":memory:")
+s, _ := store.New(store.Options{Path: ":memory:"})
 _ = s.Set("config", "theme", "midnight")
 count, _ := s.Count("config")
 ```
@@ -1174,7 +1175,7 @@ count, _ := s.Count("config")
 **DeleteGroup(group string) error**
 Example:
 ```go
-s, _ := store.New(":memory:")
+s, _ := store.New(store.Options{Path: ":memory:"})
 _ = s.Set("config", "theme", "midnight")
 _ = s.DeleteGroup("config")
 ```
@@ -1182,7 +1183,7 @@ _ = s.DeleteGroup("config")
 **GetAll(group string) (map[string]string, error)**
 Example:
 ```go
-s, _ := store.New(":memory:")
+s, _ := store.New(store.Options{Path: ":memory:"})
 _ = s.Set("config", "theme", "midnight")
 all, _ := s.GetAll("config")
 ```
@@ -1190,7 +1191,7 @@ all, _ := s.GetAll("config")
 **Render(tmplStr, group string) (string, error)**
 Example:
 ```go
-s, _ := store.New(":memory:")
+s, _ := store.New(store.Options{Path: ":memory:"})
 _ = s.Set("user", "name", "alice")
 out, _ := s.Render("hello {{ .name }}", "user")
 ```
@@ -1198,18 +1199,18 @@ out, _ := s.Render("hello {{ .name }}", "user")
 **AsMedium() *Medium**
 Example:
 ```go
-s, _ := store.New(":memory:")
+s, _ := store.New(store.Options{Path: ":memory:"})
 m := s.AsMedium()
 _ = m.Write("config/theme", "midnight")
 ```
 
-### NewMedium(dbPath string) (*Medium, error)
+### NewMedium(options Options) (*Medium, error)
 
 Creates an `io.Medium` backed by a SQLite key-value store.
 
 Example:
 ```go
-m, _ := store.NewMedium("config.db")
+m, _ := store.NewMedium(store.Options{Path: "config.db"})
 _ = m.Write("config/theme", "midnight")
 ```
 
@@ -1219,14 +1220,14 @@ Adapter that maps `group/key` paths onto a `Store`.
 
 Example:
 ```go
-m, _ := store.NewMedium(":memory:")
+m, _ := store.NewMedium(store.Options{Path: ":memory:"})
 _ = m.Write("config/theme", "midnight")
 ```
 
 **Store() *Store**
 Example:
 ```go
-m, _ := store.NewMedium(":memory:")
+m, _ := store.NewMedium(store.Options{Path: ":memory:"})
 s := m.Store()
 _ = s.Set("config", "theme", "midnight")
 ```
@@ -1234,14 +1235,14 @@ _ = s.Set("config", "theme", "midnight")
 **Close() error**
 Example:
 ```go
-m, _ := store.NewMedium(":memory:")
+m, _ := store.NewMedium(store.Options{Path: ":memory:"})
 _ = m.Close()
 ```
 
 **Read(p string) (string, error)**
 Example:
 ```go
-m, _ := store.NewMedium(":memory:")
+m, _ := store.NewMedium(store.Options{Path: ":memory:"})
 _ = m.Write("config/theme", "midnight")
 value, _ := m.Read("config/theme")
 ```
@@ -1249,7 +1250,7 @@ value, _ := m.Read("config/theme")
 **Write(p, content string) error**
 Example:
 ```go
-m, _ := store.NewMedium(":memory:")
+m, _ := store.NewMedium(store.Options{Path: ":memory:"})
 _ = m.Write("config/theme", "midnight")
 ```
 
@@ -1257,37 +1258,37 @@ _ = m.Write("config/theme", "midnight")
 No-op (groups are implicit).
 Example:
 ```go
-m, _ := store.NewMedium(":memory:")
+m, _ := store.NewMedium(store.Options{Path: ":memory:"})
 _ = m.EnsureDir("config")
 ```
 
 **IsFile(p string) bool**
 Example:
 ```go
-m, _ := store.NewMedium(":memory:")
+m, _ := store.NewMedium(store.Options{Path: ":memory:"})
 _ = m.Write("config/theme", "midnight")
 ok := m.IsFile("config/theme")
 ```
 
-**FileGet(p string) (string, error)**
+**Read(p string) (string, error)**
 Example:
 ```go
-m, _ := store.NewMedium(":memory:")
-_ = m.FileSet("config/theme", "midnight")
-value, _ := m.FileGet("config/theme")
+m, _ := store.NewMedium(store.Options{Path: ":memory:"})
+_ = m.Write("config/theme", "midnight")
+value, _ := m.Read("config/theme")
 ```
 
-**FileSet(p, content string) error**
+**Write(p, content string) error**
 Example:
 ```go
-m, _ := store.NewMedium(":memory:")
-_ = m.FileSet("config/theme", "midnight")
+m, _ := store.NewMedium(store.Options{Path: ":memory:"})
+_ = m.Write("config/theme", "midnight")
 ```
 
 **Delete(p string) error**
 Example:
 ```go
-m, _ := store.NewMedium(":memory:")
+m, _ := store.NewMedium(store.Options{Path: ":memory:"})
 _ = m.Write("config/theme", "midnight")
 _ = m.Delete("config/theme")
 ```
@@ -1295,7 +1296,7 @@ _ = m.Delete("config/theme")
 **DeleteAll(p string) error**
 Example:
 ```go
-m, _ := store.NewMedium(":memory:")
+m, _ := store.NewMedium(store.Options{Path: ":memory:"})
 _ = m.Write("config/theme", "midnight")
 _ = m.DeleteAll("config")
 ```
@@ -1303,7 +1304,7 @@ _ = m.DeleteAll("config")
 **Rename(oldPath, newPath string) error**
 Example:
 ```go
-m, _ := store.NewMedium(":memory:")
+m, _ := store.NewMedium(store.Options{Path: ":memory:"})
 _ = m.Write("old/theme", "midnight")
 _ = m.Rename("old/theme", "new/theme")
 ```
@@ -1311,7 +1312,7 @@ _ = m.Rename("old/theme", "new/theme")
 **List(p string) ([]fs.DirEntry, error)**
 Example:
 ```go
-m, _ := store.NewMedium(":memory:")
+m, _ := store.NewMedium(store.Options{Path: ":memory:"})
 _ = m.Write("config/theme", "midnight")
 entries, _ := m.List("")
 ```
@@ -1319,7 +1320,7 @@ entries, _ := m.List("")
 **Stat(p string) (fs.FileInfo, error)**
 Example:
 ```go
-m, _ := store.NewMedium(":memory:")
+m, _ := store.NewMedium(store.Options{Path: ":memory:"})
 _ = m.Write("config/theme", "midnight")
 info, _ := m.Stat("config/theme")
 ```
@@ -1327,7 +1328,7 @@ info, _ := m.Stat("config/theme")
 **Open(p string) (fs.File, error)**
 Example:
 ```go
-m, _ := store.NewMedium(":memory:")
+m, _ := store.NewMedium(store.Options{Path: ":memory:"})
 _ = m.Write("config/theme", "midnight")
 f, _ := m.Open("config/theme")
 defer f.Close()
@@ -1336,7 +1337,7 @@ defer f.Close()
 **Create(p string) (io.WriteCloser, error)**
 Example:
 ```go
-m, _ := store.NewMedium(":memory:")
+m, _ := store.NewMedium(store.Options{Path: ":memory:"})
 w, _ := m.Create("config/theme")
 _, _ = w.Write([]byte("midnight"))
 _ = w.Close()
@@ -1345,7 +1346,7 @@ _ = w.Close()
 **Append(p string) (io.WriteCloser, error)**
 Example:
 ```go
-m, _ := store.NewMedium(":memory:")
+m, _ := store.NewMedium(store.Options{Path: ":memory:"})
 _ = m.Write("config/theme", "midnight")
 w, _ := m.Append("config/theme")
 _, _ = w.Write([]byte(" plus"))
@@ -1355,7 +1356,7 @@ _ = w.Close()
 **ReadStream(p string) (io.ReadCloser, error)**
 Example:
 ```go
-m, _ := store.NewMedium(":memory:")
+m, _ := store.NewMedium(store.Options{Path: ":memory:"})
 _ = m.Write("config/theme", "midnight")
 r, _ := m.ReadStream("config/theme")
 defer r.Close()
@@ -1364,7 +1365,7 @@ defer r.Close()
 **WriteStream(p string) (io.WriteCloser, error)**
 Example:
 ```go
-m, _ := store.NewMedium(":memory:")
+m, _ := store.NewMedium(store.Options{Path: ":memory:"})
 w, _ := m.WriteStream("config/theme")
 _, _ = w.Write([]byte("midnight"))
 _ = w.Close()
@@ -1373,7 +1374,7 @@ _ = w.Close()
 **Exists(p string) bool**
 Example:
 ```go
-m, _ := store.NewMedium(":memory:")
+m, _ := store.NewMedium(store.Options{Path: ":memory:"})
 _ = m.Write("config/theme", "midnight")
 ok := m.Exists("config")
 ```
@@ -1381,7 +1382,7 @@ ok := m.Exists("config")
 **IsDir(p string) bool**
 Example:
 ```go
-m, _ := store.NewMedium(":memory:")
+m, _ := store.NewMedium(store.Options{Path: ":memory:"})
 _ = m.Write("config/theme", "midnight")
 ok := m.IsDir("config")
 ```
@@ -1390,26 +1391,17 @@ ok := m.IsDir("config")
 
 SQLite-backed `io.Medium` implementation using the pure-Go driver.
 
-### Option
-
-Functional option for configuring `Medium`.
-
-Example:
-```go
-opt := sqlite.Options{Path: ":memory:", Table: "files"}
-_ = opt
-```
-
 ### Options
 
-Sets the table name used for storage (default: `files`).
+Configures the SQLite database path and optional table name.
 
 Example:
 ```go
-m, _ := sqlite.New(sqlite.Options{Path: ":memory:", Table: "files"})
+options := sqlite.Options{Path: ":memory:", Table: "files"}
+_ = options
 ```
 
-### New(dbPath string, opts ...Option) (*Medium, error)
+### New(options Options) (*Medium, error)
 
 Creates a new SQLite-backed medium.
 
@@ -1466,19 +1458,19 @@ _ = m.Write("notes.txt", "hello")
 ok := m.IsFile("notes.txt")
 ```
 
-**FileGet(p string) (string, error)**
+**Read(p string) (string, error)**
 Example:
 ```go
 m, _ := sqlite.New(sqlite.Options{Path: ":memory:"})
-_ = m.FileSet("notes.txt", "hello")
-value, _ := m.FileGet("notes.txt")
+_ = m.Write("notes.txt", "hello")
+value, _ := m.Read("notes.txt")
 ```
 
-**FileSet(p, content string) error**
+**Write(p, content string) error**
 Example:
 ```go
 m, _ := sqlite.New(sqlite.Options{Path: ":memory:"})
-_ = m.FileSet("notes.txt", "hello")
+_ = m.Write("notes.txt", "hello")
 ```
 
 **Delete(p string) error**
@@ -1587,23 +1579,15 @@ ok := m.IsDir("config")
 
 Amazon S3-backed `io.Medium` implementation.
 
-### Option
-
-Functional option for configuring `Medium`.
-
-Example:
-```go
-opt := s3.Options{Prefix: "daily/"}
-_ = opt
-```
-
 ### Options
 
-Sets a key prefix for all operations.
+Configures the bucket, client, and optional key prefix.
 
 Example:
 ```go
-m, _ := s3.New(s3.Options{Bucket: "bucket", Client: awsClient, Prefix: "daily/"})
+client := awss3.NewFromConfig(aws.Config{Region: "us-east-1"})
+options := s3.Options{Bucket: "bucket", Client: client, Prefix: "daily/"}
+_ = options
 ```
 
 ### Client
@@ -1612,17 +1596,17 @@ Supplies an AWS SDK S3 client.
 
 Example:
 ```go
-client := awss3.NewFromConfig(cfg)
+client := awss3.NewFromConfig(aws.Config{Region: "us-east-1"})
 m, _ := s3.New(s3.Options{Bucket: "bucket", Client: client})
 ```
 
-### New(bucket string, opts ...Option) (*Medium, error)
+### New(options Options) (*Medium, error)
 
 Creates a new S3-backed medium.
 
 Example:
 ```go
-client := awss3.NewFromConfig(cfg)
+client := awss3.NewFromConfig(aws.Config{Region: "us-east-1"})
 m, _ := s3.New(s3.Options{Bucket: "bucket", Client: client})
 ```
 
@@ -1632,14 +1616,14 @@ S3-backed storage backend.
 
 Example:
 ```go
-client := awss3.NewFromConfig(cfg)
+client := awss3.NewFromConfig(aws.Config{Region: "us-east-1"})
 m, _ := s3.New(s3.Options{Bucket: "bucket", Client: client})
 ```
 
 **Read(p string) (string, error)**
 Example:
 ```go
-client := awss3.NewFromConfig(cfg)
+client := awss3.NewFromConfig(aws.Config{Region: "us-east-1"})
 m, _ := s3.New(s3.Options{Bucket: "bucket", Client: client})
 value, _ := m.Read("notes.txt")
 ```
@@ -1647,7 +1631,7 @@ value, _ := m.Read("notes.txt")
 **Write(p, content string) error**
 Example:
 ```go
-client := awss3.NewFromConfig(cfg)
+client := awss3.NewFromConfig(aws.Config{Region: "us-east-1"})
 m, _ := s3.New(s3.Options{Bucket: "bucket", Client: client})
 _ = m.Write("notes.txt", "hello")
 ```
@@ -1656,7 +1640,7 @@ _ = m.Write("notes.txt", "hello")
 No-op (S3 has no directories).
 Example:
 ```go
-client := awss3.NewFromConfig(cfg)
+client := awss3.NewFromConfig(aws.Config{Region: "us-east-1"})
 m, _ := s3.New(s3.Options{Bucket: "bucket", Client: client})
 _ = m.EnsureDir("config")
 ```
@@ -1664,31 +1648,31 @@ _ = m.EnsureDir("config")
 **IsFile(p string) bool**
 Example:
 ```go
-client := awss3.NewFromConfig(cfg)
+client := awss3.NewFromConfig(aws.Config{Region: "us-east-1"})
 m, _ := s3.New(s3.Options{Bucket: "bucket", Client: client})
 ok := m.IsFile("notes.txt")
 ```
 
-**FileGet(p string) (string, error)**
+**Read(p string) (string, error)**
 Example:
 ```go
-client := awss3.NewFromConfig(cfg)
+client := awss3.NewFromConfig(aws.Config{Region: "us-east-1"})
 m, _ := s3.New(s3.Options{Bucket: "bucket", Client: client})
-value, _ := m.FileGet("notes.txt")
+value, _ := m.Read("notes.txt")
 ```
 
-**FileSet(p, content string) error**
+**Write(p, content string) error**
 Example:
 ```go
-client := awss3.NewFromConfig(cfg)
+client := awss3.NewFromConfig(aws.Config{Region: "us-east-1"})
 m, _ := s3.New(s3.Options{Bucket: "bucket", Client: client})
-_ = m.FileSet("notes.txt", "hello")
+_ = m.Write("notes.txt", "hello")
 ```
 
 **Delete(p string) error**
 Example:
 ```go
-client := awss3.NewFromConfig(cfg)
+client := awss3.NewFromConfig(aws.Config{Region: "us-east-1"})
 m, _ := s3.New(s3.Options{Bucket: "bucket", Client: client})
 _ = m.Delete("old.txt")
 ```
@@ -1696,7 +1680,7 @@ _ = m.Delete("old.txt")
 **DeleteAll(p string) error**
 Example:
 ```go
-client := awss3.NewFromConfig(cfg)
+client := awss3.NewFromConfig(aws.Config{Region: "us-east-1"})
 m, _ := s3.New(s3.Options{Bucket: "bucket", Client: client})
 _ = m.DeleteAll("logs")
 ```
@@ -1704,7 +1688,7 @@ _ = m.DeleteAll("logs")
 **Rename(oldPath, newPath string) error**
 Example:
 ```go
-client := awss3.NewFromConfig(cfg)
+client := awss3.NewFromConfig(aws.Config{Region: "us-east-1"})
 m, _ := s3.New(s3.Options{Bucket: "bucket", Client: client})
 _ = m.Rename("old.txt", "new.txt")
 ```
@@ -1712,7 +1696,7 @@ _ = m.Rename("old.txt", "new.txt")
 **List(p string) ([]fs.DirEntry, error)**
 Example:
 ```go
-client := awss3.NewFromConfig(cfg)
+client := awss3.NewFromConfig(aws.Config{Region: "us-east-1"})
 m, _ := s3.New(s3.Options{Bucket: "bucket", Client: client})
 entries, _ := m.List("dir")
 ```
@@ -1720,7 +1704,7 @@ entries, _ := m.List("dir")
 **Stat(p string) (fs.FileInfo, error)**
 Example:
 ```go
-client := awss3.NewFromConfig(cfg)
+client := awss3.NewFromConfig(aws.Config{Region: "us-east-1"})
 m, _ := s3.New(s3.Options{Bucket: "bucket", Client: client})
 info, _ := m.Stat("notes.txt")
 ```
@@ -1728,7 +1712,7 @@ info, _ := m.Stat("notes.txt")
 **Open(p string) (fs.File, error)**
 Example:
 ```go
-client := awss3.NewFromConfig(cfg)
+client := awss3.NewFromConfig(aws.Config{Region: "us-east-1"})
 m, _ := s3.New(s3.Options{Bucket: "bucket", Client: client})
 f, _ := m.Open("notes.txt")
 defer f.Close()
@@ -1737,7 +1721,7 @@ defer f.Close()
 **Create(p string) (io.WriteCloser, error)**
 Example:
 ```go
-client := awss3.NewFromConfig(cfg)
+client := awss3.NewFromConfig(aws.Config{Region: "us-east-1"})
 m, _ := s3.New(s3.Options{Bucket: "bucket", Client: client})
 w, _ := m.Create("notes.txt")
 _, _ = w.Write([]byte("hello"))
@@ -1747,7 +1731,7 @@ _ = w.Close()
 **Append(p string) (io.WriteCloser, error)**
 Example:
 ```go
-client := awss3.NewFromConfig(cfg)
+client := awss3.NewFromConfig(aws.Config{Region: "us-east-1"})
 m, _ := s3.New(s3.Options{Bucket: "bucket", Client: client})
 w, _ := m.Append("notes.txt")
 _, _ = w.Write([]byte(" world"))
@@ -1757,7 +1741,7 @@ _ = w.Close()
 **ReadStream(p string) (io.ReadCloser, error)**
 Example:
 ```go
-client := awss3.NewFromConfig(cfg)
+client := awss3.NewFromConfig(aws.Config{Region: "us-east-1"})
 m, _ := s3.New(s3.Options{Bucket: "bucket", Client: client})
 r, _ := m.ReadStream("notes.txt")
 defer r.Close()
@@ -1766,7 +1750,7 @@ defer r.Close()
 **WriteStream(p string) (io.WriteCloser, error)**
 Example:
 ```go
-client := awss3.NewFromConfig(cfg)
+client := awss3.NewFromConfig(aws.Config{Region: "us-east-1"})
 m, _ := s3.New(s3.Options{Bucket: "bucket", Client: client})
 w, _ := m.WriteStream("notes.txt")
 _, _ = w.Write([]byte("hello"))
@@ -1776,7 +1760,7 @@ _ = w.Close()
 **Exists(p string) bool**
 Example:
 ```go
-client := awss3.NewFromConfig(cfg)
+client := awss3.NewFromConfig(aws.Config{Region: "us-east-1"})
 m, _ := s3.New(s3.Options{Bucket: "bucket", Client: client})
 ok := m.Exists("notes.txt")
 ```
@@ -1784,7 +1768,7 @@ ok := m.Exists("notes.txt")
 **IsDir(p string) bool**
 Example:
 ```go
-client := awss3.NewFromConfig(cfg)
+client := awss3.NewFromConfig(aws.Config{Region: "us-east-1"})
 m, _ := s3.New(s3.Options{Bucket: "bucket", Client: client})
 ok := m.IsDir("logs")
 ```
@@ -1885,19 +1869,19 @@ _ = m.Write("notes.txt", "hello")
 ok := m.IsFile("notes.txt")
 ```
 
-**FileGet(p string) (string, error)**
+**Read(p string) (string, error)**
 Example:
 ```go
 m := datanode.New()
-_ = m.FileSet("notes.txt", "hello")
-value, _ := m.FileGet("notes.txt")
+_ = m.Write("notes.txt", "hello")
+value, _ := m.Read("notes.txt")
 ```
 
-**FileSet(p, content string) error**
+**Write(p, content string) error**
 Example:
 ```go
 m := datanode.New()
-_ = m.FileSet("notes.txt", "hello")
+_ = m.Write("notes.txt", "hello")
 ```
 
 **Delete(p string) error**
@@ -2008,113 +1992,134 @@ Encrypted user workspace management.
 
 ### Workspace (interface)
 
-Defines the workspace operations exposed by the service.
+Creates and operates on encrypted workspaces through a service.
 
 Example:
 ```go
-var ws workspace.Workspace = &workspace.Service{}
-_ = ws
+service, _ := workspace.New(workspace.Options{KeyPairProvider: stubKeyPairProvider{}})
+_ = service
 ```
 
-**CreateWorkspace(identifier, password string) (string, error)**
+### KeyPairProvider
+
+Creates key pairs for workspace provisioning.
+
 Example:
 ```go
-svcAny, _ := workspace.New(workspace.Options{Core: core.New(), Crypt: stubCrypt{}})
-svc := svcAny.(*workspace.Service)
-wsID, _ := svc.CreateWorkspace("user", "pass")
+keyPairProvider := stubKeyPairProvider{}
+keyPair, _ := keyPairProvider.CreateKeyPair("alice", "pass123")
+_ = keyPair
 ```
 
-**SwitchWorkspace(name string) error**
+### WorkspaceCreateAction
+
+Action value used to create a workspace.
+
 Example:
 ```go
-svcAny, _ := workspace.New(workspace.Options{Core: core.New(), Crypt: stubCrypt{}})
-svc := svcAny.(*workspace.Service)
-_ = svc.SwitchWorkspace("workspace-id")
+command := workspace.WorkspaceCommand{Action: workspace.WorkspaceCreateAction, Identifier: "alice", Password: "pass123"}
+_ = command
 ```
 
-**WorkspaceFileGet(filename string) (string, error)**
+### WorkspaceSwitchAction
+
+Action value used to switch to an existing workspace.
+
 Example:
 ```go
-svcAny, _ := workspace.New(workspace.Options{Core: core.New(), Crypt: stubCrypt{}})
-svc := svcAny.(*workspace.Service)
-value, _ := svc.WorkspaceFileGet("notes.txt")
+command := workspace.WorkspaceCommand{Action: workspace.WorkspaceSwitchAction, WorkspaceID: "f3f0d7"}
+_ = command
 ```
 
-**WorkspaceFileSet(filename, content string) error**
+### WorkspaceCommand
+
+Command envelope consumed by the service.
+
 Example:
 ```go
-svcAny, _ := workspace.New(workspace.Options{Core: core.New(), Crypt: stubCrypt{}})
-svc := svcAny.(*workspace.Service)
-_ = svc.WorkspaceFileSet("notes.txt", "hello")
+command := workspace.WorkspaceCommand{Action: workspace.WorkspaceCreateAction, Identifier: "alice", Password: "pass123"}
+_ = command
 ```
 
-### New(options Options) (any, error)
+### Options
 
-Creates a new workspace service. Returns `*Service` as `any`.
+Configures the workspace service.
 
 Example:
 ```go
-type stubCrypt struct{}
-func (stubCrypt) CreateKeyPair(name, passphrase string) (string, error) { return "key", nil }
+service, _ := workspace.New(workspace.Options{KeyPairProvider: stubKeyPairProvider{}})
+_ = service
+```
 
-svcAny, _ := workspace.New(workspace.Options{Core: core.New(), Crypt: stubCrypt{}})
-svc := svcAny.(*workspace.Service)
-_ = svc
+### New(options Options) (*Service, error)
+
+Creates a new workspace service.
+
+Example:
+```go
+type stubKeyPairProvider struct{}
+
+func (stubKeyPairProvider) CreateKeyPair(name, passphrase string) (string, error) {
+	return "key", nil
+}
+
+service, _ := workspace.New(workspace.Options{KeyPairProvider: stubKeyPairProvider{}})
+_ = service
 ```
 
 ### Service
 
-Implements `Workspace` and handles IPC messages.
+Implements `Workspace` and handles Core messages.
 
 Example:
 ```go
-svcAny, _ := workspace.New(workspace.Options{Core: core.New(), Crypt: stubCrypt{}})
-svc := svcAny.(*workspace.Service)
-_ = svc
+service, _ := workspace.New(workspace.Options{KeyPairProvider: stubKeyPairProvider{}})
+_ = service
 ```
 
 **CreateWorkspace(identifier, password string) (string, error)**
 Example:
 ```go
-svcAny, _ := workspace.New(workspace.Options{Core: core.New(), Crypt: stubCrypt{}})
-svc := svcAny.(*workspace.Service)
-wsID, _ := svc.CreateWorkspace("user", "pass")
+service, _ := workspace.New(workspace.Options{KeyPairProvider: stubKeyPairProvider{}})
+workspaceID, _ := service.CreateWorkspace("alice", "pass123")
+_ = workspaceID
 ```
 
-**SwitchWorkspace(name string) error**
+**SwitchWorkspace(workspaceID string) error**
 Example:
 ```go
-svcAny, _ := workspace.New(workspace.Options{Core: core.New(), Crypt: stubCrypt{}})
-svc := svcAny.(*workspace.Service)
-_ = svc.SwitchWorkspace("workspace-id")
+service, _ := workspace.New(workspace.Options{KeyPairProvider: stubKeyPairProvider{}})
+_ = service.SwitchWorkspace("f3f0d7")
 ```
 
-**WorkspaceFileGet(filename string) (string, error)**
+**ReadWorkspaceFile(workspaceFilePath string) (string, error)**
 Example:
 ```go
-svcAny, _ := workspace.New(workspace.Options{Core: core.New(), Crypt: stubCrypt{}})
-svc := svcAny.(*workspace.Service)
-value, _ := svc.WorkspaceFileGet("notes.txt")
+service, _ := workspace.New(workspace.Options{KeyPairProvider: stubKeyPairProvider{}})
+content, _ := service.ReadWorkspaceFile("notes/todo.txt")
+_ = content
 ```
 
-**WorkspaceFileSet(filename, content string) error**
+**WriteWorkspaceFile(workspaceFilePath, content string) error**
 Example:
 ```go
-svcAny, _ := workspace.New(workspace.Options{Core: core.New(), Crypt: stubCrypt{}})
-svc := svcAny.(*workspace.Service)
-_ = svc.WorkspaceFileSet("notes.txt", "hello")
+service, _ := workspace.New(workspace.Options{KeyPairProvider: stubKeyPairProvider{}})
+_ = service.WriteWorkspaceFile("notes/todo.txt", "ship it")
 ```
 
-**HandleIPCEvents(c *core.Core, msg core.Message) core.Result**
+**HandleWorkspaceCommand(command WorkspaceCommand) core.Result**
 Example:
 ```go
-svcAny, _ := workspace.New(workspace.Options{Core: core.New(), Crypt: stubCrypt{}})
-svc := svcAny.(*workspace.Service)
-result := svc.HandleIPCEvents(core.New(), map[string]any{
-	"action":     "workspace.create",
-	"identifier": "user",
-	"password":   "pass",
-})
+service, _ := workspace.New(workspace.Options{KeyPairProvider: stubKeyPairProvider{}})
+result := service.HandleWorkspaceCommand(workspace.WorkspaceCommand{Action: workspace.WorkspaceCreateAction, Identifier: "alice", Password: "pass123"})
+_ = result.OK
+```
+
+**HandleWorkspaceMessage(_ *core.Core, message core.Message) core.Result**
+Example:
+```go
+service, _ := workspace.New(workspace.Options{KeyPairProvider: stubKeyPairProvider{}})
+result := service.HandleWorkspaceMessage(core.New(), workspace.WorkspaceCommand{Action: workspace.WorkspaceSwitchAction, WorkspaceID: "f3f0d7"})
 _ = result.OK
 ```
 
