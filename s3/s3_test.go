@@ -627,7 +627,7 @@ func TestS3_ObjectKey_Good(t *testing.T) {
 	assert.Equal(t, "pfx/", m2.objectKey(""))
 }
 
-func TestS3_InterfaceCompliance(t *testing.T) {
+func TestS3_InterfaceCompliance_Good(t *testing.T) {
 	mock := newMockS3()
 	m, err := New(Options{Bucket: "bucket", Client: mock})
 	require.NoError(t, err)

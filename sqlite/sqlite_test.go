@@ -561,7 +561,7 @@ func TestSqlite_NormaliseEntryPath_Good(t *testing.T) {
 	assert.Equal(t, "", normaliseEntryPath("/"))
 }
 
-func TestSqlite_InterfaceCompliance(t *testing.T) {
+func TestSqlite_InterfaceCompliance_Good(t *testing.T) {
 	sqliteMedium := newTestSqliteMedium(t)
 
 	var _ interface {
