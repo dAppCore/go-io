@@ -10,15 +10,15 @@ import (
 )
 
 type stubKeyPairProvider struct {
-	key string
-	err error
+	privateKey string
+	err        error
 }
 
 func (provider stubKeyPairProvider) CreateKeyPair(_, _ string) (string, error) {
 	if provider.err != nil {
 		return "", provider.err
 	}
-	return provider.key, nil
+	return provider.privateKey, nil
 }
 
 func newTestService(t *testing.T) (*Service, string) {
@@ -27,7 +27,7 @@ func newTestService(t *testing.T) (*Service, string) {
 	tempHome := t.TempDir()
 	t.Setenv("HOME", tempHome)
 
-	service, err := New(Options{KeyPairProvider: stubKeyPairProvider{key: "private-key"}})
+	service, err := New(Options{KeyPairProvider: stubKeyPairProvider{privateKey: "private-key"}})
 	require.NoError(t, err)
 	return service, tempHome
 }
@@ -42,7 +42,7 @@ func TestService_New_CustomRootPathAndMedium_Good(t *testing.T) {
 	rootPath := core.Path(t.TempDir(), "custom", "workspaces")
 
 	service, err := New(Options{
-		KeyPairProvider: stubKeyPairProvider{key: "private-key"},
+		KeyPairProvider: stubKeyPairProvider{privateKey: "private-key"},
 		RootPath:        rootPath,
 		Medium:          medium,
 	})

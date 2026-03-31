@@ -53,8 +53,8 @@ func (node *Node) AddData(name string, content []byte) {
 
 // Example: snapshot, _ := nodeTree.ToTar()
 func (node *Node) ToTar() ([]byte, error) {
-	buf := new(bytes.Buffer)
-	tw := tar.NewWriter(buf)
+	buffer := new(bytes.Buffer)
+	tarWriter := tar.NewWriter(buffer)
 
 	for _, file := range node.files {
 		hdr := &tar.Header{
@@ -63,19 +63,19 @@ func (node *Node) ToTar() ([]byte, error) {
 			Size:    int64(len(file.content)),
 			ModTime: file.modTime,
 		}
-		if err := tw.WriteHeader(hdr); err != nil {
+		if err := tarWriter.WriteHeader(hdr); err != nil {
 			return nil, err
 		}
-		if _, err := tw.Write(file.content); err != nil {
+		if _, err := tarWriter.Write(file.content); err != nil {
 			return nil, err
 		}
 	}
 
-	if err := tw.Close(); err != nil {
+	if err := tarWriter.Close(); err != nil {
 		return nil, err
 	}
 
-	return buf.Bytes(), nil
+	return buffer.Bytes(), nil
 }
 
 // Example: restored, _ := node.FromTar(snapshot)
@@ -90,10 +90,10 @@ func FromTar(data []byte) (*Node, error) {
 // Example: _ = nodeTree.LoadTar(snapshot)
 func (node *Node) LoadTar(data []byte) error {
 	newFiles := make(map[string]*dataFile)
-	tr := tar.NewReader(bytes.NewReader(data))
+	tarReader := tar.NewReader(bytes.NewReader(data))
 
 	for {
-		header, err := tr.Next()
+		header, err := tarReader.Next()
 		if err == goio.EOF {
 			break
 		}
@@ -102,7 +102,7 @@ func (node *Node) LoadTar(data []byte) error {
 		}
 
 		if header.Typeflag == tar.TypeReg {
-			content, err := goio.ReadAll(tr)
+			content, err := goio.ReadAll(tarReader)
 			if err != nil {
 				return core.E("node.LoadTar", "read tar entry", err)
 			}
@@ -147,18 +147,18 @@ func (node *Node) Walk(root string, fn fs.WalkDirFunc, options WalkOptions) erro
 			}
 		}
 
-		result := fn(entryPath, entry, err)
+		walkResult := fn(entryPath, entry, err)
 
-		if result == nil && options.MaxDepth > 0 && entry != nil && entry.IsDir() && entryPath != root {
-			rel := core.TrimPrefix(entryPath, root)
-			rel = core.TrimPrefix(rel, "/")
-			depth := len(core.Split(rel, "/"))
+		if walkResult == nil && options.MaxDepth > 0 && entry != nil && entry.IsDir() && entryPath != root {
+			relativePath := core.TrimPrefix(entryPath, root)
+			relativePath = core.TrimPrefix(relativePath, "/")
+			depth := len(core.Split(relativePath, "/"))
 			if depth >= options.MaxDepth {
 				return fs.SkipDir
 			}
 		}
 
-		return result
+		return walkResult
 	})
 }
 

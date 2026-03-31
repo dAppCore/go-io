@@ -34,9 +34,9 @@ func TestStore_SetGet_Good(t *testing.T) {
 	err := keyValueStore.Set("config", "theme", "dark")
 	require.NoError(t, err)
 
-	val, err := keyValueStore.Get("config", "theme")
+	value, err := keyValueStore.Get("config", "theme")
 	require.NoError(t, err)
-	assert.Equal(t, "dark", val)
+	assert.Equal(t, "dark", value)
 }
 
 func TestStore_Get_NotFound_Bad(t *testing.T) {

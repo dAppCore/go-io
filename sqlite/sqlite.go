@@ -203,11 +203,11 @@ func (medium *Medium) Delete(filePath string) error {
 		}
 	}
 
-	res, err := medium.database.Exec(`DELETE FROM `+medium.table+` WHERE path = ?`, key)
+	execResult, err := medium.database.Exec(`DELETE FROM `+medium.table+` WHERE path = ?`, key)
 	if err != nil {
 		return core.E("sqlite.Delete", core.Concat("delete failed: ", key), err)
 	}
-	rowsAffected, _ := res.RowsAffected()
+	rowsAffected, _ := execResult.RowsAffected()
 	if rowsAffected == 0 {
 		return core.E("sqlite.Delete", core.Concat("path not found: ", key), fs.ErrNotExist)
 	}
@@ -223,14 +223,14 @@ func (medium *Medium) DeleteAll(filePath string) error {
 
 	prefix := key + "/"
 
-	res, err := medium.database.Exec(
+	execResult, err := medium.database.Exec(
 		`DELETE FROM `+medium.table+` WHERE path = ? OR path LIKE ?`,
 		key, prefix+"%",
 	)
 	if err != nil {
 		return core.E("sqlite.DeleteAll", core.Concat("delete failed: ", key), err)
 	}
-	rowsAffected, _ := res.RowsAffected()
+	rowsAffected, _ := execResult.RowsAffected()
 	if rowsAffected == 0 {
 		return core.E("sqlite.DeleteAll", core.Concat("path not found: ", key), fs.ErrNotExist)
 	}

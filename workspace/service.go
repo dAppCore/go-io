@@ -134,12 +134,12 @@ func (service *Service) CreateWorkspace(identifier, password string) (string, er
 		}
 	}
 
-	privKey, err := service.keyPairProvider.CreateKeyPair(identifier, password)
+	privateKey, err := service.keyPairProvider.CreateKeyPair(identifier, password)
 	if err != nil {
 		return "", core.E("workspace.CreateWorkspace", "failed to generate keys", err)
 	}
 
-	if err := service.medium.WriteMode(core.Path(workspaceDirectory, "keys", "private.key"), privKey, 0600); err != nil {
+	if err := service.medium.WriteMode(core.Path(workspaceDirectory, "keys", "private.key"), privateKey, 0600); err != nil {
 		return "", core.E("workspace.CreateWorkspace", "failed to save private key", err)
 	}
 

@@ -23,9 +23,9 @@ func TestKeyValueMedium_ReadWrite_Good(t *testing.T) {
 	err := m.Write("config/theme", "dark")
 	require.NoError(t, err)
 
-	val, err := m.Read("config/theme")
+	value, err := m.Read("config/theme")
 	require.NoError(t, err)
-	assert.Equal(t, "dark", val)
+	assert.Equal(t, "dark", value)
 }
 
 func TestKeyValueMedium_Read_NoKey_Bad(t *testing.T) {
@@ -83,9 +83,9 @@ func TestKeyValueMedium_Rename_Good(t *testing.T) {
 	err := m.Rename("old/key", "new/key")
 	require.NoError(t, err)
 
-	val, err := m.Read("new/key")
+	value, err := m.Read("new/key")
 	require.NoError(t, err)
-	assert.Equal(t, "val", val)
+	assert.Equal(t, "val", value)
 	assert.False(t, m.IsFile("old/key"))
 }
 
@@ -163,9 +163,9 @@ func TestKeyValueMedium_CreateClose_Good(t *testing.T) {
 	_, _ = w.Write([]byte("streamed"))
 	require.NoError(t, w.Close())
 
-	val, err := m.Read("group/key")
+	value, err := m.Read("group/key")
 	require.NoError(t, err)
-	assert.Equal(t, "streamed", val)
+	assert.Equal(t, "streamed", value)
 }
 
 func TestKeyValueMedium_Append_Good(t *testing.T) {
@@ -177,9 +177,9 @@ func TestKeyValueMedium_Append_Good(t *testing.T) {
 	_, _ = w.Write([]byte(" world"))
 	require.NoError(t, w.Close())
 
-	val, err := m.Read("group/key")
+	value, err := m.Read("group/key")
 	require.NoError(t, err)
-	assert.Equal(t, "hello world", val)
+	assert.Equal(t, "hello world", value)
 }
 
 func TestKeyValueMedium_AsMedium_Good(t *testing.T) {
@@ -188,13 +188,13 @@ func TestKeyValueMedium_AsMedium_Good(t *testing.T) {
 	m := s.AsMedium()
 	require.NoError(t, m.Write("group/key", "val"))
 
-	val, err := s.Get("group", "key")
+	value, err := s.Get("group", "key")
 	require.NoError(t, err)
-	assert.Equal(t, "val", val)
+	assert.Equal(t, "val", value)
 
-	val, err = m.Read("group/key")
+	value, err = m.Read("group/key")
 	require.NoError(t, err)
-	assert.Equal(t, "val", val)
+	assert.Equal(t, "val", value)
 }
 
 func TestKeyValueMedium_Store_Good(t *testing.T) {

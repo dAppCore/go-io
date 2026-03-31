@@ -463,15 +463,15 @@ func TestNode_ToTar_Good(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, tarball)
 
-	tr := tar.NewReader(bytes.NewReader(tarball))
+	tarReader := tar.NewReader(bytes.NewReader(tarball))
 	files := make(map[string]string)
 	for {
-		header, err := tr.Next()
+		header, err := tarReader.Next()
 		if err == io.EOF {
 			break
 		}
 		require.NoError(t, err)
-		content, err := io.ReadAll(tr)
+		content, err := io.ReadAll(tarReader)
 		require.NoError(t, err)
 		files[header.Name] = string(content)
 	}
@@ -481,26 +481,26 @@ func TestNode_ToTar_Good(t *testing.T) {
 }
 
 func TestNode_FromTar_Good(t *testing.T) {
-	buf := new(bytes.Buffer)
-	tw := tar.NewWriter(buf)
+	buffer := new(bytes.Buffer)
+	tarWriter := tar.NewWriter(buffer)
 
-	for _, f := range []struct{ Name, Body string }{
+	for _, file := range []struct{ Name, Body string }{
 		{"foo.txt", "foo"},
 		{"bar/baz.txt", "baz"},
 	} {
 		hdr := &tar.Header{
-			Name:     f.Name,
+			Name:     file.Name,
 			Mode:     0600,
-			Size:     int64(len(f.Body)),
+			Size:     int64(len(file.Body)),
 			Typeflag: tar.TypeReg,
 		}
-		require.NoError(t, tw.WriteHeader(hdr))
-		_, err := tw.Write([]byte(f.Body))
+		require.NoError(t, tarWriter.WriteHeader(hdr))
+		_, err := tarWriter.Write([]byte(file.Body))
 		require.NoError(t, err)
 	}
-	require.NoError(t, tw.Close())
+	require.NoError(t, tarWriter.Close())
 
-	nodeTree, err := FromTar(buf.Bytes())
+	nodeTree, err := FromTar(buffer.Bytes())
 	require.NoError(t, err)
 
 	assert.True(t, nodeTree.Exists("foo.txt"), "foo.txt should exist")

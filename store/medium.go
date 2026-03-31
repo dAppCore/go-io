@@ -128,11 +128,11 @@ func (medium *Medium) Rename(oldPath, newPath string) error {
 	if oldKey == "" || newKey == "" {
 		return core.E("store.Rename", "both paths must include group/key", fs.ErrInvalid)
 	}
-	val, err := medium.store.Get(oldGroup, oldKey)
+	value, err := medium.store.Get(oldGroup, oldKey)
 	if err != nil {
 		return err
 	}
-	if err := medium.store.Set(newGroup, newKey, val); err != nil {
+	if err := medium.store.Set(newGroup, newKey, value); err != nil {
 		return err
 	}
 	return medium.store.Delete(oldGroup, oldKey)
@@ -235,11 +235,11 @@ func (medium *Medium) ReadStream(entryPath string) (goio.ReadCloser, error) {
 	if key == "" {
 		return nil, core.E("store.ReadStream", "path must include group/key", fs.ErrInvalid)
 	}
-	val, err := medium.store.Get(group, key)
+	value, err := medium.store.Get(group, key)
 	if err != nil {
 		return nil, err
 	}
-	return goio.NopCloser(core.NewReader(val)), nil
+	return goio.NopCloser(core.NewReader(value)), nil
 }
 
 func (medium *Medium) WriteStream(entryPath string) (goio.WriteCloser, error) {
