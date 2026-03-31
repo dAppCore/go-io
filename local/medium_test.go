@@ -15,7 +15,6 @@ func TestClient_New_ResolvesRoot_Good(t *testing.T) {
 	root := t.TempDir()
 	m, err := New(root)
 	assert.NoError(t, err)
-	// Example: local.New("/srv/app") resolves macOS "/var" to "/private/var" before sandbox checks.
 	resolved, err := resolveSymlinksPath(root)
 	require.NoError(t, err)
 	assert.Equal(t, resolved, m.filesystemRoot)
@@ -24,29 +23,23 @@ func TestClient_New_ResolvesRoot_Good(t *testing.T) {
 func TestClient_Path_Sandboxed_Good(t *testing.T) {
 	m := &Medium{filesystemRoot: "/home/user"}
 
-	// Normal paths
 	assert.Equal(t, "/home/user/file.txt", m.sandboxedPath("file.txt"))
 	assert.Equal(t, "/home/user/dir/file.txt", m.sandboxedPath("dir/file.txt"))
 
-	// Empty returns root
 	assert.Equal(t, "/home/user", m.sandboxedPath(""))
 
-	// Traversal attempts get sanitised
 	assert.Equal(t, "/home/user/file.txt", m.sandboxedPath("../file.txt"))
 	assert.Equal(t, "/home/user/file.txt", m.sandboxedPath("dir/../file.txt"))
 
-	// Absolute paths are constrained to sandbox (no escape)
 	assert.Equal(t, "/home/user/etc/passwd", m.sandboxedPath("/etc/passwd"))
 }
 
 func TestClient_Path_RootFilesystem_Good(t *testing.T) {
 	m := &Medium{filesystemRoot: "/"}
 
-	// When root is "/", absolute paths pass through
 	assert.Equal(t, "/etc/passwd", m.sandboxedPath("/etc/passwd"))
 	assert.Equal(t, "/home/user/file.txt", m.sandboxedPath("/home/user/file.txt"))
 
-	// Relative paths are relative to CWD when root is "/"
 	cwd := currentWorkingDir()
 	assert.Equal(t, core.Path(cwd, "file.txt"), m.sandboxedPath("file.txt"))
 }
@@ -55,7 +48,6 @@ func TestClient_ReadWrite_Basic_Good(t *testing.T) {
 	root := t.TempDir()
 	m, _ := New(root)
 
-	// Write and read back
 	err := m.Write("test.txt", "hello")
 	assert.NoError(t, err)
 
@@ -63,7 +55,6 @@ func TestClient_ReadWrite_Basic_Good(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "hello", content)
 
-	// Write creates parent dirs
 	err = m.Write("a/b/c.txt", "nested")
 	assert.NoError(t, err)
 
@@ -71,7 +62,6 @@ func TestClient_ReadWrite_Basic_Good(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "nested", content)
 
-	// Read nonexistent
 	_, err = m.Read("nope.txt")
 	assert.Error(t, err)
 }
@@ -228,7 +218,6 @@ func TestClient_Delete_Good(t *testing.T) {
 	medium, err := New(testRoot)
 	assert.NoError(t, err)
 
-	// Create and delete a file
 	err = medium.Write("file.txt", "content")
 	assert.NoError(t, err)
 	assert.True(t, medium.IsFile("file.txt"))
@@ -237,7 +226,6 @@ func TestClient_Delete_Good(t *testing.T) {
 	assert.NoError(t, err)
 	assert.False(t, medium.IsFile("file.txt"))
 
-	// Create and delete an empty directory
 	err = medium.EnsureDir("emptydir")
 	assert.NoError(t, err)
 	err = medium.Delete("emptydir")
@@ -251,11 +239,9 @@ func TestClient_Delete_NotEmpty_Bad(t *testing.T) {
 	medium, err := New(testRoot)
 	assert.NoError(t, err)
 
-	// Create a directory with a file
 	err = medium.Write("mydir/file.txt", "content")
 	assert.NoError(t, err)
 
-	// Try to delete non-empty directory
 	err = medium.Delete("mydir")
 	assert.Error(t, err)
 }
@@ -266,13 +252,11 @@ func TestClient_DeleteAll_Good(t *testing.T) {
 	medium, err := New(testRoot)
 	assert.NoError(t, err)
 
-	// Create nested structure
 	err = medium.Write("mydir/file1.txt", "content1")
 	assert.NoError(t, err)
 	err = medium.Write("mydir/subdir/file2.txt", "content2")
 	assert.NoError(t, err)
 
-	// Delete all
 	err = medium.DeleteAll("mydir")
 	assert.NoError(t, err)
 	assert.False(t, medium.Exists("mydir"))
@@ -286,7 +270,6 @@ func TestClient_Rename_Good(t *testing.T) {
 	medium, err := New(testRoot)
 	assert.NoError(t, err)
 
-	// Rename a file
 	err = medium.Write("old.txt", "content")
 	assert.NoError(t, err)
 	err = medium.Rename("old.txt", "new.txt")
@@ -308,8 +291,6 @@ func TestClient_Rename_TraversalSanitised_Good(t *testing.T) {
 	err = medium.Write("file.txt", "content")
 	assert.NoError(t, err)
 
-	// Traversal attempts are sanitised (.. becomes .), so this renames to "./escaped.txt"
-	// which is just "escaped.txt" in the root
 	err = medium.Rename("file.txt", "../escaped.txt")
 	assert.NoError(t, err)
 	assert.False(t, medium.Exists("file.txt"))
@@ -322,7 +303,6 @@ func TestClient_List_Good(t *testing.T) {
 	medium, err := New(testRoot)
 	assert.NoError(t, err)
 
-	// Create some files and directories
 	err = medium.Write("file1.txt", "content1")
 	assert.NoError(t, err)
 	err = medium.Write("file2.txt", "content2")
@@ -330,7 +310,6 @@ func TestClient_List_Good(t *testing.T) {
 	err = medium.EnsureDir("subdir")
 	assert.NoError(t, err)
 
-	// List root
 	entries, err := medium.List(".")
 	assert.NoError(t, err)
 	assert.Len(t, entries, 3)
@@ -350,7 +329,6 @@ func TestClient_Stat_Good(t *testing.T) {
 	medium, err := New(testRoot)
 	assert.NoError(t, err)
 
-	// Stat a file
 	err = medium.Write("file.txt", "hello world")
 	assert.NoError(t, err)
 	info, err := medium.Stat("file.txt")
@@ -359,7 +337,6 @@ func TestClient_Stat_Good(t *testing.T) {
 	assert.Equal(t, int64(11), info.Size())
 	assert.False(t, info.IsDir())
 
-	// Stat a directory
 	err = medium.EnsureDir("mydir")
 	assert.NoError(t, err)
 	info, err = medium.Stat("mydir")
@@ -414,7 +391,6 @@ func TestClient_ReadStream_Basic_Good(t *testing.T) {
 	assert.NoError(t, err)
 	defer reader.Close()
 
-	// Read only first 9 bytes
 	limitReader := io.LimitReader(reader, 9)
 	data, err := io.ReadAll(limitReader)
 	assert.NoError(t, err)
@@ -441,15 +417,12 @@ func TestClient_WriteStream_Basic_Good(t *testing.T) {
 func TestClient_Path_TraversalSandbox_Good(t *testing.T) {
 	m := &Medium{filesystemRoot: "/sandbox"}
 
-	// Multiple levels of traversal
 	assert.Equal(t, "/sandbox/file.txt", m.sandboxedPath("../../../file.txt"))
 	assert.Equal(t, "/sandbox/target", m.sandboxedPath("dir/../../target"))
 
-	// Traversal with hidden files
 	assert.Equal(t, "/sandbox/.ssh/id_rsa", m.sandboxedPath(".ssh/id_rsa"))
 	assert.Equal(t, "/sandbox/id_rsa", m.sandboxedPath(".ssh/../id_rsa"))
 
-	// Null bytes (Go's filepath.Clean handles them, but good to check)
 	assert.Equal(t, "/sandbox/file\x00.txt", m.sandboxedPath("file\x00.txt"))
 }
 
@@ -458,7 +431,6 @@ func TestClient_ValidatePath_SymlinkEscape_Bad(t *testing.T) {
 	m, err := New(root)
 	assert.NoError(t, err)
 
-	// Create a directory outside the sandbox
 	outside := t.TempDir()
 	outsideFile := core.Path(outside, "secret.txt")
 	outsideMedium, err := New("/")
@@ -466,22 +438,17 @@ func TestClient_ValidatePath_SymlinkEscape_Bad(t *testing.T) {
 	err = outsideMedium.Write(outsideFile, "secret")
 	assert.NoError(t, err)
 
-	// Test 1: Simple traversal
 	_, err = m.validatePath("../outside.txt")
-	assert.NoError(t, err) // sandboxedPath sanitises to root, so this shouldn't escape
+	assert.NoError(t, err)
 
-	// Test 2: Symlink escape
-	// Create a symlink inside the sandbox pointing outside
 	linkPath := core.Path(root, "evil_link")
 	err = syscall.Symlink(outside, linkPath)
 	assert.NoError(t, err)
 
-	// Try to access a file through the symlink
 	_, err = m.validatePath("evil_link/secret.txt")
 	assert.Error(t, err)
 	assert.ErrorIs(t, err, fs.ErrPermission)
 
-	// Test 3: Nested symlink escape
 	err = m.EnsureDir("inner")
 	assert.NoError(t, err)
 	innerDir := core.Path(root, "inner")
@@ -499,24 +466,19 @@ func TestClient_EmptyPaths_Good(t *testing.T) {
 	m, err := New(root)
 	assert.NoError(t, err)
 
-	// Read empty path (should fail as it's a directory)
 	_, err = m.Read("")
 	assert.Error(t, err)
 
-	// Write empty path (should fail as it's a directory)
 	err = m.Write("", "content")
 	assert.Error(t, err)
 
-	// EnsureDir empty path (should be ok, it's just the root)
 	err = m.EnsureDir("")
 	assert.NoError(t, err)
 
 	assert.False(t, m.IsDir(""))
 
-	// Exists empty path (root exists)
 	assert.True(t, m.Exists(""))
 
-	// List empty path (lists root)
 	entries, err := m.List("")
 	assert.NoError(t, err)
 	assert.NotNil(t, entries)

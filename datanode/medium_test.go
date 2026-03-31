@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Compile-time check: Medium implements io.Medium.
 var _ coreio.Medium = (*Medium)(nil)
 
 func TestClient_ReadWrite_Good(t *testing.T) {
@@ -69,7 +68,7 @@ func TestClient_IsFile_Good(t *testing.T) {
 
 	assert.True(t, m.IsFile("file.go"))
 	assert.False(t, m.IsFile("missing.go"))
-	assert.False(t, m.IsFile("")) // empty path
+	assert.False(t, m.IsFile(""))
 }
 
 func TestClient_EnsureDir_Good(t *testing.T) {
@@ -96,10 +95,8 @@ func TestClient_Delete_Good(t *testing.T) {
 func TestClient_Delete_Bad(t *testing.T) {
 	medium := New()
 
-	// Example: medium.Delete("ghost.txt")
 	assert.Error(t, medium.Delete("ghost.txt"))
 
-	// Delete non-empty dir
 	require.NoError(t, medium.Write("dir/file.txt", "content"))
 	assert.Error(t, medium.Delete("dir"))
 }
@@ -257,7 +254,6 @@ func TestClient_Stat_Good(t *testing.T) {
 	assert.Equal(t, int64(5), info.Size())
 	assert.False(t, info.IsDir())
 
-	// Root stat
 	info, err = m.Stat("")
 	require.NoError(t, err)
 	assert.True(t, info.IsDir())
@@ -280,7 +276,6 @@ func TestClient_Open_Good(t *testing.T) {
 func TestClient_CreateAppend_Good(t *testing.T) {
 	m := New()
 
-	// Create
 	w, err := m.Create("new.txt")
 	require.NoError(t, err)
 	w.Write([]byte("hello"))
@@ -290,7 +285,6 @@ func TestClient_CreateAppend_Good(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "hello", got)
 
-	// Append
 	w, err = m.Append("new.txt")
 	require.NoError(t, err)
 	w.Write([]byte(" world"))
@@ -321,13 +315,11 @@ func TestClient_Append_ReadFailure_Bad(t *testing.T) {
 func TestClient_Streams_Good(t *testing.T) {
 	m := New()
 
-	// WriteStream
 	ws, err := m.WriteStream("stream.txt")
 	require.NoError(t, err)
 	ws.Write([]byte("streamed"))
 	ws.Close()
 
-	// ReadStream
 	rs, err := m.ReadStream("stream.txt")
 	require.NoError(t, err)
 	data, err := io.ReadAll(rs)
@@ -356,7 +348,6 @@ func TestClient_SnapshotRestore_Good(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotEmpty(t, snap)
 
-	// Restore into a new Medium
 	m2, err := FromTar(snap)
 	require.NoError(t, err)
 
@@ -377,11 +368,9 @@ func TestClient_Restore_Good(t *testing.T) {
 	snap, err := m.Snapshot()
 	require.NoError(t, err)
 
-	// Modify
 	require.NoError(t, m.Write("original.txt", "after"))
 	require.NoError(t, m.Write("extra.txt", "extra"))
 
-	// Restore to snapshot
 	require.NoError(t, m.Restore(snap))
 
 	got, err := m.Read("original.txt")
@@ -399,7 +388,6 @@ func TestClient_DataNode_Good(t *testing.T) {
 	dn := m.DataNode()
 	assert.NotNil(t, dn)
 
-	// Verify we can use the DataNode directly
 	f, err := dn.Open("test.txt")
 	require.NoError(t, err)
 	defer f.Close()
@@ -423,7 +411,7 @@ func TestClient_Overwrite_Good(t *testing.T) {
 func TestClient_Exists_Good(t *testing.T) {
 	m := New()
 
-	assert.True(t, m.Exists("")) // root
+	assert.True(t, m.Exists(""))
 	assert.False(t, m.Exists("x"))
 
 	require.NoError(t, m.Write("x", "y"))

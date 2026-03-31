@@ -18,8 +18,6 @@ func newTestMedium(t *testing.T) *Medium {
 	return m
 }
 
-// --- Constructor Tests ---
-
 func TestSqlite_New_Good(t *testing.T) {
 	m, err := New(Options{Path: ":memory:"})
 	require.NoError(t, err)
@@ -39,8 +37,6 @@ func TestSqlite_New_EmptyPath_Bad(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "database path is required")
 }
-
-// --- Read/Write Tests ---
 
 func TestSqlite_ReadWrite_Good(t *testing.T) {
 	m := newTestMedium(t)
@@ -104,8 +100,6 @@ func TestSqlite_Read_IsDirectory_Bad(t *testing.T) {
 	assert.Error(t, err)
 }
 
-// --- EnsureDir Tests ---
-
 func TestSqlite_EnsureDir_Good(t *testing.T) {
 	m := newTestMedium(t)
 
@@ -128,8 +122,6 @@ func TestSqlite_EnsureDir_Idempotent_Good(t *testing.T) {
 	assert.True(t, m.IsDir("mydir"))
 }
 
-// --- IsFile Tests ---
-
 func TestSqlite_IsFile_Good(t *testing.T) {
 	m := newTestMedium(t)
 
@@ -142,8 +134,6 @@ func TestSqlite_IsFile_Good(t *testing.T) {
 	assert.False(t, m.IsFile(""))
 }
 
-// --- FileGet/FileSet Tests ---
-
 func TestSqlite_FileGetFileSet_Good(t *testing.T) {
 	m := newTestMedium(t)
 
@@ -154,8 +144,6 @@ func TestSqlite_FileGetFileSet_Good(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "value", val)
 }
-
-// --- Delete Tests ---
 
 func TestSqlite_Delete_Good(t *testing.T) {
 	m := newTestMedium(t)
@@ -203,8 +191,6 @@ func TestSqlite_Delete_NotEmpty_Bad(t *testing.T) {
 	assert.Error(t, err)
 }
 
-// --- DeleteAll Tests ---
-
 func TestSqlite_DeleteAll_Good(t *testing.T) {
 	m := newTestMedium(t)
 
@@ -243,8 +229,6 @@ func TestSqlite_DeleteAll_EmptyPath_Bad(t *testing.T) {
 	err := m.DeleteAll("")
 	assert.Error(t, err)
 }
-
-// --- Rename Tests ---
 
 func TestSqlite_Rename_Good(t *testing.T) {
 	m := newTestMedium(t)
@@ -297,8 +281,6 @@ func TestSqlite_Rename_EmptyPath_Bad(t *testing.T) {
 	err = m.Rename("old", "")
 	assert.Error(t, err)
 }
-
-// --- List Tests ---
 
 func TestSqlite_List_Good(t *testing.T) {
 	m := newTestMedium(t)
@@ -356,8 +338,6 @@ func TestSqlite_List_DirectoryEntry_Good(t *testing.T) {
 	assert.True(t, info.IsDir())
 }
 
-// --- Stat Tests ---
-
 func TestSqlite_Stat_Good(t *testing.T) {
 	m := newTestMedium(t)
 
@@ -395,8 +375,6 @@ func TestSqlite_Stat_EmptyPath_Bad(t *testing.T) {
 	assert.Error(t, err)
 }
 
-// --- Open Tests ---
-
 func TestSqlite_Open_Good(t *testing.T) {
 	m := newTestMedium(t)
 
@@ -429,8 +407,6 @@ func TestSqlite_Open_IsDirectory_Bad(t *testing.T) {
 	_, err := m.Open("mydir")
 	assert.Error(t, err)
 }
-
-// --- Create Tests ---
 
 func TestSqlite_Create_Good(t *testing.T) {
 	m := newTestMedium(t)
@@ -473,8 +449,6 @@ func TestSqlite_Create_EmptyPath_Bad(t *testing.T) {
 	assert.Error(t, err)
 }
 
-// --- Append Tests ---
-
 func TestSqlite_Append_Good(t *testing.T) {
 	m := newTestMedium(t)
 
@@ -514,8 +488,6 @@ func TestSqlite_Append_EmptyPath_Bad(t *testing.T) {
 	assert.Error(t, err)
 }
 
-// --- ReadStream Tests ---
-
 func TestSqlite_ReadStream_Good(t *testing.T) {
 	m := newTestMedium(t)
 
@@ -545,8 +517,6 @@ func TestSqlite_ReadStream_IsDirectory_Bad(t *testing.T) {
 	assert.Error(t, err)
 }
 
-// --- WriteStream Tests ---
-
 func TestSqlite_WriteStream_Good(t *testing.T) {
 	m := newTestMedium(t)
 
@@ -561,8 +531,6 @@ func TestSqlite_WriteStream_Good(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "piped data", content)
 }
-
-// --- Exists Tests ---
 
 func TestSqlite_Exists_Good(t *testing.T) {
 	m := newTestMedium(t)
@@ -581,8 +549,6 @@ func TestSqlite_Exists_EmptyPath_Good(t *testing.T) {
 	assert.True(t, m.Exists(""))
 }
 
-// --- IsDir Tests ---
-
 func TestSqlite_IsDir_Good(t *testing.T) {
 	m := newTestMedium(t)
 
@@ -595,8 +561,6 @@ func TestSqlite_IsDir_Good(t *testing.T) {
 	assert.False(t, m.IsDir(""))
 }
 
-// --- normaliseEntryPath Tests ---
-
 func TestSqlite_NormaliseEntryPath_Good(t *testing.T) {
 	assert.Equal(t, "file.txt", normaliseEntryPath("file.txt"))
 	assert.Equal(t, "dir/file.txt", normaliseEntryPath("dir/file.txt"))
@@ -608,12 +572,9 @@ func TestSqlite_NormaliseEntryPath_Good(t *testing.T) {
 	assert.Equal(t, "", normaliseEntryPath("/"))
 }
 
-// --- Interface Compliance ---
-
 func TestSqlite_InterfaceCompliance(t *testing.T) {
 	m := newTestMedium(t)
 
-	// Verify all methods exist by asserting the interface shape.
 	var _ interface {
 		Read(string) (string, error)
 		Write(string, string) error
@@ -635,8 +596,6 @@ func TestSqlite_InterfaceCompliance(t *testing.T) {
 		IsDir(string) bool
 	} = m
 }
-
-// --- Custom Table ---
 
 func TestSqlite_CustomTable_Good(t *testing.T) {
 	m, err := New(Options{Path: ":memory:", Table: "my_files"})

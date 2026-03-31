@@ -14,19 +14,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// ---------------------------------------------------------------------------
-// New
-// ---------------------------------------------------------------------------
-
 func TestNode_New_Good(t *testing.T) {
 	n := New()
 	require.NotNil(t, n, "New() must not return nil")
 	assert.NotNil(t, n.files, "New() must initialise the files map")
 }
-
-// ---------------------------------------------------------------------------
-// AddData
-// ---------------------------------------------------------------------------
 
 func TestNode_AddData_Good(t *testing.T) {
 	n := New()
@@ -44,11 +36,9 @@ func TestNode_AddData_Good(t *testing.T) {
 func TestNode_AddData_Bad(t *testing.T) {
 	n := New()
 
-	// Empty name is silently ignored.
 	n.AddData("", []byte("data"))
 	assert.Empty(t, n.files, "empty name must not be stored")
 
-	// Directory entry (trailing slash) is silently ignored.
 	n.AddData("dir/", nil)
 	assert.Empty(t, n.files, "directory entry must not be stored")
 }
@@ -70,10 +60,6 @@ func TestNode_AddData_EdgeCases_Good(t *testing.T) {
 		assert.True(t, ok, "leading slash should be trimmed")
 	})
 }
-
-// ---------------------------------------------------------------------------
-// Open
-// ---------------------------------------------------------------------------
 
 func TestNode_Open_Good(t *testing.T) {
 	n := New()
@@ -100,12 +86,10 @@ func TestNode_Open_Directory_Good(t *testing.T) {
 	n := New()
 	n.AddData("bar/baz.txt", []byte("baz"))
 
-	// Opening a directory should succeed.
 	file, err := n.Open("bar")
 	require.NoError(t, err)
 	defer file.Close()
 
-	// Reading from a directory should fail.
 	_, err = file.Read(make([]byte, 1))
 	require.Error(t, err)
 
@@ -114,23 +98,17 @@ func TestNode_Open_Directory_Good(t *testing.T) {
 	assert.Equal(t, fs.ErrInvalid, pathErr.Err)
 }
 
-// ---------------------------------------------------------------------------
-// Stat
-// ---------------------------------------------------------------------------
-
 func TestNode_Stat_Good(t *testing.T) {
 	n := New()
 	n.AddData("foo.txt", []byte("foo"))
 	n.AddData("bar/baz.txt", []byte("baz"))
 
-	// File stat.
 	info, err := n.Stat("bar/baz.txt")
 	require.NoError(t, err)
 	assert.Equal(t, "baz.txt", info.Name())
 	assert.Equal(t, int64(3), info.Size())
 	assert.False(t, info.IsDir())
 
-	// Directory stat.
 	dirInfo, err := n.Stat("bar")
 	require.NoError(t, err)
 	assert.True(t, dirInfo.IsDir())
@@ -148,16 +126,11 @@ func TestNode_Stat_RootDirectory_Good(t *testing.T) {
 	n := New()
 	n.AddData("foo.txt", []byte("foo"))
 
-	// Root directory.
 	info, err := n.Stat(".")
 	require.NoError(t, err)
 	assert.True(t, info.IsDir())
 	assert.Equal(t, ".", info.Name())
 }
-
-// ---------------------------------------------------------------------------
-// ReadFile
-// ---------------------------------------------------------------------------
 
 func TestNode_ReadFile_Good(t *testing.T) {
 	n := New()
@@ -179,7 +152,6 @@ func TestNode_ReadFile_ReturnsCopy_Good(t *testing.T) {
 	n := New()
 	n.AddData("data.bin", []byte("original"))
 
-	// Returned slice must be a copy — mutating it must not affect internal state.
 	data, err := n.ReadFile("data.bin")
 	require.NoError(t, err)
 	data[0] = 'X'
@@ -189,22 +161,16 @@ func TestNode_ReadFile_ReturnsCopy_Good(t *testing.T) {
 	assert.Equal(t, []byte("original"), data2, "ReadFile must return an independent copy")
 }
 
-// ---------------------------------------------------------------------------
-// ReadDir
-// ---------------------------------------------------------------------------
-
 func TestNode_ReadDir_Good(t *testing.T) {
 	n := New()
 	n.AddData("foo.txt", []byte("foo"))
 	n.AddData("bar/baz.txt", []byte("baz"))
 	n.AddData("bar/qux.txt", []byte("qux"))
 
-	// Root.
 	entries, err := n.ReadDir(".")
 	require.NoError(t, err)
 	assert.Equal(t, []string{"bar", "foo.txt"}, sortedNames(entries))
 
-	// Subdirectory.
 	barEntries, err := n.ReadDir("bar")
 	require.NoError(t, err)
 	assert.Equal(t, []string{"baz.txt", "qux.txt"}, sortedNames(barEntries))
@@ -214,7 +180,6 @@ func TestNode_ReadDir_Bad(t *testing.T) {
 	n := New()
 	n.AddData("foo.txt", []byte("foo"))
 
-	// Reading a file as a directory should fail.
 	_, err := n.ReadDir("foo.txt")
 	require.Error(t, err)
 	var pathErr *fs.PathError
@@ -225,16 +190,12 @@ func TestNode_ReadDir_Bad(t *testing.T) {
 func TestNode_ReadDir_IgnoresEmptyEntry_Good(t *testing.T) {
 	n := New()
 	n.AddData("bar/baz.txt", []byte("baz"))
-	n.AddData("empty_dir/", nil) // Ignored by AddData.
+	n.AddData("empty_dir/", nil)
 
 	entries, err := n.ReadDir(".")
 	require.NoError(t, err)
 	assert.Equal(t, []string{"bar"}, sortedNames(entries))
 }
-
-// ---------------------------------------------------------------------------
-// Exists
-// ---------------------------------------------------------------------------
 
 func TestNode_Exists_Good(t *testing.T) {
 	n := New()
@@ -257,10 +218,6 @@ func TestNode_Exists_RootAndEmptyPath_Good(t *testing.T) {
 	assert.True(t, n.Exists("."), "root '.' must exist")
 	assert.True(t, n.Exists(""), "empty path (root) must exist")
 }
-
-// ---------------------------------------------------------------------------
-// Walk
-// ---------------------------------------------------------------------------
 
 func TestNode_Walk_Default_Good(t *testing.T) {
 	n := New()
@@ -298,7 +255,6 @@ func TestNode_Walk_CallbackError_Good(t *testing.T) {
 	n.AddData("a/b.txt", []byte("b"))
 	n.AddData("a/c.txt", []byte("c"))
 
-	// Stop walk early with a custom error.
 	walkErr := core.NewError("stop walking")
 	var paths []string
 	err := n.Walk(".", func(p string, d fs.DirEntry, err error) error {
@@ -357,10 +313,6 @@ func TestNode_Walk_Good(t *testing.T) {
 	})
 }
 
-// ---------------------------------------------------------------------------
-// CopyFile
-// ---------------------------------------------------------------------------
-
 func TestNode_CopyFile_Good(t *testing.T) {
 	n := New()
 	n.AddData("foo.txt", []byte("foo"))
@@ -378,11 +330,9 @@ func TestNode_CopyFile_Bad(t *testing.T) {
 	n := New()
 	tmpfile := core.Path(t.TempDir(), "test.txt")
 
-	// Source does not exist.
 	err := n.CopyFile("nonexistent.txt", tmpfile, 0644)
 	assert.Error(t, err)
 
-	// Destination not writable.
 	n.AddData("foo.txt", []byte("foo"))
 	err = n.CopyFile("foo.txt", "/nonexistent_dir/test.txt", 0644)
 	assert.Error(t, err)
@@ -393,7 +343,6 @@ func TestNode_CopyFile_DirectorySource_Bad(t *testing.T) {
 	n.AddData("bar/baz.txt", []byte("baz"))
 	tmpfile := core.Path(t.TempDir(), "test.txt")
 
-	// Attempting to copy a directory should fail.
 	err := n.CopyFile("bar", tmpfile, 0644)
 	assert.Error(t, err)
 }
@@ -505,10 +454,6 @@ func TestNode_MediumFacade_Good(t *testing.T) {
 	assert.False(t, n.Exists("docs"))
 }
 
-// ---------------------------------------------------------------------------
-// ToTar / FromTar
-// ---------------------------------------------------------------------------
-
 func TestNode_ToTar_Good(t *testing.T) {
 	n := New()
 	n.AddData("foo.txt", []byte("foo"))
@@ -518,7 +463,6 @@ func TestNode_ToTar_Good(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, tarball)
 
-	// Verify tar content.
 	tr := tar.NewReader(bytes.NewReader(tarball))
 	files := make(map[string]string)
 	for {
@@ -564,7 +508,6 @@ func TestNode_FromTar_Good(t *testing.T) {
 }
 
 func TestNode_FromTar_Bad(t *testing.T) {
-	// Truncated data that cannot be a valid tar.
 	truncated := make([]byte, 100)
 	_, err := FromTar(truncated)
 	assert.Error(t, err, "truncated data should produce an error")
@@ -581,7 +524,6 @@ func TestNode_TarRoundTrip_Good(t *testing.T) {
 	n2, err := FromTar(tarball)
 	require.NoError(t, err)
 
-	// Verify n2 matches n1.
 	data, err := n2.ReadFile("a.txt")
 	require.NoError(t, err)
 	assert.Equal(t, []byte("alpha"), data)
@@ -591,37 +533,26 @@ func TestNode_TarRoundTrip_Good(t *testing.T) {
 	assert.Equal(t, []byte("charlie"), data)
 }
 
-// ---------------------------------------------------------------------------
-// fs.FS interface compliance
-// ---------------------------------------------------------------------------
-
 func TestNode_FSInterface_Good(t *testing.T) {
 	n := New()
 	n.AddData("hello.txt", []byte("world"))
 
-	// fs.FS
 	var fsys fs.FS = n
 	file, err := fsys.Open("hello.txt")
 	require.NoError(t, err)
 	defer file.Close()
 
-	// fs.StatFS
 	var statFS fs.StatFS = n
 	info, err := statFS.Stat("hello.txt")
 	require.NoError(t, err)
 	assert.Equal(t, "hello.txt", info.Name())
 	assert.Equal(t, int64(5), info.Size())
 
-	// fs.ReadFileFS
 	var readFS fs.ReadFileFS = n
 	data, err := readFS.ReadFile("hello.txt")
 	require.NoError(t, err)
 	assert.Equal(t, []byte("world"), data)
 }
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 func sortedNames(entries []fs.DirEntry) []string {
 	var names []string

@@ -11,8 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// ── XORObfuscator ──────────────────────────────────────────────────
-
 func TestCryptoSigil_XORObfuscator_RoundTrip_Good(t *testing.T) {
 	ob := &XORObfuscator{}
 	data := []byte("the axioms are in the weights")
@@ -47,7 +45,6 @@ func TestCryptoSigil_XORObfuscator_Deterministic_Good(t *testing.T) {
 
 func TestCryptoSigil_XORObfuscator_LargeData_Good(t *testing.T) {
 	ob := &XORObfuscator{}
-	// Larger than one SHA-256 block (32 bytes) to test multi-block key stream.
 	data := make([]byte, 256)
 	for i := range data {
 		data[i] = byte(i)
@@ -73,12 +70,9 @@ func TestCryptoSigil_XORObfuscator_SymmetricProperty_Good(t *testing.T) {
 	data := []byte("XOR is its own inverse")
 	entropy := []byte("nonce")
 
-	// XOR is symmetric: Obfuscate(Obfuscate(x)) == x
 	double := ob.Obfuscate(ob.Obfuscate(data, entropy), entropy)
 	assert.Equal(t, data, double)
 }
-
-// ── ShuffleMaskObfuscator ──────────────────────────────────────────
 
 func TestCryptoSigil_ShuffleMaskObfuscator_RoundTrip_Good(t *testing.T) {
 	ob := &ShuffleMaskObfuscator{}
@@ -144,8 +138,6 @@ func TestCryptoSigil_ShuffleMaskObfuscator_SingleByte_Good(t *testing.T) {
 	assert.Equal(t, data, restored)
 }
 
-// ── NewChaChaPolySigil ─────────────────────────────────────────────
-
 func TestCryptoSigil_NewChaChaPolySigil_Good(t *testing.T) {
 	key := make([]byte, 32)
 	_, _ = rand.Read(key)
@@ -166,7 +158,6 @@ func TestCryptoSigil_NewChaChaPolySigil_KeyIsCopied_Good(t *testing.T) {
 	s, err := NewChaChaPolySigil(key, nil)
 	require.NoError(t, err)
 
-	// Mutating the original key should not affect the sigil.
 	key[0] ^= 0xFF
 	assert.Equal(t, original, s.Key)
 }
@@ -186,8 +177,6 @@ func TestCryptoSigil_NewChaChaPolySigil_EmptyKey_Bad(t *testing.T) {
 	assert.ErrorIs(t, err, InvalidKeyError)
 }
 
-// ── NewChaChaPolySigil Custom Obfuscator ───────────────────────────
-
 func TestCryptoSigil_NewChaChaPolySigil_CustomObfuscator_Good(t *testing.T) {
 	key := make([]byte, 32)
 	_, _ = rand.Read(key)
@@ -204,7 +193,6 @@ func TestCryptoSigil_NewChaChaPolySigil_CustomObfuscatorNil_Good(t *testing.T) {
 
 	s, err := NewChaChaPolySigil(key, nil)
 	require.NoError(t, err)
-	// Falls back to default XORObfuscator.
 	assert.IsType(t, &XORObfuscator{}, s.Obfuscator)
 }
 
@@ -212,8 +200,6 @@ func TestCryptoSigil_NewChaChaPolySigil_CustomObfuscator_InvalidKey_Bad(t *testi
 	_, err := NewChaChaPolySigil([]byte("bad"), &XORObfuscator{})
 	assert.ErrorIs(t, err, InvalidKeyError)
 }
-
-// ── ChaChaPolySigil In/Out (encrypt/decrypt) ───────────────────────
 
 func TestCryptoSigil_ChaChaPolySigil_RoundTrip_Good(t *testing.T) {
 	key := make([]byte, 32)
@@ -226,7 +212,7 @@ func TestCryptoSigil_ChaChaPolySigil_RoundTrip_Good(t *testing.T) {
 	ciphertext, err := s.In(plaintext)
 	require.NoError(t, err)
 	assert.NotEqual(t, plaintext, ciphertext)
-	assert.Greater(t, len(ciphertext), len(plaintext)) // nonce + tag overhead
+	assert.Greater(t, len(ciphertext), len(plaintext))
 
 	decrypted, err := s.Out(ciphertext)
 	require.NoError(t, err)
@@ -274,7 +260,7 @@ func TestCryptoSigil_ChaChaPolySigil_EmptyPlaintext_Good(t *testing.T) {
 
 	ciphertext, err := s.In([]byte{})
 	require.NoError(t, err)
-	assert.NotEmpty(t, ciphertext) // Has nonce + tag even for empty plaintext.
+	assert.NotEmpty(t, ciphertext)
 
 	decrypted, err := s.Out(ciphertext)
 	require.NoError(t, err)
@@ -292,7 +278,6 @@ func TestCryptoSigil_ChaChaPolySigil_DifferentCiphertextsPerCall_Good(t *testing
 	ct1, _ := s.In(plaintext)
 	ct2, _ := s.In(plaintext)
 
-	// Different nonces → different ciphertexts.
 	assert.NotEqual(t, ct1, ct2)
 }
 
@@ -338,14 +323,12 @@ func TestCryptoSigil_ChaChaPolySigil_TamperedCiphertext_Bad(t *testing.T) {
 	s, _ := NewChaChaPolySigil(key, nil)
 	ciphertext, _ := s.In([]byte("authentic data"))
 
-	// Flip a bit in the ciphertext body (after nonce).
 	ciphertext[30] ^= 0xFF
 
 	_, err := s.Out(ciphertext)
 	assert.ErrorIs(t, err, DecryptionFailedError)
 }
 
-// failReader returns an error on read — for testing nonce generation failure.
 type failReader struct{}
 
 func (f *failReader) Read([]byte) (int, error) {
@@ -363,14 +346,12 @@ func TestCryptoSigil_ChaChaPolySigil_RandomReaderFailure_Bad(t *testing.T) {
 	assert.Error(t, err)
 }
 
-// ── ChaChaPolySigil without obfuscator ─────────────────────────────
-
 func TestCryptoSigil_ChaChaPolySigil_NoObfuscator_Good(t *testing.T) {
 	key := make([]byte, 32)
 	_, _ = rand.Read(key)
 
 	s, _ := NewChaChaPolySigil(key, nil)
-	s.Obfuscator = nil // Disable pre-obfuscation.
+	s.Obfuscator = nil
 
 	plaintext := []byte("raw encryption without pre-obfuscation")
 	ciphertext, err := s.In(plaintext)
@@ -381,8 +362,6 @@ func TestCryptoSigil_ChaChaPolySigil_NoObfuscator_Good(t *testing.T) {
 	assert.Equal(t, plaintext, decrypted)
 }
 
-// ── GetNonceFromCiphertext ─────────────────────────────────────────
-
 func TestCryptoSigil_GetNonceFromCiphertext_Good(t *testing.T) {
 	key := make([]byte, 32)
 	_, _ = rand.Read(key)
@@ -392,9 +371,8 @@ func TestCryptoSigil_GetNonceFromCiphertext_Good(t *testing.T) {
 
 	nonce, err := GetNonceFromCiphertext(ciphertext)
 	require.NoError(t, err)
-	assert.Len(t, nonce, 24) // XChaCha20 nonce is 24 bytes.
+	assert.Len(t, nonce, 24)
 
-	// Nonce should match the prefix of the ciphertext.
 	assert.Equal(t, ciphertext[:24], nonce)
 }
 
@@ -409,7 +387,6 @@ func TestCryptoSigil_GetNonceFromCiphertext_NonceCopied_Good(t *testing.T) {
 	original := make([]byte, len(nonce))
 	copy(original, nonce)
 
-	// Mutating the nonce should not affect the ciphertext.
 	nonce[0] ^= 0xFF
 	assert.Equal(t, original, ciphertext[:24])
 }
@@ -424,8 +401,6 @@ func TestCryptoSigil_GetNonceFromCiphertext_Empty_Bad(t *testing.T) {
 	assert.ErrorIs(t, err, CiphertextTooShortError)
 }
 
-// ── ChaChaPolySigil in Transmute pipeline ──────────────────────────
-
 func TestCryptoSigil_ChaChaPolySigil_InTransmutePipeline_Good(t *testing.T) {
 	key := make([]byte, 32)
 	_, _ = rand.Read(key)
@@ -439,7 +414,6 @@ func TestCryptoSigil_ChaChaPolySigil_InTransmutePipeline_Good(t *testing.T) {
 	encoded, err := Transmute(plaintext, chain)
 	require.NoError(t, err)
 
-	// Result should be hex-encoded ciphertext.
 	assert.True(t, isHex(encoded))
 
 	decoded, err := Untransmute(encoded, chain)
@@ -455,8 +429,6 @@ func isHex(data []byte) bool {
 	}
 	return len(data) > 0
 }
-
-// ── Transmute error propagation ────────────────────────────────────
 
 type failSigil struct{}
 
@@ -475,24 +447,18 @@ func TestCryptoSigil_Untransmute_ErrorPropagation_Bad(t *testing.T) {
 	assert.Contains(t, err.Error(), "fail out")
 }
 
-// ── GzipSigil with custom output writer (edge case) ───────────────
-
 func TestCryptoSigil_GzipSigil_CustomOutputWriter_Good(t *testing.T) {
 	var buf bytes.Buffer
 	s := &GzipSigil{outputWriter: &buf}
 
-	// With a custom output writer, compressed data goes to buf, returned bytes will be empty
-	// because the internal buffer 'b' is unused when s.outputWriter is set.
 	_, err := s.In([]byte("test data"))
 	require.NoError(t, err)
 	assert.Greater(t, buf.Len(), 0)
 }
 
-// ── deriveKeyStream edge: exactly 32 bytes ─────────────────────────
-
 func TestCryptoSigil_DeriveKeyStream_ExactBlockSize_Good(t *testing.T) {
 	ob := &XORObfuscator{}
-	data := make([]byte, 32) // Exactly one SHA-256 block.
+	data := make([]byte, 32)
 	for i := range data {
 		data[i] = byte(i)
 	}
@@ -503,14 +469,12 @@ func TestCryptoSigil_DeriveKeyStream_ExactBlockSize_Good(t *testing.T) {
 	assert.Equal(t, data, restored)
 }
 
-// ── random reader fallback in In ───────────────────────────────────
-
 func TestCryptoSigil_ChaChaPolySigil_NilRandomReader_Good(t *testing.T) {
 	key := make([]byte, 32)
 	_, _ = rand.Read(key)
 
 	s, _ := NewChaChaPolySigil(key, nil)
-	s.randomReader = nil // Should fall back to crypto/rand.Reader.
+	s.randomReader = nil
 
 	ciphertext, err := s.In([]byte("fallback reader"))
 	require.NoError(t, err)
@@ -520,7 +484,6 @@ func TestCryptoSigil_ChaChaPolySigil_NilRandomReader_Good(t *testing.T) {
 	assert.Equal(t, []byte("fallback reader"), decrypted)
 }
 
-// limitReader returns exactly N bytes then EOF — for deterministic tests.
 type limitReader struct {
 	data []byte
 	pos  int

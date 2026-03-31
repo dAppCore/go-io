@@ -193,7 +193,7 @@ func (service *Service) HandleWorkspaceCommand(command WorkspaceCommand) core.Re
 
 // Example: result := service.HandleWorkspaceMessage(core.New(), WorkspaceCommand{Action: WorkspaceSwitchAction, WorkspaceID: "f3f0d7"})
 // Example: legacy := service.HandleWorkspaceMessage(core.New(), map[string]any{"action": WorkspaceCreateAction, "identifier": "alice", "password": "pass123"})
-func (service *Service) HandleWorkspaceMessage(coreRuntime *core.Core, message core.Message) core.Result {
+func (service *Service) HandleWorkspaceMessage(_ *core.Core, message core.Message) core.Result {
 	command, ok := workspaceCommandFromMessage(message)
 	if !ok {
 		return core.Result{OK: true}

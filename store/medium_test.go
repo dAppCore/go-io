@@ -121,12 +121,10 @@ func TestMedium_Medium_Stat_Good(t *testing.T) {
 	m := newTestMedium(t)
 	_ = m.Write("grp/key", "hello")
 
-	// Stat group
 	info, err := m.Stat("grp")
 	require.NoError(t, err)
 	assert.True(t, info.IsDir())
 
-	// Stat key
 	info, err = m.Stat("grp/key")
 	require.NoError(t, err)
 	assert.Equal(t, int64(5), info.Size())
@@ -190,7 +188,6 @@ func TestMedium_Medium_AsMedium_Good(t *testing.T) {
 	m := s.AsMedium()
 	require.NoError(t, m.Write("grp/key", "val"))
 
-	// Accessible through both APIs
 	val, err := s.Get("grp", "key")
 	require.NoError(t, err)
 	assert.Equal(t, "val", val)

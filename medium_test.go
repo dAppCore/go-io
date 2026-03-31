@@ -10,8 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// --- MemoryMedium Tests ---
-
 func TestMemoryMedium_NewMemoryMedium_Good(t *testing.T) {
 	medium := NewMemoryMedium()
 	assert.NotNil(t, medium)
@@ -66,7 +64,6 @@ func TestClient_MockMedium_Write_Good(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "content", m.files["test.txt"])
 
-	// Overwrite existing file
 	err = m.Write("test.txt", "new content")
 	assert.NoError(t, err)
 	assert.Equal(t, "new content", m.files["test.txt"])
@@ -296,8 +293,6 @@ func TestClient_MockMedium_StreamAndFSHelpers_Good(t *testing.T) {
 	assert.Equal(t, "stream output", m.files["streamed.txt"])
 }
 
-// --- Wrapper Function Tests ---
-
 func TestClient_Read_Good(t *testing.T) {
 	m := NewMockMedium()
 	m.files["test.txt"] = "hello"
@@ -367,7 +362,6 @@ func TestClient_Copy_Good(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "hello", dest.files["test.txt"])
 
-	// Copy to different path
 	source.files["original.txt"] = "content"
 	err = Copy(source, "original.txt", dest, "copied.txt")
 	assert.NoError(t, err)
@@ -381,13 +375,9 @@ func TestClient_Copy_Bad(t *testing.T) {
 	assert.Error(t, err)
 }
 
-// --- Local Global Tests ---
-
 func TestClient_LocalGlobal_Good(t *testing.T) {
-	// io.Local should be initialised by init()
 	assert.NotNil(t, Local, "io.Local should be initialised")
 
-	// Should be able to use it as a Medium
 	var m = Local
 	assert.NotNil(t, m)
 }

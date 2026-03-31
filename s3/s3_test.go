@@ -18,7 +18,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// mockS3 is an in-memory mock implementing the Client interface.
 type mockS3 struct {
 	mu                 sync.RWMutex
 	objects            map[string][]byte
@@ -124,7 +123,6 @@ func (m *mockS3) ListObjectsV2(_ context.Context, params *awss3.ListObjectsV2Inp
 		maxKeys = *params.MaxKeys
 	}
 
-	// Collect all matching keys sorted
 	var allKeys []string
 	for k := range m.objects {
 		if core.HasPrefix(k, prefix) {
@@ -142,7 +140,6 @@ func (m *mockS3) ListObjectsV2(_ context.Context, params *awss3.ListObjectsV2Inp
 		if delimiter != "" {
 			parts := core.SplitN(rest, delimiter, 2)
 			if len(parts) == 2 {
-				// This key has a delimiter after the prefix -> common prefix
 				cp := core.Concat(prefix, parts[0], delimiter)
 				commonPrefixes[cp] = true
 				continue
@@ -163,7 +160,6 @@ func (m *mockS3) ListObjectsV2(_ context.Context, params *awss3.ListObjectsV2Inp
 	}
 
 	var cpSlice []types.CommonPrefix
-	// Sort common prefixes for deterministic output
 	var cpKeys []string
 	for cp := range commonPrefixes {
 		cpKeys = append(cpKeys, cp)
@@ -184,7 +180,6 @@ func (m *mockS3) CopyObject(_ context.Context, params *awss3.CopyObjectInput, _ 
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	// CopySource is "bucket/key"
 	source := aws.ToString(params.CopySource)
 	parts := core.SplitN(source, "/", 2)
 	if len(parts) != 2 {
@@ -204,8 +199,6 @@ func (m *mockS3) CopyObject(_ context.Context, params *awss3.CopyObjectInput, _ 
 	return &awss3.CopyObjectOutput{}, nil
 }
 
-// --- Helper ---
-
 func newTestMedium(t *testing.T) (*Medium, *mockS3) {
 	t.Helper()
 	mock := newMockS3()
@@ -213,8 +206,6 @@ func newTestMedium(t *testing.T) (*Medium, *mockS3) {
 	require.NoError(t, err)
 	return m, mock
 }
-
-// --- Tests ---
 
 func TestS3_New_Good(t *testing.T) {
 	mock := newMockS3()
@@ -242,7 +233,6 @@ func TestS3_New_Options_Good(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "data/", m.prefix)
 
-	// Prefix without trailing slash gets one added
 	m2, err := New(Options{Bucket: "bucket", Client: mock, Prefix: "data"})
 	require.NoError(t, err)
 	assert.Equal(t, "data/", m2.prefix)
@@ -284,7 +274,6 @@ func TestS3_ReadWrite_Prefix_Good(t *testing.T) {
 	err = m.Write("file.txt", "data")
 	require.NoError(t, err)
 
-	// Verify the key has the prefix
 	_, ok := mock.objects["pfx/file.txt"]
 	assert.True(t, ok, "object should be stored with prefix")
 
@@ -295,7 +284,6 @@ func TestS3_ReadWrite_Prefix_Good(t *testing.T) {
 
 func TestS3_EnsureDir_Good(t *testing.T) {
 	medium, _ := newTestMedium(t)
-	// Example: err := medium.EnsureDir("any/path")
 	err := medium.EnsureDir("any/path")
 	assert.NoError(t, err)
 }
@@ -343,7 +331,6 @@ func TestS3_Delete_EmptyPath_Bad(t *testing.T) {
 func TestS3_DeleteAll_Good(t *testing.T) {
 	m, _ := newTestMedium(t)
 
-	// Create nested structure
 	require.NoError(t, m.Write("dir/file1.txt", "a"))
 	require.NoError(t, m.Write("dir/sub/file2.txt", "b"))
 	require.NoError(t, m.Write("other.txt", "c"))
@@ -442,7 +429,6 @@ func TestS3_List_Good(t *testing.T) {
 	assert.True(t, names["sub"], "should list sub directory")
 	assert.Len(t, entries, 3)
 
-	// Check that sub is a directory
 	for _, e := range entries {
 		if e.Name() == "sub" {
 			assert.True(t, e.IsDir())
@@ -622,7 +608,6 @@ func TestS3_Exists_DirectoryPrefix_Good(t *testing.T) {
 	m, _ := newTestMedium(t)
 
 	require.NoError(t, m.Write("dir/file.txt", "content"))
-	// "dir" should exist as a directory prefix
 	assert.True(t, m.Exists("dir"))
 }
 
@@ -640,7 +625,6 @@ func TestS3_IsDir_Good(t *testing.T) {
 func TestS3_ObjectKey_Good(t *testing.T) {
 	mock := newMockS3()
 
-	// No prefix
 	m, _ := New(Options{Bucket: "bucket", Client: mock})
 	assert.Equal(t, "file.txt", m.objectKey("file.txt"))
 	assert.Equal(t, "dir/file.txt", m.objectKey("dir/file.txt"))
@@ -648,21 +632,17 @@ func TestS3_ObjectKey_Good(t *testing.T) {
 	assert.Equal(t, "file.txt", m.objectKey("/file.txt"))
 	assert.Equal(t, "file.txt", m.objectKey("../file.txt"))
 
-	// With prefix
 	m2, _ := New(Options{Bucket: "bucket", Client: mock, Prefix: "pfx"})
 	assert.Equal(t, "pfx/file.txt", m2.objectKey("file.txt"))
 	assert.Equal(t, "pfx/dir/file.txt", m2.objectKey("dir/file.txt"))
 	assert.Equal(t, "pfx/", m2.objectKey(""))
 }
 
-// Compile-time check: Medium satisfies the io.Medium interface.
 func TestS3_InterfaceCompliance(t *testing.T) {
 	mock := newMockS3()
 	m, err := New(Options{Bucket: "bucket", Client: mock})
 	require.NoError(t, err)
 
-	// Verify all methods exist by calling them in a way that
-	// proves compile-time satisfaction of the interface.
 	var _ interface {
 		Read(string) (string, error)
 		Write(string, string) error
