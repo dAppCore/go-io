@@ -10,12 +10,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type stubKeyPairProvider struct {
+type testKeyPairProvider struct {
 	privateKey string
 	err        error
 }
 
-func (provider stubKeyPairProvider) CreateKeyPair(_, _ string) (string, error) {
+func (provider testKeyPairProvider) CreateKeyPair(identifier, passphrase string) (string, error) {
 	if provider.err != nil {
 		return "", provider.err
 	}
@@ -28,7 +28,7 @@ func newWorkspaceService(t *testing.T) (*Service, string) {
 	tempHome := t.TempDir()
 	t.Setenv("HOME", tempHome)
 
-	service, err := New(Options{KeyPairProvider: stubKeyPairProvider{privateKey: "private-key"}})
+	service, err := New(Options{KeyPairProvider: testKeyPairProvider{privateKey: "private-key"}})
 	require.NoError(t, err)
 	return service, tempHome
 }
@@ -43,7 +43,7 @@ func TestService_New_CustomRootPathAndMedium_Good(t *testing.T) {
 	rootPath := core.Path(t.TempDir(), "custom", "workspaces")
 
 	service, err := New(Options{
-		KeyPairProvider: stubKeyPairProvider{privateKey: "private-key"},
+		KeyPairProvider: testKeyPairProvider{privateKey: "private-key"},
 		RootPath:        rootPath,
 		Medium:          medium,
 	})

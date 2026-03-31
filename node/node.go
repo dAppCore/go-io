@@ -130,7 +130,7 @@ type WalkOptions struct {
 }
 
 // Example: _ = nodeTree.Walk(".", func(_ string, _ fs.DirEntry, _ error) error { return nil }, node.WalkOptions{MaxDepth: 1, SkipErrors: true})
-func (node *Node) Walk(root string, fn fs.WalkDirFunc, options WalkOptions) error {
+func (node *Node) Walk(root string, walkFunc fs.WalkDirFunc, options WalkOptions) error {
 	if options.SkipErrors {
 		if _, err := node.Stat(root); err != nil {
 			return nil
@@ -147,7 +147,7 @@ func (node *Node) Walk(root string, fn fs.WalkDirFunc, options WalkOptions) erro
 			}
 		}
 
-		walkResult := fn(entryPath, entry, err)
+		walkResult := walkFunc(entryPath, entry, err)
 
 		if walkResult == nil && options.MaxDepth > 0 && entry != nil && entry.IsDir() && entryPath != root {
 			relativePath := core.TrimPrefix(entryPath, root)

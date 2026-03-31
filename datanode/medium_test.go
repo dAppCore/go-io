@@ -338,14 +338,14 @@ func TestDataNode_SnapshotRestore_Good(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotEmpty(t, snap)
 
-	m2, err := FromTar(snap)
+	restoredNode, err := FromTar(snap)
 	require.NoError(t, err)
 
-	got, err := m2.Read("a.txt")
+	got, err := restoredNode.Read("a.txt")
 	require.NoError(t, err)
 	assert.Equal(t, "alpha", got)
 
-	got, err = m2.Read("b/c.txt")
+	got, err = restoredNode.Read("b/c.txt")
 	require.NoError(t, err)
 	assert.Equal(t, "charlie", got)
 }

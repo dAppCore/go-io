@@ -222,7 +222,7 @@ func (service *Service) HandleWorkspaceCommand(command WorkspaceCommand) core.Re
 }
 
 // Example: result := service.HandleWorkspaceMessage(core.New(), WorkspaceCommand{Action: WorkspaceSwitchAction, WorkspaceID: "f3f0d7"})
-func (service *Service) HandleWorkspaceMessage(_ *core.Core, message core.Message) core.Result {
+func (service *Service) HandleWorkspaceMessage(coreInstance *core.Core, message core.Message) core.Result {
 	switch command := message.(type) {
 	case WorkspaceCommand:
 		return service.HandleWorkspaceCommand(command)
