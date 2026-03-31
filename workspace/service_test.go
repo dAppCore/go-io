@@ -114,6 +114,9 @@ func TestService_HandleWorkspaceMessage_Command_Good(t *testing.T) {
 	assert.True(t, switchResult.OK)
 	assert.Equal(t, workspaceID, service.activeWorkspaceID)
 
+	unknownAction := service.HandleWorkspaceCommand(WorkspaceCommand{Action: "noop"})
+	assert.False(t, unknownAction.OK)
+
 	unknown := service.HandleWorkspaceMessage(core.New(), "noop")
-	assert.True(t, unknown.OK)
+	assert.False(t, unknown.OK)
 }

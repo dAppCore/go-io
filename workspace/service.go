@@ -85,7 +85,7 @@ func (service *Service) CreateWorkspace(identifier, password string) (string, er
 	defer service.stateLock.Unlock()
 
 	if service.keyPairProvider == nil {
-		return "", core.E("workspace.CreateWorkspace", "key pair provider not available", nil)
+		return "", core.E("workspace.CreateWorkspace", "key pair provider not available", fs.ErrInvalid)
 	}
 
 	hash := sha256.Sum256([]byte(identifier))
@@ -96,7 +96,7 @@ func (service *Service) CreateWorkspace(identifier, password string) (string, er
 	}
 
 	if service.medium.Exists(workspaceDirectory) {
-		return "", core.E("workspace.CreateWorkspace", "workspace already exists", nil)
+		return "", core.E("workspace.CreateWorkspace", "workspace already exists", fs.ErrExist)
 	}
 
 	for _, directoryName := range []string{"config", "log", "data", "files", "keys"} {
@@ -127,7 +127,7 @@ func (service *Service) SwitchWorkspace(workspaceID string) error {
 		return err
 	}
 	if !service.medium.IsDir(workspaceDirectory) {
-		return core.E("workspace.SwitchWorkspace", core.Concat("workspace not found: ", workspaceID), nil)
+		return core.E("workspace.SwitchWorkspace", core.Concat("workspace not found: ", workspaceID), fs.ErrNotExist)
 	}
 
 	service.activeWorkspaceID = core.PathBase(workspaceDirectory)
@@ -136,7 +136,7 @@ func (service *Service) SwitchWorkspace(workspaceID string) error {
 
 func (service *Service) resolveActiveWorkspaceFilePath(operation, workspaceFilePath string) (string, error) {
 	if service.activeWorkspaceID == "" {
-		return "", core.E(operation, "no active workspace", nil)
+		return "", core.E(operation, "no active workspace", fs.ErrNotExist)
 	}
 	filesRoot := core.Path(service.rootPath, service.activeWorkspaceID, "files")
 	filePath, err := joinPathWithinRoot(filesRoot, workspaceFilePath)
@@ -188,7 +188,7 @@ func (service *Service) HandleWorkspaceCommand(command WorkspaceCommand) core.Re
 		}
 		return core.Result{OK: true}
 	}
-	return core.Result{OK: true}
+	return core.Result{}.New(core.E("workspace.HandleWorkspaceCommand", core.Concat("unsupported action: ", command.Action), fs.ErrInvalid))
 }
 
 // Example: result := service.HandleWorkspaceMessage(core.New(), WorkspaceCommand{Action: WorkspaceSwitchAction, WorkspaceID: "f3f0d7"})
@@ -197,7 +197,7 @@ func (service *Service) HandleWorkspaceMessage(_ *core.Core, message core.Messag
 	case WorkspaceCommand:
 		return service.HandleWorkspaceCommand(command)
 	}
-	return core.Result{OK: true}
+	return core.Result{}.New(core.E("workspace.HandleWorkspaceMessage", "unsupported message type", fs.ErrInvalid))
 }
 
 func resolveWorkspaceHomeDirectory() string {
