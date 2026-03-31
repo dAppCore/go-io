@@ -385,6 +385,9 @@ func (medium *MemoryMedium) WriteStream(path string) (goio.WriteCloser, error) {
 	return medium.Create(path)
 }
 
+// Example: medium := io.NewMemoryMedium()
+// Example: _ = medium.Write("config/app.yaml", "port: 8080")
+// Example: file, _ := medium.Open("config/app.yaml")
 type MemoryFile struct {
 	name    string
 	content []byte
@@ -408,6 +411,8 @@ func (file *MemoryFile) Close() error {
 	return nil
 }
 
+// Example: medium := io.NewMemoryMedium()
+// Example: writer, _ := medium.Create("logs/app.log")
 type MemoryWriteCloser struct {
 	medium *MemoryMedium
 	path   string

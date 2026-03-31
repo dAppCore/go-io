@@ -23,12 +23,14 @@ var (
 	NoKeyConfiguredError = core.E("sigil.NoKeyConfiguredError", "no encryption key configured", nil)
 )
 
+// Example: obfuscator := &sigil.XORObfuscator{}
 type PreObfuscator interface {
 	Obfuscate(data []byte, entropy []byte) []byte
 
 	Deobfuscate(data []byte, entropy []byte) []byte
 }
 
+// Example: obfuscator := &sigil.XORObfuscator{}
 type XORObfuscator struct{}
 
 func (obfuscator *XORObfuscator) Obfuscate(data []byte, entropy []byte) []byte {
@@ -76,6 +78,7 @@ func (obfuscator *XORObfuscator) deriveKeyStream(entropy []byte, length int) []b
 	return stream
 }
 
+// Example: obfuscator := &sigil.ShuffleMaskObfuscator{}
 type ShuffleMaskObfuscator struct{}
 
 func (obfuscator *ShuffleMaskObfuscator) Obfuscate(data []byte, entropy []byte) []byte {

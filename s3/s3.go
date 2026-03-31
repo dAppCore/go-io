@@ -90,10 +90,10 @@ func normalisePrefix(prefix string) string {
 // Example: _ = medium.Write("reports/daily.txt", "done")
 func New(options Options) (*Medium, error) {
 	if options.Bucket == "" {
-		return nil, core.E("s3.New", "bucket name is required", nil)
+		return nil, core.E("s3.New", "bucket name is required", fs.ErrInvalid)
 	}
 	if options.Client == nil {
-		return nil, core.E("s3.New", "client is required", nil)
+		return nil, core.E("s3.New", "client is required", fs.ErrInvalid)
 	}
 	medium := &Medium{
 		client: options.Client,

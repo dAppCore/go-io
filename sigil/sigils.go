@@ -11,6 +11,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	goio "io"
+	"io/fs"
 
 	core "dappco.re/go/core"
 	"golang.org/x/crypto/blake2b"
@@ -20,6 +21,7 @@ import (
 	"golang.org/x/crypto/sha3"
 )
 
+// Example: reverseSigil, _ := sigil.NewSigil("reverse")
 type ReverseSigil struct{}
 
 func (sigil *ReverseSigil) In(data []byte) ([]byte, error) {
@@ -37,6 +39,7 @@ func (sigil *ReverseSigil) Out(data []byte) ([]byte, error) {
 	return sigil.In(data)
 }
 
+// Example: hexSigil, _ := sigil.NewSigil("hex")
 type HexSigil struct{}
 
 func (sigil *HexSigil) In(data []byte) ([]byte, error) {
@@ -57,6 +60,7 @@ func (sigil *HexSigil) Out(data []byte) ([]byte, error) {
 	return dst, err
 }
 
+// Example: base64Sigil, _ := sigil.NewSigil("base64")
 type Base64Sigil struct{}
 
 func (sigil *Base64Sigil) In(data []byte) ([]byte, error) {
@@ -77,6 +81,7 @@ func (sigil *Base64Sigil) Out(data []byte) ([]byte, error) {
 	return dst[:n], err
 }
 
+// Example: gzipSigil, _ := sigil.NewSigil("gzip")
 type GzipSigil struct {
 	outputWriter goio.Writer
 }
@@ -116,6 +121,7 @@ func (sigil *GzipSigil) Out(data []byte) ([]byte, error) {
 	return out, nil
 }
 
+// Example: jsonSigil := &sigil.JSONSigil{Indent: true}
 type JSONSigil struct{ Indent bool }
 
 func (sigil *JSONSigil) In(data []byte) ([]byte, error) {
@@ -129,7 +135,7 @@ func (sigil *JSONSigil) In(data []byte) ([]byte, error) {
 		if err, ok := result.Value.(error); ok {
 			return nil, core.E("sigil.JSONSigil.In", "decode json", err)
 		}
-		return nil, core.E("sigil.JSONSigil.In", "decode json", nil)
+		return nil, core.E("sigil.JSONSigil.In", "decode json", fs.ErrInvalid)
 	}
 
 	compact := core.JSONMarshalString(decoded)
@@ -143,6 +149,7 @@ func (sigil *JSONSigil) Out(data []byte) ([]byte, error) {
 	return data, nil
 }
 
+// Example: hashSigil := sigil.NewHashSigil(crypto.SHA256)
 type HashSigil struct {
 	Hash crypto.Hash
 }
@@ -193,7 +200,7 @@ func (sigil *HashSigil) In(data []byte) ([]byte, error) {
 	case crypto.BLAKE2b_512:
 		hasher, _ = blake2b.New512(nil)
 	default:
-		return nil, core.E("sigil.HashSigil.In", "hash algorithm not available", nil)
+		return nil, core.E("sigil.HashSigil.In", "hash algorithm not available", fs.ErrInvalid)
 	}
 
 	hasher.Write(data)
@@ -258,7 +265,7 @@ func NewSigil(name string) (Sigil, error) {
 	case "blake2b-512":
 		return NewHashSigil(crypto.BLAKE2b_512), nil
 	default:
-		return nil, core.E("sigil.NewSigil", core.Concat("unknown sigil name: ", name), nil)
+		return nil, core.E("sigil.NewSigil", core.Concat("unknown sigil name: ", name), fs.ErrInvalid)
 	}
 }
 

@@ -25,6 +25,7 @@ type Medium struct {
 
 var _ coreio.Medium = (*Medium)(nil)
 
+// Example: medium, _ := sqlite.New(sqlite.Options{Path: ":memory:", Table: "files"})
 type Options struct {
 	Path  string
 	Table string
@@ -41,7 +42,7 @@ func normaliseTableName(table string) string {
 // Example: _ = medium.Write("config/app.yaml", "port: 8080")
 func New(options Options) (*Medium, error) {
 	if options.Path == "" {
-		return nil, core.E("sqlite.New", "database path is required", nil)
+		return nil, core.E("sqlite.New", "database path is required", fs.ErrInvalid)
 	}
 
 	medium := &Medium{table: normaliseTableName(options.Table)}
