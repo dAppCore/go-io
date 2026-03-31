@@ -232,6 +232,7 @@ func (node *Node) CopyTo(target coreio.Medium, sourcePath, destPath string) erro
 	return nil
 }
 
+// Example: file, _ := nodeTree.Open("config/app.yaml")
 func (node *Node) Open(name string) (fs.File, error) {
 	name = core.TrimPrefix(name, "/")
 	if dataFile, ok := node.files[name]; ok {
@@ -249,6 +250,7 @@ func (node *Node) Open(name string) (fs.File, error) {
 	return nil, core.E("node.Open", core.Concat("path not found: ", name), fs.ErrNotExist)
 }
 
+// Example: info, _ := nodeTree.Stat("config/app.yaml")
 func (node *Node) Stat(name string) (fs.FileInfo, error) {
 	name = core.TrimPrefix(name, "/")
 	if dataFile, ok := node.files[name]; ok {
@@ -266,6 +268,7 @@ func (node *Node) Stat(name string) (fs.FileInfo, error) {
 	return nil, core.E("node.Stat", core.Concat("path not found: ", name), fs.ErrNotExist)
 }
 
+// Example: entries, _ := nodeTree.ReadDir("config")
 func (node *Node) ReadDir(name string) ([]fs.DirEntry, error) {
 	name = core.TrimPrefix(name, "/")
 	if name == "." {
@@ -314,6 +317,7 @@ func (node *Node) ReadDir(name string) ([]fs.DirEntry, error) {
 	return entries, nil
 }
 
+// Example: content, _ := nodeTree.Read("config/app.yaml")
 func (node *Node) Read(filePath string) (string, error) {
 	filePath = core.TrimPrefix(filePath, "/")
 	file, ok := node.files[filePath]
@@ -323,11 +327,13 @@ func (node *Node) Read(filePath string) (string, error) {
 	return string(file.content), nil
 }
 
+// Example: _ = nodeTree.Write("config/app.yaml", "port: 8080")
 func (node *Node) Write(filePath, content string) error {
 	node.AddData(filePath, []byte(content))
 	return nil
 }
 
+// Example: _ = nodeTree.WriteMode("keys/private.key", key, 0600)
 func (node *Node) WriteMode(filePath, content string, mode fs.FileMode) error {
 	return node.Write(filePath, content)
 }
@@ -337,17 +343,20 @@ func (node *Node) EnsureDir(directoryPath string) error {
 	return nil
 }
 
+// Example: exists := nodeTree.Exists("config/app.yaml")
 func (node *Node) Exists(filePath string) bool {
 	_, err := node.Stat(filePath)
 	return err == nil
 }
 
+// Example: isFile := nodeTree.IsFile("config/app.yaml")
 func (node *Node) IsFile(filePath string) bool {
 	filePath = core.TrimPrefix(filePath, "/")
 	_, ok := node.files[filePath]
 	return ok
 }
 
+// Example: isDirectory := nodeTree.IsDir("config")
 func (node *Node) IsDir(filePath string) bool {
 	info, err := node.Stat(filePath)
 	if err != nil {
@@ -356,6 +365,7 @@ func (node *Node) IsDir(filePath string) bool {
 	return info.IsDir()
 }
 
+// Example: _ = nodeTree.Delete("config/app.yaml")
 func (node *Node) Delete(filePath string) error {
 	filePath = core.TrimPrefix(filePath, "/")
 	if _, ok := node.files[filePath]; ok {
@@ -365,6 +375,7 @@ func (node *Node) Delete(filePath string) error {
 	return core.E("node.Delete", core.Concat("path not found: ", filePath), fs.ErrNotExist)
 }
 
+// Example: _ = nodeTree.DeleteAll("logs/archive")
 func (node *Node) DeleteAll(filePath string) error {
 	filePath = core.TrimPrefix(filePath, "/")
 
@@ -388,6 +399,7 @@ func (node *Node) DeleteAll(filePath string) error {
 	return nil
 }
 
+// Example: _ = nodeTree.Rename("drafts/todo.txt", "archive/todo.txt")
 func (node *Node) Rename(oldPath, newPath string) error {
 	oldPath = core.TrimPrefix(oldPath, "/")
 	newPath = core.TrimPrefix(newPath, "/")
@@ -403,6 +415,7 @@ func (node *Node) Rename(oldPath, newPath string) error {
 	return nil
 }
 
+// Example: entries, _ := nodeTree.List("config")
 func (node *Node) List(filePath string) ([]fs.DirEntry, error) {
 	filePath = core.TrimPrefix(filePath, "/")
 	if filePath == "" || filePath == "." {
@@ -411,11 +424,13 @@ func (node *Node) List(filePath string) ([]fs.DirEntry, error) {
 	return node.ReadDir(filePath)
 }
 
+// Example: writer, _ := nodeTree.Create("logs/app.log")
 func (node *Node) Create(filePath string) (goio.WriteCloser, error) {
 	filePath = core.TrimPrefix(filePath, "/")
 	return &nodeWriter{node: node, path: filePath}, nil
 }
 
+// Example: writer, _ := nodeTree.Append("logs/app.log")
 func (node *Node) Append(filePath string) (goio.WriteCloser, error) {
 	filePath = core.TrimPrefix(filePath, "/")
 	var existing []byte

@@ -11,10 +11,10 @@ import (
 
 func newTestKeyValueMedium(t *testing.T) *Medium {
 	t.Helper()
-	m, err := NewMedium(Options{Path: ":memory:"})
+	medium, err := NewMedium(Options{Path: ":memory:"})
 	require.NoError(t, err)
-	t.Cleanup(func() { m.Close() })
-	return m
+	t.Cleanup(func() { medium.Close() })
+	return medium
 }
 
 func TestKeyValueMedium_ReadWrite_Good(t *testing.T) {

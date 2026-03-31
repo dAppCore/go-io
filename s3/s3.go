@@ -119,6 +119,7 @@ func (medium *Medium) objectKey(filePath string) string {
 	return medium.prefix + clean
 }
 
+// Example: content, _ := medium.Read("reports/daily.txt")
 func (medium *Medium) Read(filePath string) (string, error) {
 	key := medium.objectKey(filePath)
 	if key == "" {
@@ -141,6 +142,7 @@ func (medium *Medium) Read(filePath string) (string, error) {
 	return string(data), nil
 }
 
+// Example: _ = medium.Write("reports/daily.txt", "done")
 func (medium *Medium) Write(filePath, content string) error {
 	key := medium.objectKey(filePath)
 	if key == "" {
@@ -184,6 +186,7 @@ func (medium *Medium) IsFile(filePath string) bool {
 	return err == nil
 }
 
+// Example: _ = medium.Delete("reports/daily.txt")
 func (medium *Medium) Delete(filePath string) error {
 	key := medium.objectKey(filePath)
 	if key == "" {
@@ -470,6 +473,7 @@ func (medium *Medium) Append(filePath string) (goio.WriteCloser, error) {
 	}, nil
 }
 
+// Example: reader, _ := medium.ReadStream("reports/daily.txt")
 func (medium *Medium) ReadStream(filePath string) (goio.ReadCloser, error) {
 	key := medium.objectKey(filePath)
 	if key == "" {
@@ -486,6 +490,7 @@ func (medium *Medium) ReadStream(filePath string) (goio.ReadCloser, error) {
 	return out.Body, nil
 }
 
+// Example: writer, _ := medium.WriteStream("reports/daily.txt")
 func (medium *Medium) WriteStream(filePath string) (goio.WriteCloser, error) {
 	return medium.Create(filePath)
 }

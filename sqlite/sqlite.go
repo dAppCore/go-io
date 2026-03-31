@@ -88,6 +88,7 @@ func normaliseEntryPath(filePath string) string {
 	return core.TrimPrefix(clean, "/")
 }
 
+// Example: content, _ := medium.Read("config/app.yaml")
 func (medium *Medium) Read(filePath string) (string, error) {
 	key := normaliseEntryPath(filePath)
 	if key == "" {
@@ -111,6 +112,7 @@ func (medium *Medium) Read(filePath string) (string, error) {
 	return string(content), nil
 }
 
+// Example: _ = medium.Write("config/app.yaml", "port: 8080")
 func (medium *Medium) Write(filePath, content string) error {
 	return medium.WriteMode(filePath, content, 0644)
 }
@@ -151,6 +153,7 @@ func (medium *Medium) EnsureDir(filePath string) error {
 	return nil
 }
 
+// Example: isFile := medium.IsFile("config/app.yaml")
 func (medium *Medium) IsFile(filePath string) bool {
 	key := normaliseEntryPath(filePath)
 	if key == "" {
@@ -401,6 +404,7 @@ func (medium *Medium) List(filePath string) ([]fs.DirEntry, error) {
 	return entries, nil
 }
 
+// Example: info, _ := medium.Stat("config/app.yaml")
 func (medium *Medium) Stat(filePath string) (fs.FileInfo, error) {
 	key := normaliseEntryPath(filePath)
 	if key == "" {
@@ -431,6 +435,7 @@ func (medium *Medium) Stat(filePath string) (fs.FileInfo, error) {
 	}, nil
 }
 
+// Example: file, _ := medium.Open("config/app.yaml")
 func (medium *Medium) Open(filePath string) (fs.File, error) {
 	key := normaliseEntryPath(filePath)
 	if key == "" {
@@ -462,6 +467,7 @@ func (medium *Medium) Open(filePath string) (fs.File, error) {
 	}, nil
 }
 
+// Example: writer, _ := medium.Create("logs/app.log")
 func (medium *Medium) Create(filePath string) (goio.WriteCloser, error) {
 	key := normaliseEntryPath(filePath)
 	if key == "" {
@@ -473,6 +479,7 @@ func (medium *Medium) Create(filePath string) (goio.WriteCloser, error) {
 	}, nil
 }
 
+// Example: writer, _ := medium.Append("logs/app.log")
 func (medium *Medium) Append(filePath string) (goio.WriteCloser, error) {
 	key := normaliseEntryPath(filePath)
 	if key == "" {
@@ -494,6 +501,7 @@ func (medium *Medium) Append(filePath string) (goio.WriteCloser, error) {
 	}, nil
 }
 
+// Example: reader, _ := medium.ReadStream("logs/app.log")
 func (medium *Medium) ReadStream(filePath string) (goio.ReadCloser, error) {
 	key := normaliseEntryPath(filePath)
 	if key == "" {
@@ -518,10 +526,12 @@ func (medium *Medium) ReadStream(filePath string) (goio.ReadCloser, error) {
 	return goio.NopCloser(bytes.NewReader(content)), nil
 }
 
+// Example: writer, _ := medium.WriteStream("logs/app.log")
 func (medium *Medium) WriteStream(filePath string) (goio.WriteCloser, error) {
 	return medium.Create(filePath)
 }
 
+// Example: exists := medium.Exists("config/app.yaml")
 func (medium *Medium) Exists(filePath string) bool {
 	key := normaliseEntryPath(filePath)
 	if key == "" {
@@ -538,6 +548,7 @@ func (medium *Medium) Exists(filePath string) bool {
 	return count > 0
 }
 
+// Example: isDirectory := medium.IsDir("config")
 func (medium *Medium) IsDir(filePath string) bool {
 	key := normaliseEntryPath(filePath)
 	if key == "" {

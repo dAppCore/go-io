@@ -38,6 +38,8 @@ type Medium struct {
 	lock         sync.RWMutex
 }
 
+// Example: medium := datanode.New()
+// Example: _ = medium.Write("jobs/run.log", "started")
 func New() *Medium {
 	return &Medium{
 		dataNode:     borgdatanode.New(),

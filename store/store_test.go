@@ -10,17 +10,17 @@ import (
 func newTestStore(t *testing.T) *Store {
 	t.Helper()
 
-	s, err := New(Options{Path: ":memory:"})
+	keyValueStore, err := New(Options{Path: ":memory:"})
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		require.NoError(t, s.Close())
+		require.NoError(t, keyValueStore.Close())
 	})
-	return s
+	return keyValueStore
 }
 
 func TestStore_New_Options_Good(t *testing.T) {
-	s := newTestStore(t)
-	assert.NotNil(t, s)
+	keyValueStore := newTestStore(t)
+	assert.NotNil(t, keyValueStore)
 }
 
 func TestStore_New_Options_Bad(t *testing.T) {
@@ -29,86 +29,86 @@ func TestStore_New_Options_Bad(t *testing.T) {
 }
 
 func TestStore_SetGet_Good(t *testing.T) {
-	s := newTestStore(t)
+	keyValueStore := newTestStore(t)
 
-	err := s.Set("config", "theme", "dark")
+	err := keyValueStore.Set("config", "theme", "dark")
 	require.NoError(t, err)
 
-	val, err := s.Get("config", "theme")
+	val, err := keyValueStore.Get("config", "theme")
 	require.NoError(t, err)
 	assert.Equal(t, "dark", val)
 }
 
 func TestStore_Get_NotFound_Bad(t *testing.T) {
-	s := newTestStore(t)
+	keyValueStore := newTestStore(t)
 
-	_, err := s.Get("config", "missing")
+	_, err := keyValueStore.Get("config", "missing")
 	assert.ErrorIs(t, err, NotFoundError)
 }
 
 func TestStore_Delete_Good(t *testing.T) {
-	s := newTestStore(t)
+	keyValueStore := newTestStore(t)
 
-	_ = s.Set("config", "key", "val")
-	err := s.Delete("config", "key")
+	_ = keyValueStore.Set("config", "key", "val")
+	err := keyValueStore.Delete("config", "key")
 	require.NoError(t, err)
 
-	_, err = s.Get("config", "key")
+	_, err = keyValueStore.Get("config", "key")
 	assert.ErrorIs(t, err, NotFoundError)
 }
 
 func TestStore_Count_Good(t *testing.T) {
-	s := newTestStore(t)
+	keyValueStore := newTestStore(t)
 
-	_ = s.Set("group", "a", "1")
-	_ = s.Set("group", "b", "2")
-	_ = s.Set("other", "c", "3")
+	_ = keyValueStore.Set("group", "a", "1")
+	_ = keyValueStore.Set("group", "b", "2")
+	_ = keyValueStore.Set("other", "c", "3")
 
-	n, err := s.Count("group")
+	count, err := keyValueStore.Count("group")
 	require.NoError(t, err)
-	assert.Equal(t, 2, n)
+	assert.Equal(t, 2, count)
 }
 
 func TestStore_DeleteGroup_Good(t *testing.T) {
-	s := newTestStore(t)
+	keyValueStore := newTestStore(t)
 
-	_ = s.Set("group", "a", "1")
-	_ = s.Set("group", "b", "2")
-	err := s.DeleteGroup("group")
+	_ = keyValueStore.Set("group", "a", "1")
+	_ = keyValueStore.Set("group", "b", "2")
+	err := keyValueStore.DeleteGroup("group")
 	require.NoError(t, err)
 
-	n, _ := s.Count("group")
-	assert.Equal(t, 0, n)
+	count, _ := keyValueStore.Count("group")
+	assert.Equal(t, 0, count)
 }
 
 func TestStore_GetAll_Good(t *testing.T) {
-	s := newTestStore(t)
+	keyValueStore := newTestStore(t)
 
-	_ = s.Set("group", "a", "1")
-	_ = s.Set("group", "b", "2")
-	_ = s.Set("other", "c", "3")
+	_ = keyValueStore.Set("group", "a", "1")
+	_ = keyValueStore.Set("group", "b", "2")
+	_ = keyValueStore.Set("other", "c", "3")
 
-	all, err := s.GetAll("group")
+	all, err := keyValueStore.GetAll("group")
 	require.NoError(t, err)
 	assert.Equal(t, map[string]string{"a": "1", "b": "2"}, all)
 }
 
 func TestStore_GetAll_Empty_Good(t *testing.T) {
-	s := newTestStore(t)
+	keyValueStore := newTestStore(t)
 
-	all, err := s.GetAll("empty")
+	all, err := keyValueStore.GetAll("empty")
 	require.NoError(t, err)
 	assert.Empty(t, all)
 }
 
 func TestStore_Render_Good(t *testing.T) {
-	s := newTestStore(t)
+	keyValueStore := newTestStore(t)
 
-	_ = s.Set("user", "pool", "pool.lthn.io:3333")
-	_ = s.Set("user", "wallet", "iz...")
+	_ = keyValueStore.Set("user", "pool", "pool.lthn.io:3333")
+	_ = keyValueStore.Set("user", "wallet", "iz...")
 
 	tmpl := `{"pool":"{{ .pool }}","wallet":"{{ .wallet }}"}`
-	out, err := s.Render(tmpl, "user")
+	out, err := keyValueStore.Render(tmpl, "user")
 	require.NoError(t, err)
 	assert.Contains(t, out, "pool.lthn.io:3333")
 	assert.Contains(t, out, "iz...")

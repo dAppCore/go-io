@@ -238,6 +238,7 @@ func (medium *Medium) WriteMode(path, content string, mode fs.FileMode) error {
 	return resultError("local.WriteMode", core.Concat("write failed: ", path), unrestrictedFileSystem.WriteMode(resolvedPath, content, mode))
 }
 
+// Example: _ = medium.EnsureDir("config/app")
 func (medium *Medium) EnsureDir(path string) error {
 	resolvedPath, err := medium.validatePath(path)
 	if err != nil {
@@ -246,6 +247,7 @@ func (medium *Medium) EnsureDir(path string) error {
 	return resultError("local.EnsureDir", core.Concat("ensure dir failed: ", path), unrestrictedFileSystem.EnsureDir(resolvedPath))
 }
 
+// Example: isDirectory := medium.IsDir("config")
 func (medium *Medium) IsDir(path string) bool {
 	if path == "" {
 		return false
@@ -257,6 +259,7 @@ func (medium *Medium) IsDir(path string) bool {
 	return unrestrictedFileSystem.IsDir(resolvedPath)
 }
 
+// Example: isFile := medium.IsFile("config/app.yaml")
 func (medium *Medium) IsFile(path string) bool {
 	if path == "" {
 		return false
@@ -268,6 +271,7 @@ func (medium *Medium) IsFile(path string) bool {
 	return unrestrictedFileSystem.IsFile(resolvedPath)
 }
 
+// Example: exists := medium.Exists("config/app.yaml")
 func (medium *Medium) Exists(path string) bool {
 	resolvedPath, err := medium.validatePath(path)
 	if err != nil {
@@ -276,6 +280,7 @@ func (medium *Medium) Exists(path string) bool {
 	return unrestrictedFileSystem.Exists(resolvedPath)
 }
 
+// Example: entries, _ := medium.List("config")
 func (medium *Medium) List(path string) ([]fs.DirEntry, error) {
 	resolvedPath, err := medium.validatePath(path)
 	if err != nil {
@@ -284,6 +289,7 @@ func (medium *Medium) List(path string) ([]fs.DirEntry, error) {
 	return resultDirEntries("local.List", core.Concat("list failed: ", path), unrestrictedFileSystem.List(resolvedPath))
 }
 
+// Example: info, _ := medium.Stat("config/app.yaml")
 func (medium *Medium) Stat(path string) (fs.FileInfo, error) {
 	resolvedPath, err := medium.validatePath(path)
 	if err != nil {
@@ -292,6 +298,7 @@ func (medium *Medium) Stat(path string) (fs.FileInfo, error) {
 	return resultFileInfo("local.Stat", core.Concat("stat failed: ", path), unrestrictedFileSystem.Stat(resolvedPath))
 }
 
+// Example: file, _ := medium.Open("config/app.yaml")
 func (medium *Medium) Open(path string) (fs.File, error) {
 	resolvedPath, err := medium.validatePath(path)
 	if err != nil {
@@ -300,6 +307,7 @@ func (medium *Medium) Open(path string) (fs.File, error) {
 	return resultFile("local.Open", core.Concat("open failed: ", path), unrestrictedFileSystem.Open(resolvedPath))
 }
 
+// Example: writer, _ := medium.Create("logs/app.log")
 func (medium *Medium) Create(path string) (goio.WriteCloser, error) {
 	resolvedPath, err := medium.validatePath(path)
 	if err != nil {
@@ -308,6 +316,7 @@ func (medium *Medium) Create(path string) (goio.WriteCloser, error) {
 	return resultWriteCloser("local.Create", core.Concat("create failed: ", path), unrestrictedFileSystem.Create(resolvedPath))
 }
 
+// Example: writer, _ := medium.Append("logs/app.log")
 func (medium *Medium) Append(path string) (goio.WriteCloser, error) {
 	resolvedPath, err := medium.validatePath(path)
 	if err != nil {
@@ -326,6 +335,7 @@ func (medium *Medium) WriteStream(path string) (goio.WriteCloser, error) {
 	return medium.Create(path)
 }
 
+// Example: _ = medium.Delete("config/app.yaml")
 func (medium *Medium) Delete(path string) error {
 	resolvedPath, err := medium.validatePath(path)
 	if err != nil {
@@ -337,6 +347,7 @@ func (medium *Medium) Delete(path string) error {
 	return resultError("local.Delete", core.Concat("delete failed: ", path), unrestrictedFileSystem.Delete(resolvedPath))
 }
 
+// Example: _ = medium.DeleteAll("logs/archive")
 func (medium *Medium) DeleteAll(path string) error {
 	resolvedPath, err := medium.validatePath(path)
 	if err != nil {
@@ -348,6 +359,7 @@ func (medium *Medium) DeleteAll(path string) error {
 	return resultError("local.DeleteAll", core.Concat("delete all failed: ", path), unrestrictedFileSystem.DeleteAll(resolvedPath))
 }
 
+// Example: _ = medium.Rename("drafts/todo.txt", "archive/todo.txt")
 func (medium *Medium) Rename(oldPath, newPath string) error {
 	oldResolvedPath, err := medium.validatePath(oldPath)
 	if err != nil {

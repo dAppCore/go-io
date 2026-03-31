@@ -18,6 +18,7 @@ type Store struct {
 	database *sql.DB
 }
 
+// Example: keyValueStore, _ := store.New(store.Options{Path: ":memory:"})
 type Options struct {
 	Path string
 }

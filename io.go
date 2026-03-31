@@ -15,31 +15,43 @@ import (
 // Example: backup, _ := io.NewSandboxed("/srv/backup")
 // Example: _ = io.Copy(medium, "data/report.json", backup, "daily/report.json")
 type Medium interface {
+	// Example: content, _ := medium.Read("config/app.yaml")
 	Read(path string) (string, error)
 
+	// Example: _ = medium.Write("config/app.yaml", "port: 8080")
 	Write(path, content string) error
 
 	// Example: _ = medium.WriteMode("keys/private.key", key, 0600)
 	WriteMode(path, content string, mode fs.FileMode) error
 
+	// Example: _ = medium.EnsureDir("config/app")
 	EnsureDir(path string) error
 
+	// Example: isFile := medium.IsFile("config/app.yaml")
 	IsFile(path string) bool
 
+	// Example: _ = medium.Delete("config/app.yaml")
 	Delete(path string) error
 
+	// Example: _ = medium.DeleteAll("logs/archive")
 	DeleteAll(path string) error
 
+	// Example: _ = medium.Rename("drafts/todo.txt", "archive/todo.txt")
 	Rename(oldPath, newPath string) error
 
+	// Example: entries, _ := medium.List("config")
 	List(path string) ([]fs.DirEntry, error)
 
+	// Example: info, _ := medium.Stat("config/app.yaml")
 	Stat(path string) (fs.FileInfo, error)
 
+	// Example: file, _ := medium.Open("config/app.yaml")
 	Open(path string) (fs.File, error)
 
+	// Example: writer, _ := medium.Create("logs/app.log")
 	Create(path string) (goio.WriteCloser, error)
 
+	// Example: writer, _ := medium.Append("logs/app.log")
 	Append(path string) (goio.WriteCloser, error)
 
 	// Example: reader, _ := medium.ReadStream("logs/app.log")
