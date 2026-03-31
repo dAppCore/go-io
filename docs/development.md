@@ -105,10 +105,10 @@ func TestMyFeature(t *testing.T) {
 }
 ```
 
-For tests that need a real but ephemeral filesystem, use `local.New` with `t.TempDir()`:
+For tests that need a temporary filesystem, use `local.New` with `t.TempDir()`:
 
 ```go
-func TestWithRealFS(t *testing.T) {
+func TestLocalMedium_RoundTrip_Good(t *testing.T) {
     localMedium, err := local.New(t.TempDir())
     require.NoError(t, err)
 
@@ -121,7 +121,7 @@ func TestWithRealFS(t *testing.T) {
 For SQLite-backed tests, use `:memory:`:
 
 ```go
-func TestWithSQLite(t *testing.T) {
+func TestSqliteMedium_RoundTrip_Good(t *testing.T) {
     sqliteMedium, err := sqlite.New(sqlite.Options{Path: ":memory:"})
     require.NoError(t, err)
     defer sqliteMedium.Close()

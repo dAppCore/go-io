@@ -199,7 +199,7 @@ func (m *mockS3) CopyObject(_ context.Context, params *awss3.CopyObjectInput, _ 
 	return &awss3.CopyObjectOutput{}, nil
 }
 
-func newTestMedium(t *testing.T) (*Medium, *mockS3) {
+func newS3Medium(t *testing.T) (*Medium, *mockS3) {
 	t.Helper()
 	mock := newMockS3()
 	m, err := New(Options{Bucket: "test-bucket", Client: mock})
@@ -239,7 +239,7 @@ func TestS3_New_Options_Good(t *testing.T) {
 }
 
 func TestS3_ReadWrite_Good(t *testing.T) {
-	m, _ := newTestMedium(t)
+	m, _ := newS3Medium(t)
 
 	err := m.Write("hello.txt", "world")
 	require.NoError(t, err)
@@ -250,14 +250,14 @@ func TestS3_ReadWrite_Good(t *testing.T) {
 }
 
 func TestS3_ReadWrite_NotFound_Bad(t *testing.T) {
-	m, _ := newTestMedium(t)
+	m, _ := newS3Medium(t)
 
 	_, err := m.Read("nonexistent.txt")
 	assert.Error(t, err)
 }
 
 func TestS3_ReadWrite_EmptyPath_Bad(t *testing.T) {
-	m, _ := newTestMedium(t)
+	m, _ := newS3Medium(t)
 
 	_, err := m.Read("")
 	assert.Error(t, err)
@@ -283,13 +283,13 @@ func TestS3_ReadWrite_Prefix_Good(t *testing.T) {
 }
 
 func TestS3_EnsureDir_Good(t *testing.T) {
-	medium, _ := newTestMedium(t)
+	medium, _ := newS3Medium(t)
 	err := medium.EnsureDir("any/path")
 	assert.NoError(t, err)
 }
 
 func TestS3_IsFile_Good(t *testing.T) {
-	m, _ := newTestMedium(t)
+	m, _ := newS3Medium(t)
 
 	err := m.Write("file.txt", "content")
 	require.NoError(t, err)
@@ -300,7 +300,7 @@ func TestS3_IsFile_Good(t *testing.T) {
 }
 
 func TestS3_Delete_Good(t *testing.T) {
-	m, _ := newTestMedium(t)
+	m, _ := newS3Medium(t)
 
 	err := m.Write("to-delete.txt", "content")
 	require.NoError(t, err)
@@ -312,13 +312,13 @@ func TestS3_Delete_Good(t *testing.T) {
 }
 
 func TestS3_Delete_EmptyPath_Bad(t *testing.T) {
-	m, _ := newTestMedium(t)
+	m, _ := newS3Medium(t)
 	err := m.Delete("")
 	assert.Error(t, err)
 }
 
 func TestS3_DeleteAll_Good(t *testing.T) {
-	m, _ := newTestMedium(t)
+	m, _ := newS3Medium(t)
 
 	require.NoError(t, m.Write("dir/file1.txt", "a"))
 	require.NoError(t, m.Write("dir/sub/file2.txt", "b"))
@@ -333,13 +333,13 @@ func TestS3_DeleteAll_Good(t *testing.T) {
 }
 
 func TestS3_DeleteAll_EmptyPath_Bad(t *testing.T) {
-	m, _ := newTestMedium(t)
+	m, _ := newS3Medium(t)
 	err := m.DeleteAll("")
 	assert.Error(t, err)
 }
 
 func TestS3_DeleteAll_DeleteObjectError_Bad(t *testing.T) {
-	m, mock := newTestMedium(t)
+	m, mock := newS3Medium(t)
 	mock.deleteObjectErrors["dir"] = core.NewError("boom")
 
 	err := m.DeleteAll("dir")
@@ -348,7 +348,7 @@ func TestS3_DeleteAll_DeleteObjectError_Bad(t *testing.T) {
 }
 
 func TestS3_DeleteAll_PartialDelete_Bad(t *testing.T) {
-	m, mock := newTestMedium(t)
+	m, mock := newS3Medium(t)
 
 	require.NoError(t, m.Write("dir/file1.txt", "a"))
 	require.NoError(t, m.Write("dir/file2.txt", "b"))
@@ -367,7 +367,7 @@ func TestS3_DeleteAll_PartialDelete_Bad(t *testing.T) {
 }
 
 func TestS3_Rename_Good(t *testing.T) {
-	m, _ := newTestMedium(t)
+	m, _ := newS3Medium(t)
 
 	require.NoError(t, m.Write("old.txt", "content"))
 	assert.True(t, m.IsFile("old.txt"))
@@ -384,7 +384,7 @@ func TestS3_Rename_Good(t *testing.T) {
 }
 
 func TestS3_Rename_EmptyPath_Bad(t *testing.T) {
-	m, _ := newTestMedium(t)
+	m, _ := newS3Medium(t)
 	err := m.Rename("", "new.txt")
 	assert.Error(t, err)
 
@@ -393,13 +393,13 @@ func TestS3_Rename_EmptyPath_Bad(t *testing.T) {
 }
 
 func TestS3_Rename_SourceNotFound_Bad(t *testing.T) {
-	m, _ := newTestMedium(t)
+	m, _ := newS3Medium(t)
 	err := m.Rename("nonexistent.txt", "new.txt")
 	assert.Error(t, err)
 }
 
 func TestS3_List_Good(t *testing.T) {
-	m, _ := newTestMedium(t)
+	m, _ := newS3Medium(t)
 
 	require.NoError(t, m.Write("dir/file1.txt", "a"))
 	require.NoError(t, m.Write("dir/file2.txt", "b"))
@@ -429,7 +429,7 @@ func TestS3_List_Good(t *testing.T) {
 }
 
 func TestS3_List_Root_Good(t *testing.T) {
-	m, _ := newTestMedium(t)
+	m, _ := newS3Medium(t)
 
 	require.NoError(t, m.Write("root.txt", "content"))
 	require.NoError(t, m.Write("dir/nested.txt", "nested"))
@@ -447,7 +447,7 @@ func TestS3_List_Root_Good(t *testing.T) {
 }
 
 func TestS3_Stat_Good(t *testing.T) {
-	m, _ := newTestMedium(t)
+	m, _ := newS3Medium(t)
 
 	require.NoError(t, m.Write("file.txt", "hello world"))
 
@@ -459,20 +459,20 @@ func TestS3_Stat_Good(t *testing.T) {
 }
 
 func TestS3_Stat_NotFound_Bad(t *testing.T) {
-	m, _ := newTestMedium(t)
+	m, _ := newS3Medium(t)
 
 	_, err := m.Stat("nonexistent.txt")
 	assert.Error(t, err)
 }
 
 func TestS3_Stat_EmptyPath_Bad(t *testing.T) {
-	m, _ := newTestMedium(t)
+	m, _ := newS3Medium(t)
 	_, err := m.Stat("")
 	assert.Error(t, err)
 }
 
 func TestS3_Open_Good(t *testing.T) {
-	m, _ := newTestMedium(t)
+	m, _ := newS3Medium(t)
 
 	require.NoError(t, m.Write("file.txt", "open me"))
 
@@ -490,14 +490,14 @@ func TestS3_Open_Good(t *testing.T) {
 }
 
 func TestS3_Open_NotFound_Bad(t *testing.T) {
-	m, _ := newTestMedium(t)
+	m, _ := newS3Medium(t)
 
 	_, err := m.Open("nonexistent.txt")
 	assert.Error(t, err)
 }
 
 func TestS3_Create_Good(t *testing.T) {
-	m, _ := newTestMedium(t)
+	m, _ := newS3Medium(t)
 
 	w, err := m.Create("new.txt")
 	require.NoError(t, err)
@@ -515,7 +515,7 @@ func TestS3_Create_Good(t *testing.T) {
 }
 
 func TestS3_Append_Good(t *testing.T) {
-	m, _ := newTestMedium(t)
+	m, _ := newS3Medium(t)
 
 	require.NoError(t, m.Write("append.txt", "hello"))
 
@@ -533,7 +533,7 @@ func TestS3_Append_Good(t *testing.T) {
 }
 
 func TestS3_Append_NewFile_Good(t *testing.T) {
-	m, _ := newTestMedium(t)
+	m, _ := newS3Medium(t)
 
 	w, err := m.Append("new.txt")
 	require.NoError(t, err)
@@ -549,7 +549,7 @@ func TestS3_Append_NewFile_Good(t *testing.T) {
 }
 
 func TestS3_ReadStream_Good(t *testing.T) {
-	m, _ := newTestMedium(t)
+	m, _ := newS3Medium(t)
 
 	require.NoError(t, m.Write("stream.txt", "streaming content"))
 
@@ -563,13 +563,13 @@ func TestS3_ReadStream_Good(t *testing.T) {
 }
 
 func TestS3_ReadStream_NotFound_Bad(t *testing.T) {
-	m, _ := newTestMedium(t)
+	m, _ := newS3Medium(t)
 	_, err := m.ReadStream("nonexistent.txt")
 	assert.Error(t, err)
 }
 
 func TestS3_WriteStream_Good(t *testing.T) {
-	m, _ := newTestMedium(t)
+	m, _ := newS3Medium(t)
 
 	writer, err := m.WriteStream("output.txt")
 	require.NoError(t, err)
@@ -585,7 +585,7 @@ func TestS3_WriteStream_Good(t *testing.T) {
 }
 
 func TestS3_Exists_Good(t *testing.T) {
-	m, _ := newTestMedium(t)
+	m, _ := newS3Medium(t)
 
 	assert.False(t, m.Exists("nonexistent.txt"))
 
@@ -594,14 +594,14 @@ func TestS3_Exists_Good(t *testing.T) {
 }
 
 func TestS3_Exists_DirectoryPrefix_Good(t *testing.T) {
-	m, _ := newTestMedium(t)
+	m, _ := newS3Medium(t)
 
 	require.NoError(t, m.Write("dir/file.txt", "content"))
 	assert.True(t, m.Exists("dir"))
 }
 
 func TestS3_IsDir_Good(t *testing.T) {
-	m, _ := newTestMedium(t)
+	m, _ := newS3Medium(t)
 
 	require.NoError(t, m.Write("dir/file.txt", "content"))
 

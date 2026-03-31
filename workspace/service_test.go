@@ -22,7 +22,7 @@ func (provider stubKeyPairProvider) CreateKeyPair(_, _ string) (string, error) {
 	return provider.privateKey, nil
 }
 
-func newTestService(t *testing.T) (*Service, string) {
+func newWorkspaceService(t *testing.T) (*Service, string) {
 	t.Helper()
 
 	tempHome := t.TempDir()
@@ -62,7 +62,7 @@ func TestService_New_CustomRootPathAndMedium_Good(t *testing.T) {
 }
 
 func TestService_WorkspaceFileRoundTrip_Good(t *testing.T) {
-	service, tempHome := newTestService(t)
+	service, tempHome := newWorkspaceService(t)
 
 	workspaceID, err := service.CreateWorkspace("test-user", "pass123")
 	require.NoError(t, err)
@@ -86,7 +86,7 @@ func TestService_WorkspaceFileRoundTrip_Good(t *testing.T) {
 }
 
 func TestService_SwitchWorkspace_TraversalBlocked_Bad(t *testing.T) {
-	service, tempHome := newTestService(t)
+	service, tempHome := newWorkspaceService(t)
 
 	outside := core.Path(tempHome, ".core", "escaped")
 	require.NoError(t, service.medium.EnsureDir(outside))
@@ -97,7 +97,7 @@ func TestService_SwitchWorkspace_TraversalBlocked_Bad(t *testing.T) {
 }
 
 func TestService_WriteWorkspaceFile_TraversalBlocked_Bad(t *testing.T) {
-	service, tempHome := newTestService(t)
+	service, tempHome := newWorkspaceService(t)
 
 	workspaceID, err := service.CreateWorkspace("test-user", "pass123")
 	require.NoError(t, err)
@@ -128,7 +128,7 @@ func TestService_JoinPathWithinRoot_DefaultSeparator_Good(t *testing.T) {
 }
 
 func TestService_HandleWorkspaceMessage_Command_Good(t *testing.T) {
-	service, _ := newTestService(t)
+	service, _ := newWorkspaceService(t)
 
 	create := service.HandleWorkspaceMessage(core.New(), WorkspaceCommand{
 		Action:     WorkspaceCreateAction,

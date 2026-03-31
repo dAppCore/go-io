@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newTestSqliteMedium(t *testing.T) *Medium {
+func newSqliteMedium(t *testing.T) *Medium {
 	t.Helper()
 	sqliteMedium, err := New(Options{Path: ":memory:"})
 	require.NoError(t, err)
@@ -39,7 +39,7 @@ func TestSqlite_New_EmptyPath_Bad(t *testing.T) {
 }
 
 func TestSqlite_ReadWrite_Good(t *testing.T) {
-	sqliteMedium := newTestSqliteMedium(t)
+	sqliteMedium := newSqliteMedium(t)
 
 	err := sqliteMedium.Write("hello.txt", "world")
 	require.NoError(t, err)
@@ -50,7 +50,7 @@ func TestSqlite_ReadWrite_Good(t *testing.T) {
 }
 
 func TestSqlite_ReadWrite_Overwrite_Good(t *testing.T) {
-	sqliteMedium := newTestSqliteMedium(t)
+	sqliteMedium := newSqliteMedium(t)
 
 	require.NoError(t, sqliteMedium.Write("file.txt", "first"))
 	require.NoError(t, sqliteMedium.Write("file.txt", "second"))
@@ -61,7 +61,7 @@ func TestSqlite_ReadWrite_Overwrite_Good(t *testing.T) {
 }
 
 func TestSqlite_ReadWrite_NestedPath_Good(t *testing.T) {
-	sqliteMedium := newTestSqliteMedium(t)
+	sqliteMedium := newSqliteMedium(t)
 
 	err := sqliteMedium.Write("a/b/c.txt", "nested")
 	require.NoError(t, err)
@@ -72,28 +72,28 @@ func TestSqlite_ReadWrite_NestedPath_Good(t *testing.T) {
 }
 
 func TestSqlite_Read_NotFound_Bad(t *testing.T) {
-	sqliteMedium := newTestSqliteMedium(t)
+	sqliteMedium := newSqliteMedium(t)
 
 	_, err := sqliteMedium.Read("nonexistent.txt")
 	assert.Error(t, err)
 }
 
 func TestSqlite_Read_EmptyPath_Bad(t *testing.T) {
-	sqliteMedium := newTestSqliteMedium(t)
+	sqliteMedium := newSqliteMedium(t)
 
 	_, err := sqliteMedium.Read("")
 	assert.Error(t, err)
 }
 
 func TestSqlite_Write_EmptyPath_Bad(t *testing.T) {
-	sqliteMedium := newTestSqliteMedium(t)
+	sqliteMedium := newSqliteMedium(t)
 
 	err := sqliteMedium.Write("", "content")
 	assert.Error(t, err)
 }
 
 func TestSqlite_Read_IsDirectory_Bad(t *testing.T) {
-	sqliteMedium := newTestSqliteMedium(t)
+	sqliteMedium := newSqliteMedium(t)
 
 	require.NoError(t, sqliteMedium.EnsureDir("mydir"))
 	_, err := sqliteMedium.Read("mydir")
@@ -101,7 +101,7 @@ func TestSqlite_Read_IsDirectory_Bad(t *testing.T) {
 }
 
 func TestSqlite_EnsureDir_Good(t *testing.T) {
-	sqliteMedium := newTestSqliteMedium(t)
+	sqliteMedium := newSqliteMedium(t)
 
 	err := sqliteMedium.EnsureDir("mydir")
 	require.NoError(t, err)
@@ -109,13 +109,13 @@ func TestSqlite_EnsureDir_Good(t *testing.T) {
 }
 
 func TestSqlite_EnsureDir_EmptyPath_Good(t *testing.T) {
-	sqliteMedium := newTestSqliteMedium(t)
+	sqliteMedium := newSqliteMedium(t)
 	err := sqliteMedium.EnsureDir("")
 	assert.NoError(t, err)
 }
 
 func TestSqlite_EnsureDir_Idempotent_Good(t *testing.T) {
-	sqliteMedium := newTestSqliteMedium(t)
+	sqliteMedium := newSqliteMedium(t)
 
 	require.NoError(t, sqliteMedium.EnsureDir("mydir"))
 	require.NoError(t, sqliteMedium.EnsureDir("mydir"))
@@ -123,7 +123,7 @@ func TestSqlite_EnsureDir_Idempotent_Good(t *testing.T) {
 }
 
 func TestSqlite_IsFile_Good(t *testing.T) {
-	sqliteMedium := newTestSqliteMedium(t)
+	sqliteMedium := newSqliteMedium(t)
 
 	require.NoError(t, sqliteMedium.Write("file.txt", "content"))
 	require.NoError(t, sqliteMedium.EnsureDir("mydir"))
@@ -135,7 +135,7 @@ func TestSqlite_IsFile_Good(t *testing.T) {
 }
 
 func TestSqlite_Delete_Good(t *testing.T) {
-	sqliteMedium := newTestSqliteMedium(t)
+	sqliteMedium := newSqliteMedium(t)
 
 	require.NoError(t, sqliteMedium.Write("to-delete.txt", "content"))
 	assert.True(t, sqliteMedium.Exists("to-delete.txt"))
@@ -146,7 +146,7 @@ func TestSqlite_Delete_Good(t *testing.T) {
 }
 
 func TestSqlite_Delete_EmptyDir_Good(t *testing.T) {
-	sqliteMedium := newTestSqliteMedium(t)
+	sqliteMedium := newSqliteMedium(t)
 
 	require.NoError(t, sqliteMedium.EnsureDir("emptydir"))
 	assert.True(t, sqliteMedium.IsDir("emptydir"))
@@ -157,21 +157,21 @@ func TestSqlite_Delete_EmptyDir_Good(t *testing.T) {
 }
 
 func TestSqlite_Delete_NotFound_Bad(t *testing.T) {
-	sqliteMedium := newTestSqliteMedium(t)
+	sqliteMedium := newSqliteMedium(t)
 
 	err := sqliteMedium.Delete("nonexistent")
 	assert.Error(t, err)
 }
 
 func TestSqlite_Delete_EmptyPath_Bad(t *testing.T) {
-	sqliteMedium := newTestSqliteMedium(t)
+	sqliteMedium := newSqliteMedium(t)
 
 	err := sqliteMedium.Delete("")
 	assert.Error(t, err)
 }
 
 func TestSqlite_Delete_NotEmpty_Bad(t *testing.T) {
-	sqliteMedium := newTestSqliteMedium(t)
+	sqliteMedium := newSqliteMedium(t)
 
 	require.NoError(t, sqliteMedium.EnsureDir("mydir"))
 	require.NoError(t, sqliteMedium.Write("mydir/file.txt", "content"))
@@ -181,7 +181,7 @@ func TestSqlite_Delete_NotEmpty_Bad(t *testing.T) {
 }
 
 func TestSqlite_DeleteAll_Good(t *testing.T) {
-	sqliteMedium := newTestSqliteMedium(t)
+	sqliteMedium := newSqliteMedium(t)
 
 	require.NoError(t, sqliteMedium.Write("dir/file1.txt", "a"))
 	require.NoError(t, sqliteMedium.Write("dir/sub/file2.txt", "b"))
@@ -196,7 +196,7 @@ func TestSqlite_DeleteAll_Good(t *testing.T) {
 }
 
 func TestSqlite_DeleteAll_SingleFile_Good(t *testing.T) {
-	sqliteMedium := newTestSqliteMedium(t)
+	sqliteMedium := newSqliteMedium(t)
 
 	require.NoError(t, sqliteMedium.Write("file.txt", "content"))
 
@@ -206,21 +206,21 @@ func TestSqlite_DeleteAll_SingleFile_Good(t *testing.T) {
 }
 
 func TestSqlite_DeleteAll_NotFound_Bad(t *testing.T) {
-	sqliteMedium := newTestSqliteMedium(t)
+	sqliteMedium := newSqliteMedium(t)
 
 	err := sqliteMedium.DeleteAll("nonexistent")
 	assert.Error(t, err)
 }
 
 func TestSqlite_DeleteAll_EmptyPath_Bad(t *testing.T) {
-	sqliteMedium := newTestSqliteMedium(t)
+	sqliteMedium := newSqliteMedium(t)
 
 	err := sqliteMedium.DeleteAll("")
 	assert.Error(t, err)
 }
 
 func TestSqlite_Rename_Good(t *testing.T) {
-	sqliteMedium := newTestSqliteMedium(t)
+	sqliteMedium := newSqliteMedium(t)
 
 	require.NoError(t, sqliteMedium.Write("old.txt", "content"))
 
@@ -236,7 +236,7 @@ func TestSqlite_Rename_Good(t *testing.T) {
 }
 
 func TestSqlite_Rename_Directory_Good(t *testing.T) {
-	sqliteMedium := newTestSqliteMedium(t)
+	sqliteMedium := newSqliteMedium(t)
 
 	require.NoError(t, sqliteMedium.EnsureDir("olddir"))
 	require.NoError(t, sqliteMedium.Write("olddir/file.txt", "content"))
@@ -255,14 +255,14 @@ func TestSqlite_Rename_Directory_Good(t *testing.T) {
 }
 
 func TestSqlite_Rename_SourceNotFound_Bad(t *testing.T) {
-	sqliteMedium := newTestSqliteMedium(t)
+	sqliteMedium := newSqliteMedium(t)
 
 	err := sqliteMedium.Rename("nonexistent", "new")
 	assert.Error(t, err)
 }
 
 func TestSqlite_Rename_EmptyPath_Bad(t *testing.T) {
-	sqliteMedium := newTestSqliteMedium(t)
+	sqliteMedium := newSqliteMedium(t)
 
 	err := sqliteMedium.Rename("", "new")
 	assert.Error(t, err)
@@ -272,7 +272,7 @@ func TestSqlite_Rename_EmptyPath_Bad(t *testing.T) {
 }
 
 func TestSqlite_List_Good(t *testing.T) {
-	sqliteMedium := newTestSqliteMedium(t)
+	sqliteMedium := newSqliteMedium(t)
 
 	require.NoError(t, sqliteMedium.Write("dir/file1.txt", "a"))
 	require.NoError(t, sqliteMedium.Write("dir/file2.txt", "b"))
@@ -293,7 +293,7 @@ func TestSqlite_List_Good(t *testing.T) {
 }
 
 func TestSqlite_List_Root_Good(t *testing.T) {
-	sqliteMedium := newTestSqliteMedium(t)
+	sqliteMedium := newSqliteMedium(t)
 
 	require.NoError(t, sqliteMedium.Write("root.txt", "content"))
 	require.NoError(t, sqliteMedium.Write("dir/nested.txt", "nested"))
@@ -311,7 +311,7 @@ func TestSqlite_List_Root_Good(t *testing.T) {
 }
 
 func TestSqlite_List_DirectoryEntry_Good(t *testing.T) {
-	sqliteMedium := newTestSqliteMedium(t)
+	sqliteMedium := newSqliteMedium(t)
 
 	require.NoError(t, sqliteMedium.Write("dir/sub/file.txt", "content"))
 
@@ -328,7 +328,7 @@ func TestSqlite_List_DirectoryEntry_Good(t *testing.T) {
 }
 
 func TestSqlite_Stat_Good(t *testing.T) {
-	sqliteMedium := newTestSqliteMedium(t)
+	sqliteMedium := newSqliteMedium(t)
 
 	require.NoError(t, sqliteMedium.Write("file.txt", "hello world"))
 
@@ -340,7 +340,7 @@ func TestSqlite_Stat_Good(t *testing.T) {
 }
 
 func TestSqlite_Stat_Directory_Good(t *testing.T) {
-	sqliteMedium := newTestSqliteMedium(t)
+	sqliteMedium := newSqliteMedium(t)
 
 	require.NoError(t, sqliteMedium.EnsureDir("mydir"))
 
@@ -351,21 +351,21 @@ func TestSqlite_Stat_Directory_Good(t *testing.T) {
 }
 
 func TestSqlite_Stat_NotFound_Bad(t *testing.T) {
-	sqliteMedium := newTestSqliteMedium(t)
+	sqliteMedium := newSqliteMedium(t)
 
 	_, err := sqliteMedium.Stat("nonexistent")
 	assert.Error(t, err)
 }
 
 func TestSqlite_Stat_EmptyPath_Bad(t *testing.T) {
-	sqliteMedium := newTestSqliteMedium(t)
+	sqliteMedium := newSqliteMedium(t)
 
 	_, err := sqliteMedium.Stat("")
 	assert.Error(t, err)
 }
 
 func TestSqlite_Open_Good(t *testing.T) {
-	sqliteMedium := newTestSqliteMedium(t)
+	sqliteMedium := newSqliteMedium(t)
 
 	require.NoError(t, sqliteMedium.Write("file.txt", "open me"))
 
@@ -383,14 +383,14 @@ func TestSqlite_Open_Good(t *testing.T) {
 }
 
 func TestSqlite_Open_NotFound_Bad(t *testing.T) {
-	sqliteMedium := newTestSqliteMedium(t)
+	sqliteMedium := newSqliteMedium(t)
 
 	_, err := sqliteMedium.Open("nonexistent.txt")
 	assert.Error(t, err)
 }
 
 func TestSqlite_Open_IsDirectory_Bad(t *testing.T) {
-	sqliteMedium := newTestSqliteMedium(t)
+	sqliteMedium := newSqliteMedium(t)
 
 	require.NoError(t, sqliteMedium.EnsureDir("mydir"))
 	_, err := sqliteMedium.Open("mydir")
@@ -398,7 +398,7 @@ func TestSqlite_Open_IsDirectory_Bad(t *testing.T) {
 }
 
 func TestSqlite_Create_Good(t *testing.T) {
-	sqliteMedium := newTestSqliteMedium(t)
+	sqliteMedium := newSqliteMedium(t)
 
 	w, err := sqliteMedium.Create("new.txt")
 	require.NoError(t, err)
@@ -416,7 +416,7 @@ func TestSqlite_Create_Good(t *testing.T) {
 }
 
 func TestSqlite_Create_Overwrite_Good(t *testing.T) {
-	sqliteMedium := newTestSqliteMedium(t)
+	sqliteMedium := newSqliteMedium(t)
 
 	require.NoError(t, sqliteMedium.Write("file.txt", "old content"))
 
@@ -432,14 +432,14 @@ func TestSqlite_Create_Overwrite_Good(t *testing.T) {
 }
 
 func TestSqlite_Create_EmptyPath_Bad(t *testing.T) {
-	sqliteMedium := newTestSqliteMedium(t)
+	sqliteMedium := newSqliteMedium(t)
 
 	_, err := sqliteMedium.Create("")
 	assert.Error(t, err)
 }
 
 func TestSqlite_Append_Good(t *testing.T) {
-	sqliteMedium := newTestSqliteMedium(t)
+	sqliteMedium := newSqliteMedium(t)
 
 	require.NoError(t, sqliteMedium.Write("append.txt", "hello"))
 
@@ -456,7 +456,7 @@ func TestSqlite_Append_Good(t *testing.T) {
 }
 
 func TestSqlite_Append_NewFile_Good(t *testing.T) {
-	sqliteMedium := newTestSqliteMedium(t)
+	sqliteMedium := newSqliteMedium(t)
 
 	w, err := sqliteMedium.Append("new.txt")
 	require.NoError(t, err)
@@ -471,14 +471,14 @@ func TestSqlite_Append_NewFile_Good(t *testing.T) {
 }
 
 func TestSqlite_Append_EmptyPath_Bad(t *testing.T) {
-	sqliteMedium := newTestSqliteMedium(t)
+	sqliteMedium := newSqliteMedium(t)
 
 	_, err := sqliteMedium.Append("")
 	assert.Error(t, err)
 }
 
 func TestSqlite_ReadStream_Good(t *testing.T) {
-	sqliteMedium := newTestSqliteMedium(t)
+	sqliteMedium := newSqliteMedium(t)
 
 	require.NoError(t, sqliteMedium.Write("stream.txt", "streaming content"))
 
@@ -492,14 +492,14 @@ func TestSqlite_ReadStream_Good(t *testing.T) {
 }
 
 func TestSqlite_ReadStream_NotFound_Bad(t *testing.T) {
-	sqliteMedium := newTestSqliteMedium(t)
+	sqliteMedium := newSqliteMedium(t)
 
 	_, err := sqliteMedium.ReadStream("nonexistent.txt")
 	assert.Error(t, err)
 }
 
 func TestSqlite_ReadStream_IsDirectory_Bad(t *testing.T) {
-	sqliteMedium := newTestSqliteMedium(t)
+	sqliteMedium := newSqliteMedium(t)
 
 	require.NoError(t, sqliteMedium.EnsureDir("mydir"))
 	_, err := sqliteMedium.ReadStream("mydir")
@@ -507,7 +507,7 @@ func TestSqlite_ReadStream_IsDirectory_Bad(t *testing.T) {
 }
 
 func TestSqlite_WriteStream_Good(t *testing.T) {
-	sqliteMedium := newTestSqliteMedium(t)
+	sqliteMedium := newSqliteMedium(t)
 
 	writer, err := sqliteMedium.WriteStream("output.txt")
 	require.NoError(t, err)
@@ -522,7 +522,7 @@ func TestSqlite_WriteStream_Good(t *testing.T) {
 }
 
 func TestSqlite_Exists_Good(t *testing.T) {
-	sqliteMedium := newTestSqliteMedium(t)
+	sqliteMedium := newSqliteMedium(t)
 
 	assert.False(t, sqliteMedium.Exists("nonexistent"))
 
@@ -534,12 +534,12 @@ func TestSqlite_Exists_Good(t *testing.T) {
 }
 
 func TestSqlite_Exists_EmptyPath_Good(t *testing.T) {
-	sqliteMedium := newTestSqliteMedium(t)
+	sqliteMedium := newSqliteMedium(t)
 	assert.True(t, sqliteMedium.Exists(""))
 }
 
 func TestSqlite_IsDir_Good(t *testing.T) {
-	sqliteMedium := newTestSqliteMedium(t)
+	sqliteMedium := newSqliteMedium(t)
 
 	require.NoError(t, sqliteMedium.Write("file.txt", "content"))
 	require.NoError(t, sqliteMedium.EnsureDir("mydir"))
@@ -562,7 +562,7 @@ func TestSqlite_NormaliseEntryPath_Good(t *testing.T) {
 }
 
 func TestSqlite_InterfaceCompliance_Good(t *testing.T) {
-	sqliteMedium := newTestSqliteMedium(t)
+	sqliteMedium := newSqliteMedium(t)
 
 	var _ interface {
 		Read(string) (string, error)

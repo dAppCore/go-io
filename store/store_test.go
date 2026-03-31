@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newTestKeyValueStore(t *testing.T) *KeyValueStore {
+func newKeyValueStore(t *testing.T) *KeyValueStore {
 	t.Helper()
 
 	keyValueStore, err := New(Options{Path: ":memory:"})
@@ -19,7 +19,7 @@ func newTestKeyValueStore(t *testing.T) *KeyValueStore {
 }
 
 func TestKeyValueStore_New_Options_Good(t *testing.T) {
-	keyValueStore := newTestKeyValueStore(t)
+	keyValueStore := newKeyValueStore(t)
 	assert.NotNil(t, keyValueStore)
 }
 
@@ -29,7 +29,7 @@ func TestKeyValueStore_New_Options_Bad(t *testing.T) {
 }
 
 func TestKeyValueStore_SetGet_Good(t *testing.T) {
-	keyValueStore := newTestKeyValueStore(t)
+	keyValueStore := newKeyValueStore(t)
 
 	err := keyValueStore.Set("config", "theme", "dark")
 	require.NoError(t, err)
@@ -40,14 +40,14 @@ func TestKeyValueStore_SetGet_Good(t *testing.T) {
 }
 
 func TestKeyValueStore_Get_NotFound_Bad(t *testing.T) {
-	keyValueStore := newTestKeyValueStore(t)
+	keyValueStore := newKeyValueStore(t)
 
 	_, err := keyValueStore.Get("config", "missing")
 	assert.ErrorIs(t, err, NotFoundError)
 }
 
 func TestKeyValueStore_Delete_Good(t *testing.T) {
-	keyValueStore := newTestKeyValueStore(t)
+	keyValueStore := newKeyValueStore(t)
 
 	_ = keyValueStore.Set("config", "key", "val")
 	err := keyValueStore.Delete("config", "key")
@@ -58,7 +58,7 @@ func TestKeyValueStore_Delete_Good(t *testing.T) {
 }
 
 func TestKeyValueStore_Count_Good(t *testing.T) {
-	keyValueStore := newTestKeyValueStore(t)
+	keyValueStore := newKeyValueStore(t)
 
 	_ = keyValueStore.Set("group", "a", "1")
 	_ = keyValueStore.Set("group", "b", "2")
@@ -70,7 +70,7 @@ func TestKeyValueStore_Count_Good(t *testing.T) {
 }
 
 func TestKeyValueStore_DeleteGroup_Good(t *testing.T) {
-	keyValueStore := newTestKeyValueStore(t)
+	keyValueStore := newKeyValueStore(t)
 
 	_ = keyValueStore.Set("group", "a", "1")
 	_ = keyValueStore.Set("group", "b", "2")
@@ -82,7 +82,7 @@ func TestKeyValueStore_DeleteGroup_Good(t *testing.T) {
 }
 
 func TestKeyValueStore_GetAll_Good(t *testing.T) {
-	keyValueStore := newTestKeyValueStore(t)
+	keyValueStore := newKeyValueStore(t)
 
 	_ = keyValueStore.Set("group", "a", "1")
 	_ = keyValueStore.Set("group", "b", "2")
@@ -94,7 +94,7 @@ func TestKeyValueStore_GetAll_Good(t *testing.T) {
 }
 
 func TestKeyValueStore_GetAll_Empty_Good(t *testing.T) {
-	keyValueStore := newTestKeyValueStore(t)
+	keyValueStore := newKeyValueStore(t)
 
 	all, err := keyValueStore.GetAll("empty")
 	require.NoError(t, err)
@@ -102,7 +102,7 @@ func TestKeyValueStore_GetAll_Empty_Good(t *testing.T) {
 }
 
 func TestKeyValueStore_Render_Good(t *testing.T) {
-	keyValueStore := newTestKeyValueStore(t)
+	keyValueStore := newKeyValueStore(t)
 
 	_ = keyValueStore.Set("user", "pool", "pool.lthn.io:3333")
 	_ = keyValueStore.Set("user", "wallet", "iz...")
