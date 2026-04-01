@@ -355,14 +355,14 @@ func (medium *MemoryMedium) Open(path string) (fs.File, error) {
 	if !ok {
 		return nil, core.E("io.MemoryMedium.Open", core.Concat("file not found: ", path), fs.ErrNotExist)
 	}
-	return &memoryFile{
+	return &MemoryFile{
 		name:    core.PathBase(path),
 		content: []byte(content),
 	}, nil
 }
 
 func (medium *MemoryMedium) Create(path string) (goio.WriteCloser, error) {
-	return &memoryWriteCloser{
+	return &MemoryWriteCloser{
 		medium: medium,
 		path:   path,
 	}, nil
@@ -370,7 +370,7 @@ func (medium *MemoryMedium) Create(path string) (goio.WriteCloser, error) {
 
 func (medium *MemoryMedium) Append(path string) (goio.WriteCloser, error) {
 	content := medium.files[path]
-	return &memoryWriteCloser{
+	return &MemoryWriteCloser{
 		medium: medium,
 		path:   path,
 		data:   []byte(content),
@@ -385,17 +385,19 @@ func (medium *MemoryMedium) WriteStream(path string) (goio.WriteCloser, error) {
 	return medium.Create(path)
 }
 
-type memoryFile struct {
+// MemoryFile is the fs.File implementation returned by MemoryMedium.Open.
+// Example: file, _ := io.NewMemoryMedium().Open("notes.txt")
+type MemoryFile struct {
 	name    string
 	content []byte
 	offset  int64
 }
 
-func (file *memoryFile) Stat() (fs.FileInfo, error) {
+func (file *MemoryFile) Stat() (fs.FileInfo, error) {
 	return NewFileInfo(file.name, int64(len(file.content)), 0, time.Time{}, false), nil
 }
 
-func (file *memoryFile) Read(buffer []byte) (int, error) {
+func (file *MemoryFile) Read(buffer []byte) (int, error) {
 	if file.offset >= int64(len(file.content)) {
 		return 0, goio.EOF
 	}
@@ -404,22 +406,24 @@ func (file *memoryFile) Read(buffer []byte) (int, error) {
 	return readCount, nil
 }
 
-func (file *memoryFile) Close() error {
+func (file *MemoryFile) Close() error {
 	return nil
 }
 
-type memoryWriteCloser struct {
+// MemoryWriteCloser is the io.WriteCloser implementation returned by MemoryMedium.Create and MemoryMedium.Append.
+// Example: writer, _ := io.NewMemoryMedium().Create("notes.txt")
+type MemoryWriteCloser struct {
 	medium *MemoryMedium
 	path   string
 	data   []byte
 }
 
-func (writeCloser *memoryWriteCloser) Write(data []byte) (int, error) {
+func (writeCloser *MemoryWriteCloser) Write(data []byte) (int, error) {
 	writeCloser.data = append(writeCloser.data, data...)
 	return len(data), nil
 }
 
-func (writeCloser *memoryWriteCloser) Close() error {
+func (writeCloser *MemoryWriteCloser) Close() error {
 	writeCloser.medium.files[writeCloser.path] = string(writeCloser.data)
 	writeCloser.medium.modTimes[writeCloser.path] = time.Now()
 	return nil
