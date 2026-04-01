@@ -192,6 +192,7 @@ func Copy(source Medium, sourcePath string, destination Medium, destinationPath 
 // Example: _ = medium.Write("config/app.yaml", "port: 8080")
 type MemoryMedium struct {
 	files    map[string]string
+	modes    map[string]fs.FileMode
 	dirs     map[string]bool
 	modTimes map[string]time.Time
 }
@@ -203,6 +204,7 @@ var _ Medium = (*MemoryMedium)(nil)
 func NewMemoryMedium() *MemoryMedium {
 	return &MemoryMedium{
 		files:    make(map[string]string),
+		modes:    make(map[string]fs.FileMode),
 		dirs:     make(map[string]bool),
 		modTimes: make(map[string]time.Time),
 	}
@@ -217,13 +219,14 @@ func (medium *MemoryMedium) Read(path string) (string, error) {
 }
 
 func (medium *MemoryMedium) Write(path, content string) error {
-	medium.files[path] = content
-	medium.modTimes[path] = time.Now()
-	return nil
+	return medium.WriteMode(path, content, 0644)
 }
 
 func (medium *MemoryMedium) WriteMode(path, content string, mode fs.FileMode) error {
-	return medium.Write(path, content)
+	medium.files[path] = content
+	medium.modes[path] = mode
+	medium.modTimes[path] = time.Now()
+	return nil
 }
 
 func (medium *MemoryMedium) EnsureDir(path string) error {
@@ -239,6 +242,8 @@ func (medium *MemoryMedium) IsFile(path string) bool {
 func (medium *MemoryMedium) Delete(path string) error {
 	if _, ok := medium.files[path]; ok {
 		delete(medium.files, path)
+		delete(medium.modes, path)
+		delete(medium.modTimes, path)
 		return nil
 	}
 	if _, ok := medium.dirs[path]; ok {
@@ -266,6 +271,8 @@ func (medium *MemoryMedium) DeleteAll(path string) error {
 	found := false
 	if _, ok := medium.files[path]; ok {
 		delete(medium.files, path)
+		delete(medium.modes, path)
+		delete(medium.modTimes, path)
 		found = true
 	}
 	if _, ok := medium.dirs[path]; ok {
@@ -279,6 +286,8 @@ func (medium *MemoryMedium) DeleteAll(path string) error {
 	for filePath := range medium.files {
 		if core.HasPrefix(filePath, prefix) {
 			delete(medium.files, filePath)
+			delete(medium.modes, filePath)
+			delete(medium.modTimes, filePath)
 			found = true
 		}
 	}
@@ -299,6 +308,10 @@ func (medium *MemoryMedium) Rename(oldPath, newPath string) error {
 	if content, ok := medium.files[oldPath]; ok {
 		medium.files[newPath] = content
 		delete(medium.files, oldPath)
+		if mode, ok := medium.modes[oldPath]; ok {
+			medium.modes[newPath] = mode
+			delete(medium.modes, oldPath)
+		}
 		if modTime, ok := medium.modTimes[oldPath]; ok {
 			medium.modTimes[newPath] = modTime
 			delete(medium.modTimes, oldPath)
@@ -358,6 +371,7 @@ func (medium *MemoryMedium) Open(path string) (fs.File, error) {
 	return &MemoryFile{
 		name:    core.PathBase(path),
 		content: []byte(content),
+		mode:    medium.fileMode(path),
 	}, nil
 }
 
@@ -365,6 +379,7 @@ func (medium *MemoryMedium) Create(path string) (goio.WriteCloser, error) {
 	return &MemoryWriteCloser{
 		medium: medium,
 		path:   path,
+		mode:   0644,
 	}, nil
 }
 
@@ -374,6 +389,7 @@ func (medium *MemoryMedium) Append(path string) (goio.WriteCloser, error) {
 		medium: medium,
 		path:   path,
 		data:   []byte(content),
+		mode:   medium.fileMode(path),
 	}, nil
 }
 
@@ -391,10 +407,11 @@ type MemoryFile struct {
 	name    string
 	content []byte
 	offset  int64
+	mode    fs.FileMode
 }
 
 func (file *MemoryFile) Stat() (fs.FileInfo, error) {
-	return NewFileInfo(file.name, int64(len(file.content)), 0, time.Time{}, false), nil
+	return NewFileInfo(file.name, int64(len(file.content)), file.mode, time.Time{}, false), nil
 }
 
 func (file *MemoryFile) Read(buffer []byte) (int, error) {
@@ -416,6 +433,7 @@ type MemoryWriteCloser struct {
 	medium *MemoryMedium
 	path   string
 	data   []byte
+	mode   fs.FileMode
 }
 
 func (writeCloser *MemoryWriteCloser) Write(data []byte) (int, error) {
@@ -425,8 +443,16 @@ func (writeCloser *MemoryWriteCloser) Write(data []byte) (int, error) {
 
 func (writeCloser *MemoryWriteCloser) Close() error {
 	writeCloser.medium.files[writeCloser.path] = string(writeCloser.data)
+	writeCloser.medium.modes[writeCloser.path] = writeCloser.mode
 	writeCloser.medium.modTimes[writeCloser.path] = time.Now()
 	return nil
+}
+
+func (medium *MemoryMedium) fileMode(path string) fs.FileMode {
+	if mode, ok := medium.modes[path]; ok {
+		return mode
+	}
+	return 0644
 }
 
 func (medium *MemoryMedium) List(path string) ([]fs.DirEntry, error) {
@@ -485,11 +511,12 @@ func (medium *MemoryMedium) List(path string) ([]fs.DirEntry, error) {
 		}
 		if !seen[rest] {
 			seen[rest] = true
+			filePath := core.Concat(prefix, rest)
 			entries = append(entries, NewDirEntry(
 				rest,
 				false,
-				0644,
-				NewFileInfo(rest, int64(len(content)), 0644, time.Time{}, false),
+				medium.fileMode(filePath),
+				NewFileInfo(rest, int64(len(content)), medium.fileMode(filePath), time.Time{}, false),
 			))
 		}
 	}
@@ -525,7 +552,7 @@ func (medium *MemoryMedium) Stat(path string) (fs.FileInfo, error) {
 		if !ok {
 			modTime = time.Now()
 		}
-		return NewFileInfo(core.PathBase(path), int64(len(content)), 0644, modTime, false), nil
+		return NewFileInfo(core.PathBase(path), int64(len(content)), medium.fileMode(path), modTime, false), nil
 	}
 	if _, ok := medium.dirs[path]; ok {
 		return NewFileInfo(core.PathBase(path), 0, fs.ModeDir|0755, time.Time{}, true), nil
