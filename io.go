@@ -5,6 +5,7 @@ import (
 	"cmp"
 	goio "io"
 	"io/fs"
+	"path"
 	"slices"
 	"time"
 
@@ -212,6 +213,45 @@ func NewMemoryMedium() *MemoryMedium {
 	}
 }
 
+func (medium *MemoryMedium) ensureParentDirectories(filePath string) {
+	parentPath := path.Dir(filePath)
+	for parentPath != "." && parentPath != "" {
+		medium.directories[parentPath] = true
+		nextParentPath := path.Dir(parentPath)
+		if nextParentPath == parentPath {
+			break
+		}
+		parentPath = nextParentPath
+	}
+}
+
+func (medium *MemoryMedium) directoryExists(path string) bool {
+	if path == "" {
+		return false
+	}
+	if _, ok := medium.directories[path]; ok {
+		return true
+	}
+
+	prefix := path
+	if !core.HasSuffix(prefix, "/") {
+		prefix += "/"
+	}
+
+	for filePath := range medium.fileContents {
+		if core.HasPrefix(filePath, prefix) {
+			return true
+		}
+	}
+	for directoryPath := range medium.directories {
+		if directoryPath != path && core.HasPrefix(directoryPath, prefix) {
+			return true
+		}
+	}
+
+	return false
+}
+
 func (medium *MemoryMedium) Read(path string) (string, error) {
 	content, ok := medium.fileContents[path]
 	if !ok {
@@ -225,6 +265,7 @@ func (medium *MemoryMedium) Write(path, content string) error {
 }
 
 func (medium *MemoryMedium) WriteMode(path, content string, mode fs.FileMode) error {
+	medium.ensureParentDirectories(path)
 	medium.fileContents[path] = content
 	medium.fileModes[path] = mode
 	medium.modificationTimes[path] = time.Now()
@@ -232,6 +273,7 @@ func (medium *MemoryMedium) WriteMode(path, content string, mode fs.FileMode) er
 }
 
 func (medium *MemoryMedium) EnsureDir(path string) error {
+	medium.ensureParentDirectories(path)
 	medium.directories[path] = true
 	return nil
 }
@@ -248,20 +290,28 @@ func (medium *MemoryMedium) Delete(path string) error {
 		delete(medium.modificationTimes, path)
 		return nil
 	}
-	if _, ok := medium.directories[path]; ok {
+	if medium.directoryExists(path) {
 		prefix := path
 		if !core.HasSuffix(prefix, "/") {
 			prefix += "/"
 		}
+		hasChildren := false
 		for filePath := range medium.fileContents {
 			if core.HasPrefix(filePath, prefix) {
-				return core.E("io.MemoryMedium.Delete", core.Concat("directory not empty: ", path), fs.ErrExist)
+				hasChildren = true
+				break
 			}
 		}
-		for directoryPath := range medium.directories {
-			if directoryPath != path && core.HasPrefix(directoryPath, prefix) {
-				return core.E("io.MemoryMedium.Delete", core.Concat("directory not empty: ", path), fs.ErrExist)
+		if !hasChildren {
+			for directoryPath := range medium.directories {
+				if directoryPath != path && core.HasPrefix(directoryPath, prefix) {
+					hasChildren = true
+					break
+				}
 			}
+		}
+		if hasChildren {
+			return core.E("io.MemoryMedium.Delete", core.Concat("directory not empty: ", path), fs.ErrExist)
 		}
 		delete(medium.directories, path)
 		return nil
@@ -320,9 +370,11 @@ func (medium *MemoryMedium) Rename(oldPath, newPath string) error {
 		}
 		return nil
 	}
-	if _, ok := medium.directories[oldPath]; ok {
+	if medium.directoryExists(oldPath) {
 		medium.directories[newPath] = true
-		delete(medium.directories, oldPath)
+		if _, ok := medium.directories[oldPath]; ok {
+			delete(medium.directories, oldPath)
+		}
 
 		oldPrefix := oldPath
 		if !core.HasSuffix(oldPrefix, "/") {
@@ -446,6 +498,7 @@ func (writeCloser *MemoryWriteCloser) Write(data []byte) (int, error) {
 }
 
 func (writeCloser *MemoryWriteCloser) Close() error {
+	writeCloser.medium.ensureParentDirectories(writeCloser.path)
 	writeCloser.medium.fileContents[writeCloser.path] = string(writeCloser.data)
 	writeCloser.medium.fileModes[writeCloser.path] = writeCloser.mode
 	writeCloser.medium.modificationTimes[writeCloser.path] = time.Now()
@@ -569,7 +622,7 @@ func (medium *MemoryMedium) Stat(path string) (fs.FileInfo, error) {
 		}
 		return NewFileInfo(core.PathBase(path), int64(len(content)), medium.fileMode(path), modTime, false), nil
 	}
-	if _, ok := medium.directories[path]; ok {
+	if medium.directoryExists(path) {
 		return NewFileInfo(core.PathBase(path), 0, fs.ModeDir|0755, time.Time{}, true), nil
 	}
 	return nil, core.E("io.MemoryMedium.Stat", core.Concat("path not found: ", path), fs.ErrNotExist)
@@ -579,13 +632,9 @@ func (medium *MemoryMedium) Exists(path string) bool {
 	if _, ok := medium.fileContents[path]; ok {
 		return true
 	}
-	if _, ok := medium.directories[path]; ok {
-		return true
-	}
-	return false
+	return medium.directoryExists(path)
 }
 
 func (medium *MemoryMedium) IsDir(path string) bool {
-	_, ok := medium.directories[path]
-	return ok
+	return medium.directoryExists(path)
 }

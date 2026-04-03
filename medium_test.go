@@ -97,12 +97,33 @@ func TestMemoryMedium_EnsureDir_Good(t *testing.T) {
 	assert.True(t, memoryMedium.directories["/path/to/dir"])
 }
 
+func TestMemoryMedium_EnsureDir_CreatesParents_Good(t *testing.T) {
+	memoryMedium := NewMemoryMedium()
+
+	require.NoError(t, memoryMedium.EnsureDir("alpha/beta/gamma"))
+
+	assert.True(t, memoryMedium.IsDir("alpha"))
+	assert.True(t, memoryMedium.IsDir("alpha/beta"))
+	assert.True(t, memoryMedium.IsDir("alpha/beta/gamma"))
+}
+
 func TestMemoryMedium_IsFile_Good(t *testing.T) {
 	memoryMedium := NewMemoryMedium()
 	memoryMedium.fileContents["exists.txt"] = "content"
 
 	assert.True(t, memoryMedium.IsFile("exists.txt"))
 	assert.False(t, memoryMedium.IsFile("nonexistent.txt"))
+}
+
+func TestMemoryMedium_Write_CreatesParentDirectories_Good(t *testing.T) {
+	memoryMedium := NewMemoryMedium()
+
+	require.NoError(t, memoryMedium.Write("nested/path/file.txt", "content"))
+
+	assert.True(t, memoryMedium.Exists("nested"))
+	assert.True(t, memoryMedium.IsDir("nested"))
+	assert.True(t, memoryMedium.Exists("nested/path"))
+	assert.True(t, memoryMedium.IsDir("nested/path"))
 }
 
 func TestMemoryMedium_Delete_Good(t *testing.T) {
@@ -124,6 +145,15 @@ func TestMemoryMedium_Delete_DirNotEmpty_Bad(t *testing.T) {
 	memoryMedium := NewMemoryMedium()
 	memoryMedium.directories["mydir"] = true
 	memoryMedium.fileContents["mydir/file.txt"] = "content"
+
+	err := memoryMedium.Delete("mydir")
+	assert.Error(t, err)
+}
+
+func TestMemoryMedium_Delete_InferredDirNotEmpty_Bad(t *testing.T) {
+	memoryMedium := NewMemoryMedium()
+
+	require.NoError(t, memoryMedium.Write("mydir/file.txt", "content"))
 
 	err := memoryMedium.Delete("mydir")
 	assert.Error(t, err)
@@ -162,6 +192,18 @@ func TestMemoryMedium_Rename_Dir_Good(t *testing.T) {
 	assert.NoError(t, err)
 	assert.False(t, memoryMedium.directories["olddir"])
 	assert.True(t, memoryMedium.directories["newdir"])
+	assert.Equal(t, "content", memoryMedium.fileContents["newdir/file.txt"])
+}
+
+func TestMemoryMedium_Rename_InferredDir_Good(t *testing.T) {
+	memoryMedium := NewMemoryMedium()
+	require.NoError(t, memoryMedium.Write("olddir/file.txt", "content"))
+
+	require.NoError(t, memoryMedium.Rename("olddir", "newdir"))
+
+	assert.False(t, memoryMedium.Exists("olddir"))
+	assert.True(t, memoryMedium.Exists("newdir"))
+	assert.True(t, memoryMedium.IsDir("newdir"))
 	assert.Equal(t, "content", memoryMedium.fileContents["newdir/file.txt"])
 }
 
