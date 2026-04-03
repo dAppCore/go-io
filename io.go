@@ -213,7 +213,7 @@ func NewMemoryMedium() *MemoryMedium {
 	}
 }
 
-func (medium *MemoryMedium) ensureParentDirectories(filePath string) {
+func (medium *MemoryMedium) ensureAncestorDirectories(filePath string) {
 	parentPath := path.Dir(filePath)
 	for parentPath != "." && parentPath != "" {
 		medium.directories[parentPath] = true
@@ -265,7 +265,7 @@ func (medium *MemoryMedium) Write(path, content string) error {
 }
 
 func (medium *MemoryMedium) WriteMode(path, content string, mode fs.FileMode) error {
-	medium.ensureParentDirectories(path)
+	medium.ensureAncestorDirectories(path)
 	medium.fileContents[path] = content
 	medium.fileModes[path] = mode
 	medium.modificationTimes[path] = time.Now()
@@ -273,7 +273,7 @@ func (medium *MemoryMedium) WriteMode(path, content string, mode fs.FileMode) er
 }
 
 func (medium *MemoryMedium) EnsureDir(path string) error {
-	medium.ensureParentDirectories(path)
+	medium.ensureAncestorDirectories(path)
 	medium.directories[path] = true
 	return nil
 }
@@ -425,8 +425,8 @@ func (medium *MemoryMedium) Open(path string) (fs.File, error) {
 	return &MemoryFile{
 		name:    core.PathBase(path),
 		content: []byte(content),
-		mode:    medium.fileMode(path),
-		modTime: medium.modificationTime(path),
+		mode:    medium.modeForPath(path),
+		modTime: medium.modificationTimeForPath(path),
 	}, nil
 }
 
@@ -444,7 +444,7 @@ func (medium *MemoryMedium) Append(path string) (goio.WriteCloser, error) {
 		medium: medium,
 		path:   path,
 		data:   []byte(content),
-		mode:   medium.fileMode(path),
+		mode:   medium.modeForPath(path),
 	}, nil
 }
 
@@ -456,7 +456,6 @@ func (medium *MemoryMedium) WriteStream(path string) (goio.WriteCloser, error) {
 	return medium.Create(path)
 }
 
-// MemoryFile is the fs.File implementation returned by MemoryMedium.Open.
 // Example: file, _ := io.NewMemoryMedium().Open("notes.txt")
 type MemoryFile struct {
 	name    string
@@ -483,7 +482,6 @@ func (file *MemoryFile) Close() error {
 	return nil
 }
 
-// MemoryWriteCloser is the io.WriteCloser implementation returned by MemoryMedium.Create and MemoryMedium.Append.
 // Example: writer, _ := io.NewMemoryMedium().Create("notes.txt")
 type MemoryWriteCloser struct {
 	medium *MemoryMedium
@@ -498,21 +496,21 @@ func (writeCloser *MemoryWriteCloser) Write(data []byte) (int, error) {
 }
 
 func (writeCloser *MemoryWriteCloser) Close() error {
-	writeCloser.medium.ensureParentDirectories(writeCloser.path)
+	writeCloser.medium.ensureAncestorDirectories(writeCloser.path)
 	writeCloser.medium.fileContents[writeCloser.path] = string(writeCloser.data)
 	writeCloser.medium.fileModes[writeCloser.path] = writeCloser.mode
 	writeCloser.medium.modificationTimes[writeCloser.path] = time.Now()
 	return nil
 }
 
-func (medium *MemoryMedium) fileMode(path string) fs.FileMode {
+func (medium *MemoryMedium) modeForPath(path string) fs.FileMode {
 	if mode, ok := medium.fileModes[path]; ok {
 		return mode
 	}
 	return 0644
 }
 
-func (medium *MemoryMedium) modificationTime(path string) time.Time {
+func (medium *MemoryMedium) modificationTimeForPath(path string) time.Time {
 	if modTime, ok := medium.modificationTimes[path]; ok {
 		return modTime
 	}
@@ -579,8 +577,8 @@ func (medium *MemoryMedium) List(path string) ([]fs.DirEntry, error) {
 			entries = append(entries, NewDirEntry(
 				rest,
 				false,
-				medium.fileMode(filePath),
-				NewFileInfo(rest, int64(len(content)), medium.fileMode(filePath), medium.modificationTime(filePath), false),
+				medium.modeForPath(filePath),
+				NewFileInfo(rest, int64(len(content)), medium.modeForPath(filePath), medium.modificationTimeForPath(filePath), false),
 			))
 		}
 	}
@@ -620,7 +618,7 @@ func (medium *MemoryMedium) Stat(path string) (fs.FileInfo, error) {
 		if !ok {
 			modTime = time.Now()
 		}
-		return NewFileInfo(core.PathBase(path), int64(len(content)), medium.fileMode(path), modTime, false), nil
+		return NewFileInfo(core.PathBase(path), int64(len(content)), medium.modeForPath(path), modTime, false), nil
 	}
 	if medium.directoryExists(path) {
 		return NewFileInfo(core.PathBase(path), 0, fs.ModeDir|0755, time.Time{}, true), nil
