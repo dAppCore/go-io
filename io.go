@@ -252,6 +252,7 @@ func (medium *MemoryMedium) directoryExists(path string) bool {
 	return false
 }
 
+// Example: value, _ := io.NewMemoryMedium().Read("notes.txt")
 func (medium *MemoryMedium) Read(path string) (string, error) {
 	content, ok := medium.fileContents[path]
 	if !ok {
@@ -260,10 +261,12 @@ func (medium *MemoryMedium) Read(path string) (string, error) {
 	return content, nil
 }
 
+// Example: _ = io.NewMemoryMedium().Write("notes.txt", "hello")
 func (medium *MemoryMedium) Write(path, content string) error {
 	return medium.WriteMode(path, content, 0644)
 }
 
+// Example: _ = io.NewMemoryMedium().WriteMode("keys/private.key", "secret", 0600)
 func (medium *MemoryMedium) WriteMode(path, content string, mode fs.FileMode) error {
 	medium.ensureAncestorDirectories(path)
 	medium.fileContents[path] = content
@@ -272,17 +275,20 @@ func (medium *MemoryMedium) WriteMode(path, content string, mode fs.FileMode) er
 	return nil
 }
 
+// Example: _ = io.NewMemoryMedium().EnsureDir("config/app")
 func (medium *MemoryMedium) EnsureDir(path string) error {
 	medium.ensureAncestorDirectories(path)
 	medium.directories[path] = true
 	return nil
 }
 
+// Example: ok := io.NewMemoryMedium().IsFile("notes.txt")
 func (medium *MemoryMedium) IsFile(path string) bool {
 	_, ok := medium.fileContents[path]
 	return ok
 }
 
+// Example: _ = io.NewMemoryMedium().Delete("old.txt")
 func (medium *MemoryMedium) Delete(path string) error {
 	if _, ok := medium.fileContents[path]; ok {
 		delete(medium.fileContents, path)
@@ -319,6 +325,7 @@ func (medium *MemoryMedium) Delete(path string) error {
 	return core.E("io.MemoryMedium.Delete", core.Concat("path not found: ", path), fs.ErrNotExist)
 }
 
+// Example: _ = io.NewMemoryMedium().DeleteAll("logs")
 func (medium *MemoryMedium) DeleteAll(path string) error {
 	found := false
 	if _, ok := medium.fileContents[path]; ok {
@@ -356,6 +363,7 @@ func (medium *MemoryMedium) DeleteAll(path string) error {
 	return nil
 }
 
+// Example: _ = io.NewMemoryMedium().Rename("drafts/todo.txt", "archive/todo.txt")
 func (medium *MemoryMedium) Rename(oldPath, newPath string) error {
 	if content, ok := medium.fileContents[oldPath]; ok {
 		medium.fileContents[newPath] = content
@@ -417,6 +425,7 @@ func (medium *MemoryMedium) Rename(oldPath, newPath string) error {
 	return core.E("io.MemoryMedium.Rename", core.Concat("path not found: ", oldPath), fs.ErrNotExist)
 }
 
+// Example: file, _ := io.NewMemoryMedium().Open("notes.txt")
 func (medium *MemoryMedium) Open(path string) (fs.File, error) {
 	content, ok := medium.fileContents[path]
 	if !ok {
@@ -430,6 +439,7 @@ func (medium *MemoryMedium) Open(path string) (fs.File, error) {
 	}, nil
 }
 
+// Example: writer, _ := io.NewMemoryMedium().Create("notes.txt")
 func (medium *MemoryMedium) Create(path string) (goio.WriteCloser, error) {
 	return &MemoryWriteCloser{
 		medium: medium,
@@ -438,6 +448,7 @@ func (medium *MemoryMedium) Create(path string) (goio.WriteCloser, error) {
 	}, nil
 }
 
+// Example: writer, _ := io.NewMemoryMedium().Append("notes.txt")
 func (medium *MemoryMedium) Append(path string) (goio.WriteCloser, error) {
 	content := medium.fileContents[path]
 	return &MemoryWriteCloser{
@@ -448,10 +459,12 @@ func (medium *MemoryMedium) Append(path string) (goio.WriteCloser, error) {
 	}, nil
 }
 
+// Example: reader, _ := io.NewMemoryMedium().ReadStream("notes.txt")
 func (medium *MemoryMedium) ReadStream(path string) (goio.ReadCloser, error) {
 	return medium.Open(path)
 }
 
+// Example: writer, _ := io.NewMemoryMedium().WriteStream("notes.txt")
 func (medium *MemoryMedium) WriteStream(path string) (goio.WriteCloser, error) {
 	return medium.Create(path)
 }
@@ -517,6 +530,7 @@ func (medium *MemoryMedium) modificationTimeForPath(path string) time.Time {
 	return time.Time{}
 }
 
+// Example: entries, _ := io.NewMemoryMedium().List("config")
 func (medium *MemoryMedium) List(path string) ([]fs.DirEntry, error) {
 	if _, ok := medium.directories[path]; !ok {
 		hasChildren := false
@@ -612,6 +626,7 @@ func (medium *MemoryMedium) List(path string) ([]fs.DirEntry, error) {
 	return entries, nil
 }
 
+// Example: info, _ := io.NewMemoryMedium().Stat("notes.txt")
 func (medium *MemoryMedium) Stat(path string) (fs.FileInfo, error) {
 	if content, ok := medium.fileContents[path]; ok {
 		modTime, ok := medium.modificationTimes[path]
@@ -626,6 +641,7 @@ func (medium *MemoryMedium) Stat(path string) (fs.FileInfo, error) {
 	return nil, core.E("io.MemoryMedium.Stat", core.Concat("path not found: ", path), fs.ErrNotExist)
 }
 
+// Example: ok := io.NewMemoryMedium().Exists("notes.txt")
 func (medium *MemoryMedium) Exists(path string) bool {
 	if _, ok := medium.fileContents[path]; ok {
 		return true
@@ -633,6 +649,7 @@ func (medium *MemoryMedium) Exists(path string) bool {
 	return medium.directoryExists(path)
 }
 
+// Example: ok := io.NewMemoryMedium().IsDir("config")
 func (medium *MemoryMedium) IsDir(path string) bool {
 	return medium.directoryExists(path)
 }
