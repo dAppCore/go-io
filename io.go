@@ -374,6 +374,7 @@ func (medium *MemoryMedium) Open(path string) (fs.File, error) {
 		name:    core.PathBase(path),
 		content: []byte(content),
 		mode:    medium.fileMode(path),
+		modTime: medium.modificationTime(path),
 	}, nil
 }
 
@@ -410,10 +411,11 @@ type MemoryFile struct {
 	content []byte
 	offset  int64
 	mode    fs.FileMode
+	modTime time.Time
 }
 
 func (file *MemoryFile) Stat() (fs.FileInfo, error) {
-	return NewFileInfo(file.name, int64(len(file.content)), file.mode, time.Time{}, false), nil
+	return NewFileInfo(file.name, int64(len(file.content)), file.mode, file.modTime, false), nil
 }
 
 func (file *MemoryFile) Read(buffer []byte) (int, error) {
@@ -455,6 +457,13 @@ func (medium *MemoryMedium) fileMode(path string) fs.FileMode {
 		return mode
 	}
 	return 0644
+}
+
+func (medium *MemoryMedium) modificationTime(path string) time.Time {
+	if modTime, ok := medium.modificationTimes[path]; ok {
+		return modTime
+	}
+	return time.Time{}
 }
 
 func (medium *MemoryMedium) List(path string) ([]fs.DirEntry, error) {
@@ -518,7 +527,7 @@ func (medium *MemoryMedium) List(path string) ([]fs.DirEntry, error) {
 				rest,
 				false,
 				medium.fileMode(filePath),
-				NewFileInfo(rest, int64(len(content)), medium.fileMode(filePath), time.Time{}, false),
+				NewFileInfo(rest, int64(len(content)), medium.fileMode(filePath), medium.modificationTime(filePath), false),
 			))
 		}
 	}

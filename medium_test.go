@@ -234,6 +234,9 @@ func TestMemoryMedium_StreamAndFSHelpers_Good(t *testing.T) {
 	require.NoError(t, memoryMedium.EnsureDir("dir"))
 	require.NoError(t, memoryMedium.Write("dir/file.txt", "alpha"))
 
+	statInfo, err := memoryMedium.Stat("dir/file.txt")
+	require.NoError(t, err)
+
 	file, err := memoryMedium.Open("dir/file.txt")
 	require.NoError(t, err)
 
@@ -242,7 +245,7 @@ func TestMemoryMedium_StreamAndFSHelpers_Good(t *testing.T) {
 	assert.Equal(t, "file.txt", info.Name())
 	assert.Equal(t, int64(5), info.Size())
 	assert.Equal(t, fs.FileMode(0644), info.Mode())
-	assert.True(t, info.ModTime().IsZero())
+	assert.Equal(t, statInfo.ModTime(), info.ModTime())
 	assert.False(t, info.IsDir())
 	assert.Nil(t, info.Sys())
 
@@ -263,6 +266,7 @@ func TestMemoryMedium_StreamAndFSHelpers_Good(t *testing.T) {
 	assert.Equal(t, "file.txt", entryInfo.Name())
 	assert.Equal(t, int64(5), entryInfo.Size())
 	assert.Equal(t, fs.FileMode(0644), entryInfo.Mode())
+	assert.Equal(t, statInfo.ModTime(), entryInfo.ModTime())
 
 	writer, err := memoryMedium.Create("created.txt")
 	require.NoError(t, err)
@@ -290,9 +294,10 @@ func TestMemoryMedium_StreamAndFSHelpers_Good(t *testing.T) {
 	require.NoError(t, writeStream.Close())
 
 	assert.Equal(t, "stream output", memoryMedium.fileContents["streamed.txt"])
-	statInfo, err := memoryMedium.Stat("streamed.txt")
+	statInfo, err = memoryMedium.Stat("streamed.txt")
 	require.NoError(t, err)
 	assert.Equal(t, fs.FileMode(0644), statInfo.Mode())
+	assert.False(t, statInfo.ModTime().IsZero())
 }
 
 func TestIO_Read_Good(t *testing.T) {
