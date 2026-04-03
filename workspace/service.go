@@ -12,11 +12,7 @@ import (
 	"dappco.re/go/core/io/sigil"
 )
 
-// Example: service, _ := workspace.New(workspace.Options{
-// Example:     KeyPairProvider: keyPairProvider,
-// Example:     RootPath: "/srv/workspaces",
-// Example:     Medium: io.NewMemoryMedium(),
-// Example: })
+// Example: service, _ := workspace.New(workspace.Options{KeyPairProvider: keyPairProvider})
 type Workspace interface {
 	CreateWorkspace(identifier, passphrase string) (string, error)
 	SwitchWorkspace(workspaceID string) error
@@ -52,16 +48,11 @@ type Options struct {
 	KeyPairProvider KeyPairProvider
 	RootPath        string
 	Medium          io.Medium
-	// Core is the optional Core instance. When set, the workspace service
-	// auto-registers as an IPC listener for workspace.create and workspace.switch events.
+	// Example: service, _ := workspace.New(workspace.Options{Core: core.New()})
 	Core *core.Core
 }
 
-// Example: service, _ := workspace.New(workspace.Options{
-// Example:     KeyPairProvider: keyPairProvider,
-// Example:     RootPath: "/srv/workspaces",
-// Example:     Medium: io.NewMemoryMedium(),
-// Example: })
+// Example: service, _ := workspace.New(workspace.Options{KeyPairProvider: keyPairProvider})
 type Service struct {
 	keyPairProvider   KeyPairProvider
 	activeWorkspaceID string
