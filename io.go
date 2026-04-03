@@ -79,6 +79,8 @@ type FileInfo struct {
 	isDir   bool
 }
 
+var _ fs.FileInfo = FileInfo{}
+
 func (info FileInfo) Name() string { return info.name }
 
 func (info FileInfo) Size() int64 { return info.size }
@@ -99,6 +101,8 @@ type DirEntry struct {
 	mode  fs.FileMode
 	info  fs.FileInfo
 }
+
+var _ fs.DirEntry = DirEntry{}
 
 func (entry DirEntry) Name() string { return entry.name }
 
@@ -478,6 +482,9 @@ type MemoryFile struct {
 	modTime time.Time
 }
 
+var _ fs.File = (*MemoryFile)(nil)
+var _ goio.ReadCloser = (*MemoryFile)(nil)
+
 func (file *MemoryFile) Stat() (fs.FileInfo, error) {
 	return NewFileInfo(file.name, int64(len(file.content)), file.mode, file.modTime, false), nil
 }
@@ -502,6 +509,8 @@ type MemoryWriteCloser struct {
 	data   []byte
 	mode   fs.FileMode
 }
+
+var _ goio.WriteCloser = (*MemoryWriteCloser)(nil)
 
 func (writeCloser *MemoryWriteCloser) Write(data []byte) (int, error) {
 	writeCloser.data = append(writeCloser.data, data...)
