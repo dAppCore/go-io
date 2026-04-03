@@ -4,8 +4,10 @@
 package local
 
 import (
+	"cmp"
 	goio "io"
 	"io/fs"
+	"slices"
 	"syscall"
 
 	core "dappco.re/go/core"
@@ -292,7 +294,16 @@ func (medium *Medium) List(path string) ([]fs.DirEntry, error) {
 	if err != nil {
 		return nil, err
 	}
-	return resultDirEntries("local.List", core.Concat("list failed: ", path), unrestrictedFileSystem.List(resolvedPath))
+	entries, err := resultDirEntries("local.List", core.Concat("list failed: ", path), unrestrictedFileSystem.List(resolvedPath))
+	if err != nil {
+		return nil, err
+	}
+
+	slices.SortFunc(entries, func(a, b fs.DirEntry) int {
+		return cmp.Compare(a.Name(), b.Name())
+	})
+
+	return entries, nil
 }
 
 // Example: info, _ := medium.Stat("config/app.yaml")
