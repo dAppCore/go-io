@@ -34,7 +34,7 @@ GOWORK=off go test -cover ./...
 
 ### Core Interface
 
-`io.Medium` — 18 methods: Read, Write, EnsureDir, IsFile, FileGet, FileSet, Delete, DeleteAll, Rename, List, Stat, Open, Create, Append, ReadStream, WriteStream, Exists, IsDir.
+`io.Medium` — 17 methods: Read, Write, WriteMode, EnsureDir, IsFile, Delete, DeleteAll, Rename, List, Stat, Open, Create, Append, ReadStream, WriteStream, Exists, IsDir.
 
 ```go
 // Sandboxed to a project directory
@@ -60,7 +60,7 @@ io.Copy(s3Medium, "backup.tar", localMedium, "restore/backup.tar")
 | `datanode` | Borg DataNode | Thread-safe (RWMutex) in-memory, snapshot/restore via tar |
 | `store` | SQLite KV store | Group-namespaced key-value with Go template rendering |
 | `workspace` | Core service | Encrypted workspaces, SHA-256 IDs, PGP keypairs |
-| `MockMedium` | In-memory map | Testing — no filesystem needed |
+| `MemoryMedium` | In-memory map | Testing — no filesystem needed |
 
 `store.Medium` maps filesystem paths as `group/key` — first path segment is the group, remainder is the key. `List("")` returns groups as directories.
 
@@ -128,8 +128,8 @@ Backend packages use `var _ io.Medium = (*Medium)(nil)` to verify interface comp
 
 ### Sentinel Errors
 
-Sentinel errors (`var ErrNotFound`, `var ErrInvalidKey`, etc.) use standard `errors.New()` — this is correct Go convention. Only inline error returns in functions should use `coreerr.E()`.
+Sentinel errors (`var NotFoundError`, `var InvalidKeyError`, etc.) use standard `errors.New()` — this is correct Go convention. Only inline error returns in functions should use `coreerr.E()`.
 
 ## Testing
 
-Use `io.MockMedium` or `io.NewSandboxed(t.TempDir())` in tests — never hit real S3/SQLite unless integration testing. S3 tests use an interface-based mock (`s3API`).
+Use `io.NewMemoryMedium()` or `io.NewSandboxed(t.TempDir())` in tests — never hit real S3/SQLite unless integration testing. S3 tests use an interface-based mock (`s3.Client`).

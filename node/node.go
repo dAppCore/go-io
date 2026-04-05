@@ -1,6 +1,7 @@
-// Package node provides an in-memory filesystem implementation of io.Medium
-// ported from Borg's DataNode. It stores files in memory with implicit
-// directory structure and supports tar serialisation.
+// Example: nodeTree := node.New()
+// Example: nodeTree.AddData("config/app.yaml", []byte("port: 8080"))
+// Example: snapshot, _ := nodeTree.ToTar()
+// Example: restored, _ := node.FromTar(snapshot)
 package node
 
 import (
@@ -9,93 +10,92 @@ import (
 	"cmp"
 	goio "io"
 	"io/fs"
-	"os"
 	"path"
 	"slices"
-	"strings"
 	"time"
 
+	core "dappco.re/go/core"
 	coreio "dappco.re/go/core/io"
 )
 
-// Node is an in-memory filesystem that implements coreio.Node (and therefore
-// coreio.Medium). Directories are implicit -- they exist whenever a file path
-// contains a "/".
+// Example: nodeTree := node.New()
+// Example: nodeTree.AddData("config/app.yaml", []byte("port: 8080"))
+// Example: snapshot, _ := nodeTree.ToTar()
+// Example: restored, _ := node.FromTar(snapshot)
+// Note: Node is not goroutine-safe. All methods must be called from a single goroutine,
+// or the caller must provide external synchronisation.
 type Node struct {
 	files map[string]*dataFile
 }
 
-// compile-time interface checks
 var _ coreio.Medium = (*Node)(nil)
 var _ fs.ReadFileFS = (*Node)(nil)
 
-// New creates a new, empty Node.
+// Example: nodeTree := node.New()
+// Example: _ = nodeTree.Write("config/app.yaml", "port: 8080")
 func New() *Node {
 	return &Node{files: make(map[string]*dataFile)}
 }
 
-// ---------- Node-specific methods ----------
-
-// AddData stages content in the in-memory filesystem.
-func (n *Node) AddData(name string, content []byte) {
-	name = strings.TrimPrefix(name, "/")
+// Example: nodeTree.AddData("config/app.yaml", []byte("port: 8080"))
+func (node *Node) AddData(name string, content []byte) {
+	name = core.TrimPrefix(name, "/")
 	if name == "" {
 		return
 	}
-	// Directories are implicit, so we don't store them.
-	if strings.HasSuffix(name, "/") {
+	if core.HasSuffix(name, "/") {
 		return
 	}
-	n.files[name] = &dataFile{
+	node.files[name] = &dataFile{
 		name:    name,
 		content: content,
 		modTime: time.Now(),
 	}
 }
 
-// ToTar serialises the entire in-memory tree to a tar archive.
-func (n *Node) ToTar() ([]byte, error) {
-	buf := new(bytes.Buffer)
-	tw := tar.NewWriter(buf)
+// Example: snapshot, _ := nodeTree.ToTar()
+func (node *Node) ToTar() ([]byte, error) {
+	buffer := new(bytes.Buffer)
+	tarWriter := tar.NewWriter(buffer)
 
-	for _, file := range n.files {
+	for _, file := range node.files {
 		hdr := &tar.Header{
 			Name:    file.name,
 			Mode:    0600,
 			Size:    int64(len(file.content)),
 			ModTime: file.modTime,
 		}
-		if err := tw.WriteHeader(hdr); err != nil {
+		if err := tarWriter.WriteHeader(hdr); err != nil {
 			return nil, err
 		}
-		if _, err := tw.Write(file.content); err != nil {
+		if _, err := tarWriter.Write(file.content); err != nil {
 			return nil, err
 		}
 	}
 
-	if err := tw.Close(); err != nil {
+	if err := tarWriter.Close(); err != nil {
 		return nil, err
 	}
 
-	return buf.Bytes(), nil
+	return buffer.Bytes(), nil
 }
 
-// FromTar creates a new Node from a tar archive.
+// Example: restored, _ := node.FromTar(snapshot)
 func FromTar(data []byte) (*Node, error) {
-	n := New()
-	if err := n.LoadTar(data); err != nil {
+	restoredNode := New()
+	if err := restoredNode.LoadTar(data); err != nil {
 		return nil, err
 	}
-	return n, nil
+	return restoredNode, nil
 }
 
-// LoadTar replaces the in-memory tree with the contents of a tar archive.
-func (n *Node) LoadTar(data []byte) error {
+// Example: _ = nodeTree.LoadTar(snapshot)
+func (node *Node) LoadTar(data []byte) error {
 	newFiles := make(map[string]*dataFile)
-	tr := tar.NewReader(bytes.NewReader(data))
+	tarReader := tar.NewReader(bytes.NewReader(data))
 
 	for {
-		header, err := tr.Next()
+		header, err := tarReader.Next()
 		if err == goio.EOF {
 			break
 		}
@@ -104,12 +104,12 @@ func (n *Node) LoadTar(data []byte) error {
 		}
 
 		if header.Typeflag == tar.TypeReg {
-			content, err := goio.ReadAll(tr)
+			content, err := goio.ReadAll(tarReader)
 			if err != nil {
-				return err
+				return core.E("node.LoadTar", "read tar entry", err)
 			}
-			name := strings.TrimPrefix(header.Name, "/")
-			if name == "" || strings.HasSuffix(name, "/") {
+			name := core.TrimPrefix(header.Name, "/")
+			if name == "" || core.HasSuffix(name, "/") {
 				continue
 			}
 			newFiles[name] = &dataFile{
@@ -120,188 +120,186 @@ func (n *Node) LoadTar(data []byte) error {
 		}
 	}
 
-	n.files = newFiles
+	node.files = newFiles
 	return nil
 }
 
-// WalkNode walks the in-memory tree, calling fn for each entry.
-func (n *Node) WalkNode(root string, fn fs.WalkDirFunc) error {
-	return fs.WalkDir(n, root, fn)
-}
-
-// WalkOptions configures the behaviour of Walk.
+// Example: options := node.WalkOptions{MaxDepth: 1, SkipErrors: true}
 type WalkOptions struct {
-	// MaxDepth limits how many directory levels to descend. 0 means unlimited.
-	MaxDepth int
-	// Filter, if set, is called for each entry. Return true to include the
-	// entry (and descend into it if it is a directory).
-	Filter func(path string, d fs.DirEntry) bool
-	// SkipErrors suppresses errors (e.g. nonexistent root) instead of
-	// propagating them through the callback.
+	MaxDepth   int
+	Filter     func(entryPath string, entry fs.DirEntry) bool
 	SkipErrors bool
 }
 
-// Walk walks the in-memory tree with optional WalkOptions.
-func (n *Node) Walk(root string, fn fs.WalkDirFunc, opts ...WalkOptions) error {
-	var opt WalkOptions
-	if len(opts) > 0 {
-		opt = opts[0]
-	}
-
-	if opt.SkipErrors {
-		// If root doesn't exist, silently return nil.
-		if _, err := n.Stat(root); err != nil {
+// Example: _ = nodeTree.Walk(".", func(_ string, _ fs.DirEntry, _ error) error { return nil }, node.WalkOptions{MaxDepth: 1, SkipErrors: true})
+func (node *Node) Walk(root string, walkFunc fs.WalkDirFunc, options WalkOptions) error {
+	if options.SkipErrors {
+		if _, err := node.Stat(root); err != nil {
 			return nil
 		}
 	}
 
-	return fs.WalkDir(n, root, func(p string, d fs.DirEntry, err error) error {
-		if opt.Filter != nil && err == nil {
-			if !opt.Filter(p, d) {
-				if d != nil && d.IsDir() {
+	return fs.WalkDir(node, root, func(entryPath string, entry fs.DirEntry, err error) error {
+		if options.Filter != nil && err == nil {
+			if !options.Filter(entryPath, entry) {
+				if entry != nil && entry.IsDir() {
 					return fs.SkipDir
 				}
 				return nil
 			}
 		}
 
-		// Call the user's function first so the entry is visited.
-		result := fn(p, d, err)
+		walkResult := walkFunc(entryPath, entry, err)
 
-		// After visiting a directory at MaxDepth, prevent descending further.
-		if result == nil && opt.MaxDepth > 0 && d != nil && d.IsDir() && p != root {
-			rel := strings.TrimPrefix(p, root)
-			rel = strings.TrimPrefix(rel, "/")
-			depth := strings.Count(rel, "/") + 1
-			if depth >= opt.MaxDepth {
+		if walkResult == nil && options.MaxDepth > 0 && entry != nil && entry.IsDir() && entryPath != root {
+			relativePath := core.TrimPrefix(entryPath, root)
+			relativePath = core.TrimPrefix(relativePath, "/")
+			parts := core.Split(relativePath, "/")
+			depth := 0
+			for _, part := range parts {
+				if part != "" {
+					depth++
+				}
+			}
+			if depth >= options.MaxDepth {
 				return fs.SkipDir
 			}
 		}
 
-		return result
+		return walkResult
 	})
 }
 
-// ReadFile returns the content of the named file as a byte slice.
-// Implements fs.ReadFileFS.
-func (n *Node) ReadFile(name string) ([]byte, error) {
-	name = strings.TrimPrefix(name, "/")
-	f, ok := n.files[name]
+// Example: content, _ := nodeTree.ReadFile("config/app.yaml")
+func (node *Node) ReadFile(name string) ([]byte, error) {
+	name = core.TrimPrefix(name, "/")
+	file, ok := node.files[name]
 	if !ok {
-		return nil, &fs.PathError{Op: "read", Path: name, Err: fs.ErrNotExist}
+		return nil, core.E("node.ReadFile", core.Concat("path not found: ", name), fs.ErrNotExist)
 	}
-	// Return a copy to prevent callers from mutating internal state.
-	result := make([]byte, len(f.content))
-	copy(result, f.content)
+	result := make([]byte, len(file.content))
+	copy(result, file.content)
 	return result, nil
 }
 
-// CopyFile copies a file from the in-memory tree to the local filesystem.
-func (n *Node) CopyFile(src, dst string, perm fs.FileMode) error {
-	src = strings.TrimPrefix(src, "/")
-	f, ok := n.files[src]
+// ExportFile writes a node file to the local filesystem. It operates on coreio.Local directly
+// and is intentionally local-only — use CopyTo for Medium-agnostic transfers.
+// Example: _ = nodeTree.ExportFile("config/app.yaml", "backup/app.yaml", 0644)
+func (node *Node) ExportFile(sourcePath, destinationPath string, permissions fs.FileMode) error {
+	sourcePath = core.TrimPrefix(sourcePath, "/")
+	file, ok := node.files[sourcePath]
 	if !ok {
-		// Check if it's a directory — can't copy directories this way.
-		info, err := n.Stat(src)
+		info, err := node.Stat(sourcePath)
 		if err != nil {
-			return &fs.PathError{Op: "copyfile", Path: src, Err: fs.ErrNotExist}
+			return core.E("node.ExportFile", core.Concat("source not found: ", sourcePath), fs.ErrNotExist)
 		}
 		if info.IsDir() {
-			return &fs.PathError{Op: "copyfile", Path: src, Err: fs.ErrInvalid}
+			return core.E("node.ExportFile", core.Concat("source is a directory: ", sourcePath), fs.ErrInvalid)
 		}
-		return &fs.PathError{Op: "copyfile", Path: src, Err: fs.ErrNotExist}
+		// unreachable: Stat only succeeds for directories when file is absent
+		return core.E("node.ExportFile", core.Concat("source not found: ", sourcePath), fs.ErrNotExist)
 	}
-	return os.WriteFile(dst, f.content, perm)
+	parent := core.PathDir(destinationPath)
+	if parent != "." && parent != "" && parent != destinationPath && !coreio.Local.IsDir(parent) {
+		return core.E("node.ExportFile", core.Concat("parent directory not found: ", destinationPath), fs.ErrNotExist)
+	}
+	return coreio.Local.WriteMode(destinationPath, string(file.content), permissions)
 }
 
-// CopyTo copies a file (or directory tree) from the node to any Medium.
-func (n *Node) CopyTo(target coreio.Medium, sourcePath, destPath string) error {
-	sourcePath = strings.TrimPrefix(sourcePath, "/")
-	info, err := n.Stat(sourcePath)
+// Example: _ = nodeTree.CopyTo(io.NewMemoryMedium(), "config", "backup/config")
+func (node *Node) CopyTo(target coreio.Medium, sourcePath, destinationPath string) error {
+	sourcePath = core.TrimPrefix(sourcePath, "/")
+	if sourcePath == "." {
+		sourcePath = ""
+	}
+	info, err := node.Stat(sourcePath)
 	if err != nil {
 		return err
 	}
 
 	if !info.IsDir() {
-		// Single file copy
-		f, ok := n.files[sourcePath]
+		file, ok := node.files[sourcePath]
 		if !ok {
-			return fs.ErrNotExist
+			return core.E("node.CopyTo", core.Concat("path not found: ", sourcePath), fs.ErrNotExist)
 		}
-		return target.Write(destPath, string(f.content))
+		return target.Write(destinationPath, string(file.content))
 	}
 
-	// Directory: walk and copy all files underneath
 	prefix := sourcePath
-	if prefix != "" && !strings.HasSuffix(prefix, "/") {
+	if prefix != "" && !core.HasSuffix(prefix, "/") {
 		prefix += "/"
 	}
 
-	for p, f := range n.files {
-		if !strings.HasPrefix(p, prefix) && p != sourcePath {
+	for filePath, file := range node.files {
+		if !core.HasPrefix(filePath, prefix) && filePath != sourcePath {
 			continue
 		}
-		rel := strings.TrimPrefix(p, prefix)
-		dest := destPath
-		if rel != "" {
-			dest = destPath + "/" + rel
+		relativePath := core.TrimPrefix(filePath, prefix)
+		copyDestinationPath := destinationPath
+		if relativePath != "" {
+			copyDestinationPath = core.Concat(destinationPath, "/", relativePath)
 		}
-		if err := target.Write(dest, string(f.content)); err != nil {
+		if err := target.Write(copyDestinationPath, string(file.content)); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-// ---------- Medium interface: fs.FS methods ----------
-
-// Open opens a file from the Node. Implements fs.FS.
-func (n *Node) Open(name string) (fs.File, error) {
-	name = strings.TrimPrefix(name, "/")
-	if file, ok := n.files[name]; ok {
-		return &dataFileReader{file: file}, nil
+// Example: file, _ := nodeTree.Open("config/app.yaml")
+func (node *Node) Open(name string) (fs.File, error) {
+	name = core.TrimPrefix(name, "/")
+	if name == "." {
+		name = ""
 	}
-	// Check if it's a directory
+	if dataFile, ok := node.files[name]; ok {
+		return &dataFileReader{file: dataFile}, nil
+	}
+	if name == "" {
+		return &dirFile{path: ".", modTime: time.Now()}, nil
+	}
 	prefix := name + "/"
-	if name == "." || name == "" {
-		prefix = ""
-	}
-	for p := range n.files {
-		if strings.HasPrefix(p, prefix) {
+	for filePath := range node.files {
+		if core.HasPrefix(filePath, prefix) {
 			return &dirFile{path: name, modTime: time.Now()}, nil
 		}
 	}
-	return nil, fs.ErrNotExist
+	return nil, core.E("node.Open", core.Concat("path not found: ", name), fs.ErrNotExist)
 }
 
-// Stat returns file information for the given path.
-func (n *Node) Stat(name string) (fs.FileInfo, error) {
-	name = strings.TrimPrefix(name, "/")
-	if file, ok := n.files[name]; ok {
-		return file.Stat()
+// Example: info, _ := nodeTree.Stat("config/app.yaml")
+func (node *Node) Stat(name string) (fs.FileInfo, error) {
+	name = core.TrimPrefix(name, "/")
+	if name == "." {
+		name = ""
 	}
-	// Check if it's a directory
+	if dataFile, ok := node.files[name]; ok {
+		return dataFile.Stat()
+	}
+	if name == "" {
+		return &dirInfo{name: ".", modTime: time.Now()}, nil
+	}
 	prefix := name + "/"
-	if name == "." || name == "" {
-		prefix = ""
-	}
-	for p := range n.files {
-		if strings.HasPrefix(p, prefix) {
+	for filePath := range node.files {
+		if core.HasPrefix(filePath, prefix) {
 			return &dirInfo{name: path.Base(name), modTime: time.Now()}, nil
 		}
 	}
-	return nil, fs.ErrNotExist
+	return nil, core.E("node.Stat", core.Concat("path not found: ", name), fs.ErrNotExist)
 }
 
-// ReadDir reads and returns all directory entries for the named directory.
-func (n *Node) ReadDir(name string) ([]fs.DirEntry, error) {
-	name = strings.TrimPrefix(name, "/")
+// Example: entries, _ := nodeTree.ReadDir("config")
+func (node *Node) ReadDir(name string) ([]fs.DirEntry, error) {
+	name = core.TrimPrefix(name, "/")
 	if name == "." {
 		name = ""
 	}
 
-	// Disallow reading a file as a directory.
-	if info, err := n.Stat(name); err == nil && !info.IsDir() {
+	info, statErr := node.Stat(name)
+	if statErr != nil {
+		return nil, &fs.PathError{Op: "readdir", Path: name, Err: fs.ErrNotExist}
+	}
+	if !info.IsDir() {
 		return nil, &fs.PathError{Op: "readdir", Path: name, Err: fs.ErrInvalid}
 	}
 
@@ -313,24 +311,24 @@ func (n *Node) ReadDir(name string) ([]fs.DirEntry, error) {
 		prefix = name + "/"
 	}
 
-	for p := range n.files {
-		if !strings.HasPrefix(p, prefix) {
+	for filePath := range node.files {
+		if !core.HasPrefix(filePath, prefix) {
 			continue
 		}
 
-		relPath := strings.TrimPrefix(p, prefix)
-		firstComponent := strings.Split(relPath, "/")[0]
+		relPath := core.TrimPrefix(filePath, prefix)
+		firstComponent := core.SplitN(relPath, "/", 2)[0]
 
 		if seen[firstComponent] {
 			continue
 		}
 		seen[firstComponent] = true
 
-		if strings.Contains(relPath, "/") {
-			dir := &dirInfo{name: firstComponent, modTime: time.Now()}
-			entries = append(entries, fs.FileInfoToDirEntry(dir))
+		if core.Contains(relPath, "/") {
+			directoryInfo := &dirInfo{name: firstComponent, modTime: time.Now()}
+			entries = append(entries, fs.FileInfoToDirEntry(directoryInfo))
 		} else {
-			file := n.files[p]
+			file := node.files[filePath]
 			info, _ := file.Stat()
 			entries = append(entries, fs.FileInfoToDirEntry(info))
 		}
@@ -343,272 +341,277 @@ func (n *Node) ReadDir(name string) ([]fs.DirEntry, error) {
 	return entries, nil
 }
 
-// ---------- Medium interface: read/write ----------
-
-// Read retrieves the content of a file as a string.
-func (n *Node) Read(p string) (string, error) {
-	p = strings.TrimPrefix(p, "/")
-	f, ok := n.files[p]
+// Example: content, _ := nodeTree.Read("config/app.yaml")
+func (node *Node) Read(filePath string) (string, error) {
+	filePath = core.TrimPrefix(filePath, "/")
+	file, ok := node.files[filePath]
 	if !ok {
-		return "", fs.ErrNotExist
+		return "", core.E("node.Read", core.Concat("path not found: ", filePath), fs.ErrNotExist)
 	}
-	return string(f.content), nil
+	return string(file.content), nil
 }
 
-// Write saves the given content to a file, overwriting it if it exists.
-func (n *Node) Write(p, content string) error {
-	n.AddData(p, []byte(content))
+// Example: _ = nodeTree.Write("config/app.yaml", "port: 8080")
+func (node *Node) Write(filePath, content string) error {
+	filePath = core.TrimPrefix(filePath, "/")
+	if filePath == "" || filePath == "." {
+		return core.E("node.Write", "empty path", fs.ErrInvalid)
+	}
+	node.AddData(filePath, []byte(content))
 	return nil
 }
 
-// WriteMode saves content with explicit permissions (no-op for in-memory node).
-func (n *Node) WriteMode(p, content string, mode os.FileMode) error {
-	return n.Write(p, content)
+// Example: _ = nodeTree.WriteMode("keys/private.key", key, 0600)
+// Note: mode is intentionally ignored — in-memory nodes have no filesystem permission model.
+func (node *Node) WriteMode(filePath, content string, mode fs.FileMode) error {
+	return node.Write(filePath, content)
 }
 
-// FileGet is an alias for Read.
-func (n *Node) FileGet(p string) (string, error) {
-	return n.Read(p)
-}
-
-// FileSet is an alias for Write.
-func (n *Node) FileSet(p, content string) error {
-	return n.Write(p, content)
-}
-
-// EnsureDir is a no-op because directories are implicit in Node.
-func (n *Node) EnsureDir(_ string) error {
+// Example: _ = nodeTree.EnsureDir("config")
+func (node *Node) EnsureDir(directoryPath string) error {
 	return nil
 }
 
-// ---------- Medium interface: existence checks ----------
-
-// Exists checks if a path exists (file or directory).
-func (n *Node) Exists(p string) bool {
-	_, err := n.Stat(p)
+// Example: exists := nodeTree.Exists("config/app.yaml")
+func (node *Node) Exists(filePath string) bool {
+	_, err := node.Stat(filePath)
 	return err == nil
 }
 
-// IsFile checks if a path exists and is a regular file.
-func (n *Node) IsFile(p string) bool {
-	p = strings.TrimPrefix(p, "/")
-	_, ok := n.files[p]
+// Example: isFile := nodeTree.IsFile("config/app.yaml")
+func (node *Node) IsFile(filePath string) bool {
+	filePath = core.TrimPrefix(filePath, "/")
+	_, ok := node.files[filePath]
 	return ok
 }
 
-// IsDir checks if a path exists and is a directory.
-func (n *Node) IsDir(p string) bool {
-	info, err := n.Stat(p)
+// Example: isDirectory := nodeTree.IsDir("config")
+func (node *Node) IsDir(filePath string) bool {
+	info, err := node.Stat(filePath)
 	if err != nil {
 		return false
 	}
 	return info.IsDir()
 }
 
-// ---------- Medium interface: mutations ----------
-
-// Delete removes a single file.
-func (n *Node) Delete(p string) error {
-	p = strings.TrimPrefix(p, "/")
-	if _, ok := n.files[p]; ok {
-		delete(n.files, p)
+// Example: _ = nodeTree.Delete("config/app.yaml")
+func (node *Node) Delete(filePath string) error {
+	filePath = core.TrimPrefix(filePath, "/")
+	if _, ok := node.files[filePath]; ok {
+		delete(node.files, filePath)
 		return nil
 	}
-	return fs.ErrNotExist
+	return core.E("node.Delete", core.Concat("path not found: ", filePath), fs.ErrNotExist)
 }
 
-// DeleteAll removes a file or directory and all children.
-func (n *Node) DeleteAll(p string) error {
-	p = strings.TrimPrefix(p, "/")
+// Example: _ = nodeTree.DeleteAll("logs/archive")
+func (node *Node) DeleteAll(filePath string) error {
+	filePath = core.TrimPrefix(filePath, "/")
 
 	found := false
-	if _, ok := n.files[p]; ok {
-		delete(n.files, p)
+	if _, ok := node.files[filePath]; ok {
+		delete(node.files, filePath)
 		found = true
 	}
 
-	prefix := p + "/"
-	for k := range n.files {
-		if strings.HasPrefix(k, prefix) {
-			delete(n.files, k)
+	prefix := filePath + "/"
+	for entryPath := range node.files {
+		if core.HasPrefix(entryPath, prefix) {
+			delete(node.files, entryPath)
 			found = true
 		}
 	}
 
 	if !found {
-		return fs.ErrNotExist
+		return core.E("node.DeleteAll", core.Concat("path not found: ", filePath), fs.ErrNotExist)
 	}
 	return nil
 }
 
-// Rename moves a file from oldPath to newPath.
-func (n *Node) Rename(oldPath, newPath string) error {
-	oldPath = strings.TrimPrefix(oldPath, "/")
-	newPath = strings.TrimPrefix(newPath, "/")
+// Example: _ = nodeTree.Rename("drafts/todo.txt", "archive/todo.txt")
+// Example: _ = nodeTree.Rename("drafts", "archive")
+func (node *Node) Rename(oldPath, newPath string) error {
+	oldPath = core.TrimPrefix(oldPath, "/")
+	newPath = core.TrimPrefix(newPath, "/")
 
-	f, ok := n.files[oldPath]
-	if !ok {
-		return fs.ErrNotExist
+	if file, ok := node.files[oldPath]; ok {
+		file.name = newPath
+		node.files[newPath] = file
+		delete(node.files, oldPath)
+		return nil
 	}
 
-	f.name = newPath
-	n.files[newPath] = f
-	delete(n.files, oldPath)
+	// Directory rename: batch-rename all entries that share the prefix.
+	oldPrefix := oldPath + "/"
+	newPrefix := newPath + "/"
+	renamed := 0
+	toAdd := make(map[string]*dataFile)
+	toDelete := make([]string, 0)
+	for filePath, file := range node.files {
+		if core.HasPrefix(filePath, oldPrefix) {
+			updatedPath := core.Concat(newPrefix, core.TrimPrefix(filePath, oldPrefix))
+			file.name = updatedPath
+			toAdd[updatedPath] = file
+			toDelete = append(toDelete, filePath)
+			renamed++
+		}
+	}
+	for _, p := range toDelete {
+		delete(node.files, p)
+	}
+	for p, f := range toAdd {
+		node.files[p] = f
+	}
+	if renamed == 0 {
+		return core.E("node.Rename", core.Concat("path not found: ", oldPath), fs.ErrNotExist)
+	}
 	return nil
 }
 
-// List returns directory entries for the given path.
-func (n *Node) List(p string) ([]fs.DirEntry, error) {
-	p = strings.TrimPrefix(p, "/")
-	if p == "" || p == "." {
-		return n.ReadDir(".")
+// Example: entries, _ := nodeTree.List("config")
+func (node *Node) List(filePath string) ([]fs.DirEntry, error) {
+	filePath = core.TrimPrefix(filePath, "/")
+	if filePath == "" || filePath == "." {
+		return node.ReadDir(".")
 	}
-	return n.ReadDir(p)
+	return node.ReadDir(filePath)
 }
 
-// ---------- Medium interface: streams ----------
-
-// Create creates or truncates the named file, returning a WriteCloser.
-// Content is committed to the Node on Close.
-func (n *Node) Create(p string) (goio.WriteCloser, error) {
-	p = strings.TrimPrefix(p, "/")
-	return &nodeWriter{node: n, path: p}, nil
+// Example: writer, _ := nodeTree.Create("logs/app.log")
+func (node *Node) Create(filePath string) (goio.WriteCloser, error) {
+	filePath = core.TrimPrefix(filePath, "/")
+	return &nodeWriter{node: node, path: filePath}, nil
 }
 
-// Append opens the named file for appending, creating it if needed.
-// Content is committed to the Node on Close.
-func (n *Node) Append(p string) (goio.WriteCloser, error) {
-	p = strings.TrimPrefix(p, "/")
+// Example: writer, _ := nodeTree.Append("logs/app.log")
+func (node *Node) Append(filePath string) (goio.WriteCloser, error) {
+	filePath = core.TrimPrefix(filePath, "/")
 	var existing []byte
-	if f, ok := n.files[p]; ok {
-		existing = make([]byte, len(f.content))
-		copy(existing, f.content)
+	if file, ok := node.files[filePath]; ok {
+		existing = make([]byte, len(file.content))
+		copy(existing, file.content)
 	}
-	return &nodeWriter{node: n, path: p, buf: existing}, nil
+	return &nodeWriter{node: node, path: filePath, buffer: existing}, nil
 }
 
-// ReadStream returns a ReadCloser for the file content.
-func (n *Node) ReadStream(p string) (goio.ReadCloser, error) {
-	f, err := n.Open(p)
+func (node *Node) ReadStream(filePath string) (goio.ReadCloser, error) {
+	file, err := node.Open(filePath)
 	if err != nil {
 		return nil, err
 	}
-	return goio.NopCloser(f), nil
+	return goio.NopCloser(file), nil
 }
 
-// WriteStream returns a WriteCloser for the file content.
-func (n *Node) WriteStream(p string) (goio.WriteCloser, error) {
-	return n.Create(p)
+func (node *Node) WriteStream(filePath string) (goio.WriteCloser, error) {
+	return node.Create(filePath)
 }
 
-// ---------- Internal types ----------
-
-// nodeWriter buffers writes and commits them to the Node on Close.
 type nodeWriter struct {
-	node *Node
-	path string
-	buf  []byte
+	node   *Node
+	path   string
+	buffer []byte
 }
 
-func (w *nodeWriter) Write(p []byte) (int, error) {
-	w.buf = append(w.buf, p...)
-	return len(p), nil
+func (writer *nodeWriter) Write(data []byte) (int, error) {
+	writer.buffer = append(writer.buffer, data...)
+	return len(data), nil
 }
 
-func (w *nodeWriter) Close() error {
-	w.node.files[w.path] = &dataFile{
-		name:    w.path,
-		content: w.buf,
+func (writer *nodeWriter) Close() error {
+	if writer.path == "" || writer.path == "." {
+		return core.E("node.nodeWriter.Close", "empty path", fs.ErrInvalid)
+	}
+	writer.node.files[writer.path] = &dataFile{
+		name:    writer.path,
+		content: writer.buffer,
 		modTime: time.Now(),
 	}
 	return nil
 }
 
-// dataFile represents a file in the Node.
 type dataFile struct {
 	name    string
 	content []byte
 	modTime time.Time
 }
 
-func (d *dataFile) Stat() (fs.FileInfo, error) { return &dataFileInfo{file: d}, nil }
-func (d *dataFile) Read(_ []byte) (int, error) { return 0, goio.EOF }
-func (d *dataFile) Close() error               { return nil }
+func (file *dataFile) Stat() (fs.FileInfo, error) { return &dataFileInfo{file: file}, nil }
 
-// dataFileInfo implements fs.FileInfo for a dataFile.
+func (file *dataFile) Read(buffer []byte) (int, error) { return 0, goio.EOF }
+
+func (file *dataFile) Close() error { return nil }
+
 type dataFileInfo struct{ file *dataFile }
 
-func (d *dataFileInfo) Name() string       { return path.Base(d.file.name) }
-func (d *dataFileInfo) Size() int64        { return int64(len(d.file.content)) }
-func (d *dataFileInfo) Mode() fs.FileMode  { return 0444 }
-func (d *dataFileInfo) ModTime() time.Time { return d.file.modTime }
-func (d *dataFileInfo) IsDir() bool        { return false }
-func (d *dataFileInfo) Sys() any           { return nil }
+func (info *dataFileInfo) Name() string { return path.Base(info.file.name) }
 
-// dataFileReader implements fs.File for reading a dataFile.
+func (info *dataFileInfo) Size() int64 { return int64(len(info.file.content)) }
+
+func (info *dataFileInfo) Mode() fs.FileMode { return 0444 }
+
+func (info *dataFileInfo) ModTime() time.Time { return info.file.modTime }
+
+func (info *dataFileInfo) IsDir() bool { return false }
+
+func (info *dataFileInfo) Sys() any { return nil }
+
 type dataFileReader struct {
 	file   *dataFile
 	reader *bytes.Reader
 }
 
-func (d *dataFileReader) Stat() (fs.FileInfo, error) { return d.file.Stat() }
-func (d *dataFileReader) Read(p []byte) (int, error) {
-	if d.reader == nil {
-		d.reader = bytes.NewReader(d.file.content)
-	}
-	return d.reader.Read(p)
-}
-func (d *dataFileReader) Close() error { return nil }
+func (reader *dataFileReader) Stat() (fs.FileInfo, error) { return reader.file.Stat() }
 
-// dirInfo implements fs.FileInfo for an implicit directory.
+func (reader *dataFileReader) Read(buffer []byte) (int, error) {
+	if reader.reader == nil {
+		reader.reader = bytes.NewReader(reader.file.content)
+	}
+	return reader.reader.Read(buffer)
+}
+
+func (reader *dataFileReader) Close() error { return nil }
+
 type dirInfo struct {
 	name    string
 	modTime time.Time
 }
 
-func (d *dirInfo) Name() string       { return d.name }
-func (d *dirInfo) Size() int64        { return 0 }
-func (d *dirInfo) Mode() fs.FileMode  { return fs.ModeDir | 0555 }
-func (d *dirInfo) ModTime() time.Time { return d.modTime }
-func (d *dirInfo) IsDir() bool        { return true }
-func (d *dirInfo) Sys() any           { return nil }
+func (info *dirInfo) Name() string { return info.name }
 
-// dirFile implements fs.File for a directory.
+func (info *dirInfo) Size() int64 { return 0 }
+
+func (info *dirInfo) Mode() fs.FileMode { return fs.ModeDir | 0555 }
+
+func (info *dirInfo) ModTime() time.Time { return info.modTime }
+
+func (info *dirInfo) IsDir() bool { return true }
+
+func (info *dirInfo) Sys() any { return nil }
+
 type dirFile struct {
 	path    string
 	modTime time.Time
 }
 
-func (d *dirFile) Stat() (fs.FileInfo, error) {
-	return &dirInfo{name: path.Base(d.path), modTime: d.modTime}, nil
+func (directory *dirFile) Stat() (fs.FileInfo, error) {
+	return &dirInfo{name: path.Base(directory.path), modTime: directory.modTime}, nil
 }
-func (d *dirFile) Read([]byte) (int, error) {
-	return 0, &fs.PathError{Op: "read", Path: d.path, Err: fs.ErrInvalid}
-}
-func (d *dirFile) Close() error { return nil }
 
-// Ensure Node implements fs.FS so WalkDir works.
+func (directory *dirFile) Read([]byte) (int, error) {
+	return 0, core.E("node.dirFile.Read", core.Concat("cannot read directory: ", directory.path), &fs.PathError{Op: "read", Path: directory.path, Err: fs.ErrInvalid})
+}
+
+func (directory *dirFile) Close() error { return nil }
+
 var _ fs.FS = (*Node)(nil)
 
-// Ensure Node also satisfies fs.StatFS and fs.ReadDirFS for WalkDir.
 var _ fs.StatFS = (*Node)(nil)
 var _ fs.ReadDirFS = (*Node)(nil)
 
-// Unexported helper: ensure ReadStream result also satisfies fs.File
-// (for cases where callers do a type assertion).
 var _ goio.ReadCloser = goio.NopCloser(nil)
 
-// Ensure nodeWriter satisfies goio.WriteCloser.
 var _ goio.WriteCloser = (*nodeWriter)(nil)
 
-// Ensure dirFile satisfies fs.File.
 var _ fs.File = (*dirFile)(nil)
 
-// Ensure dataFileReader satisfies fs.File.
 var _ fs.File = (*dataFileReader)(nil)
-
-// ReadDirFile is not needed since fs.WalkDir works via ReadDirFS on the FS itself,
-// but we need the Node to satisfy fs.ReadDirFS.
-
-// ensure all internal compile-time checks are grouped above
-// no further type assertions needed

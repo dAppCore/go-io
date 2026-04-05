@@ -7,97 +7,109 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestSetGet_Good(t *testing.T) {
-	s, err := New(":memory:")
-	require.NoError(t, err)
-	defer s.Close()
+func newKeyValueStore(t *testing.T) *KeyValueStore {
+	t.Helper()
 
-	err = s.Set("config", "theme", "dark")
+	keyValueStore, err := New(Options{Path: ":memory:"})
 	require.NoError(t, err)
-
-	val, err := s.Get("config", "theme")
-	require.NoError(t, err)
-	assert.Equal(t, "dark", val)
+	t.Cleanup(func() {
+		require.NoError(t, keyValueStore.Close())
+	})
+	return keyValueStore
 }
 
-func TestGet_Bad_NotFound(t *testing.T) {
-	s, _ := New(":memory:")
-	defer s.Close()
+func TestKeyValueStore_New_Options_Good(t *testing.T) {
+	keyValueStore := newKeyValueStore(t)
+	assert.NotNil(t, keyValueStore)
+}
 
-	_, err := s.Get("config", "missing")
+func TestKeyValueStore_New_Options_Bad(t *testing.T) {
+	_, err := New(Options{})
 	assert.Error(t, err)
 }
 
-func TestDelete_Good(t *testing.T) {
-	s, _ := New(":memory:")
-	defer s.Close()
+func TestKeyValueStore_SetGet_Good(t *testing.T) {
+	keyValueStore := newKeyValueStore(t)
 
-	_ = s.Set("config", "key", "val")
-	err := s.Delete("config", "key")
+	err := keyValueStore.Set("config", "theme", "dark")
 	require.NoError(t, err)
 
-	_, err = s.Get("config", "key")
-	assert.Error(t, err)
-}
-
-func TestCount_Good(t *testing.T) {
-	s, _ := New(":memory:")
-	defer s.Close()
-
-	_ = s.Set("grp", "a", "1")
-	_ = s.Set("grp", "b", "2")
-	_ = s.Set("other", "c", "3")
-
-	n, err := s.Count("grp")
+	value, err := keyValueStore.Get("config", "theme")
 	require.NoError(t, err)
-	assert.Equal(t, 2, n)
+	assert.Equal(t, "dark", value)
 }
 
-func TestDeleteGroup_Good(t *testing.T) {
-	s, _ := New(":memory:")
-	defer s.Close()
+func TestKeyValueStore_Get_NotFound_Bad(t *testing.T) {
+	keyValueStore := newKeyValueStore(t)
 
-	_ = s.Set("grp", "a", "1")
-	_ = s.Set("grp", "b", "2")
-	err := s.DeleteGroup("grp")
+	_, err := keyValueStore.Get("config", "missing")
+	assert.ErrorIs(t, err, NotFoundError)
+}
+
+func TestKeyValueStore_Delete_Good(t *testing.T) {
+	keyValueStore := newKeyValueStore(t)
+
+	_ = keyValueStore.Set("config", "key", "val")
+	err := keyValueStore.Delete("config", "key")
 	require.NoError(t, err)
 
-	n, _ := s.Count("grp")
-	assert.Equal(t, 0, n)
+	_, err = keyValueStore.Get("config", "key")
+	assert.ErrorIs(t, err, NotFoundError)
 }
 
-func TestGetAll_Good(t *testing.T) {
-	s, _ := New(":memory:")
-	defer s.Close()
+func TestKeyValueStore_Count_Good(t *testing.T) {
+	keyValueStore := newKeyValueStore(t)
 
-	_ = s.Set("grp", "a", "1")
-	_ = s.Set("grp", "b", "2")
-	_ = s.Set("other", "c", "3")
+	_ = keyValueStore.Set("group", "a", "1")
+	_ = keyValueStore.Set("group", "b", "2")
+	_ = keyValueStore.Set("other", "c", "3")
 
-	all, err := s.GetAll("grp")
+	count, err := keyValueStore.Count("group")
+	require.NoError(t, err)
+	assert.Equal(t, 2, count)
+}
+
+func TestKeyValueStore_DeleteGroup_Good(t *testing.T) {
+	keyValueStore := newKeyValueStore(t)
+
+	_ = keyValueStore.Set("group", "a", "1")
+	_ = keyValueStore.Set("group", "b", "2")
+	err := keyValueStore.DeleteGroup("group")
+	require.NoError(t, err)
+
+	count, _ := keyValueStore.Count("group")
+	assert.Equal(t, 0, count)
+}
+
+func TestKeyValueStore_GetAll_Good(t *testing.T) {
+	keyValueStore := newKeyValueStore(t)
+
+	_ = keyValueStore.Set("group", "a", "1")
+	_ = keyValueStore.Set("group", "b", "2")
+	_ = keyValueStore.Set("other", "c", "3")
+
+	all, err := keyValueStore.GetAll("group")
 	require.NoError(t, err)
 	assert.Equal(t, map[string]string{"a": "1", "b": "2"}, all)
 }
 
-func TestGetAll_Good_Empty(t *testing.T) {
-	s, _ := New(":memory:")
-	defer s.Close()
+func TestKeyValueStore_GetAll_Empty_Good(t *testing.T) {
+	keyValueStore := newKeyValueStore(t)
 
-	all, err := s.GetAll("empty")
+	all, err := keyValueStore.GetAll("empty")
 	require.NoError(t, err)
 	assert.Empty(t, all)
 }
 
-func TestRender_Good(t *testing.T) {
-	s, _ := New(":memory:")
-	defer s.Close()
+func TestKeyValueStore_Render_Good(t *testing.T) {
+	keyValueStore := newKeyValueStore(t)
 
-	_ = s.Set("user", "pool", "pool.lthn.io:3333")
-	_ = s.Set("user", "wallet", "iz...")
+	_ = keyValueStore.Set("user", "pool", "pool.lthn.io:3333")
+	_ = keyValueStore.Set("user", "wallet", "iz...")
 
-	tmpl := `{"pool":"{{ .pool }}","wallet":"{{ .wallet }}"}`
-	out, err := s.Render(tmpl, "user")
+	templateText := `{"pool":"{{ .pool }}","wallet":"{{ .wallet }}"}`
+	renderedText, err := keyValueStore.Render(templateText, "user")
 	require.NoError(t, err)
-	assert.Contains(t, out, "pool.lthn.io:3333")
-	assert.Contains(t, out, "iz...")
+	assert.Contains(t, renderedText, "pool.lthn.io:3333")
+	assert.Contains(t, renderedText, "iz...")
 }

@@ -1,107 +1,78 @@
-// This file implements the Pre-Obfuscation Layer Protocol with
-// XChaCha20-Poly1305 encryption. The protocol applies a reversible transformation
-// to plaintext BEFORE it reaches CPU encryption routines, providing defense-in-depth
-// against side-channel attacks.
-//
-// The encryption flow is:
-//
-//	plaintext -> obfuscate(nonce) -> encrypt -> [nonce || ciphertext || tag]
-//
-// The decryption flow is:
-//
-//	[nonce || ciphertext || tag] -> decrypt -> deobfuscate(nonce) -> plaintext
+// Example: cipherSigil, _ := sigil.NewChaChaPolySigil([]byte("0123456789abcdef0123456789abcdef"), nil)
+// Example: ciphertext, _ := cipherSigil.In([]byte("payload"))
+// Example: plaintext, _ := cipherSigil.Out(ciphertext)
 package sigil
 
 import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/binary"
-	"errors"
-	"io"
+	goio "io"
 
+	core "dappco.re/go/core"
 	"golang.org/x/crypto/chacha20poly1305"
 )
 
 var (
-	// ErrInvalidKey is returned when the encryption key is invalid.
-	ErrInvalidKey = errors.New("sigil: invalid key size, must be 32 bytes")
-	// ErrCiphertextTooShort is returned when the ciphertext is too short to decrypt.
-	ErrCiphertextTooShort = errors.New("sigil: ciphertext too short")
-	// ErrDecryptionFailed is returned when decryption or authentication fails.
-	ErrDecryptionFailed = errors.New("sigil: decryption failed")
-	// ErrNoKeyConfigured is returned when no encryption key has been set.
-	ErrNoKeyConfigured = errors.New("sigil: no encryption key configured")
+	// Example: errors.Is(err, sigil.InvalidKeyError)
+	InvalidKeyError = core.E("sigil.InvalidKeyError", "invalid key size, must be 32 bytes", nil)
+
+	// Example: errors.Is(err, sigil.CiphertextTooShortError)
+	CiphertextTooShortError = core.E("sigil.CiphertextTooShortError", "ciphertext too short", nil)
+
+	// Example: errors.Is(err, sigil.DecryptionFailedError)
+	DecryptionFailedError = core.E("sigil.DecryptionFailedError", "decryption failed", nil)
+
+	// Example: errors.Is(err, sigil.NoKeyConfiguredError)
+	NoKeyConfiguredError = core.E("sigil.NoKeyConfiguredError", "no encryption key configured", nil)
 )
 
-// PreObfuscator applies a reversible transformation to data before encryption.
-// This ensures that raw plaintext patterns are never sent directly to CPU
-// encryption routines, providing defense against side-channel attacks.
-//
-// Implementations must be deterministic: given the same entropy, the transformation
-// must be perfectly reversible: Deobfuscate(Obfuscate(x, e), e) == x
+// Example: obfuscator := &sigil.XORObfuscator{}
 type PreObfuscator interface {
-	// Obfuscate transforms plaintext before encryption using the provided entropy.
-	// The entropy is typically the encryption nonce, ensuring the transformation
-	// is unique per-encryption without additional random generation.
 	Obfuscate(data []byte, entropy []byte) []byte
 
-	// Deobfuscate reverses the transformation after decryption.
-	// Must be called with the same entropy used during Obfuscate.
 	Deobfuscate(data []byte, entropy []byte) []byte
 }
 
-// XORObfuscator performs XOR-based obfuscation using an entropy-derived key stream.
-//
-// The key stream is generated using SHA-256 in counter mode:
-//
-//	keyStream[i*32:(i+1)*32] = SHA256(entropy || BigEndian64(i))
-//
-// This provides a cryptographically uniform key stream that decorrelates
-// plaintext patterns from the data seen by the encryption routine.
-// XOR is symmetric, so obfuscation and deobfuscation use the same operation.
+// Example: obfuscator := &sigil.XORObfuscator{}
 type XORObfuscator struct{}
 
-// Obfuscate XORs the data with a key stream derived from the entropy.
-func (x *XORObfuscator) Obfuscate(data []byte, entropy []byte) []byte {
+func (obfuscator *XORObfuscator) Obfuscate(data []byte, entropy []byte) []byte {
 	if len(data) == 0 {
 		return data
 	}
-	return x.transform(data, entropy)
+	return obfuscator.transform(data, entropy)
 }
 
-// Deobfuscate reverses the XOR transformation (XOR is symmetric).
-func (x *XORObfuscator) Deobfuscate(data []byte, entropy []byte) []byte {
+func (obfuscator *XORObfuscator) Deobfuscate(data []byte, entropy []byte) []byte {
 	if len(data) == 0 {
 		return data
 	}
-	return x.transform(data, entropy)
+	return obfuscator.transform(data, entropy)
 }
 
-// transform applies XOR with an entropy-derived key stream.
-func (x *XORObfuscator) transform(data []byte, entropy []byte) []byte {
+func (obfuscator *XORObfuscator) transform(data []byte, entropy []byte) []byte {
 	result := make([]byte, len(data))
-	keyStream := x.deriveKeyStream(entropy, len(data))
+	keyStream := obfuscator.deriveKeyStream(entropy, len(data))
 	for i := range data {
 		result[i] = data[i] ^ keyStream[i]
 	}
 	return result
 }
 
-// deriveKeyStream creates a deterministic key stream from entropy.
-func (x *XORObfuscator) deriveKeyStream(entropy []byte, length int) []byte {
+func (obfuscator *XORObfuscator) deriveKeyStream(entropy []byte, length int) []byte {
 	stream := make([]byte, length)
-	h := sha256.New()
+	hashFunction := sha256.New()
 
-	// Generate key stream in 32-byte blocks
 	blockNum := uint64(0)
 	offset := 0
 	for offset < length {
-		h.Reset()
-		h.Write(entropy)
+		hashFunction.Reset()
+		hashFunction.Write(entropy)
 		var blockBytes [8]byte
 		binary.BigEndian.PutUint64(blockBytes[:], blockNum)
-		h.Write(blockBytes[:])
-		block := h.Sum(nil)
+		hashFunction.Write(blockBytes[:])
+		block := hashFunction.Sum(nil)
 
 		copyLen := min(len(block), length-offset)
 		copy(stream[offset:], block[:copyLen])
@@ -111,20 +82,10 @@ func (x *XORObfuscator) deriveKeyStream(entropy []byte, length int) []byte {
 	return stream
 }
 
-// ShuffleMaskObfuscator provides stronger obfuscation through byte shuffling and masking.
-//
-// The obfuscation process:
-//  1. Generate a mask from entropy using SHA-256 in counter mode
-//  2. XOR the data with the mask
-//  3. Generate a deterministic permutation using Fisher-Yates shuffle
-//  4. Reorder bytes according to the permutation
-//
-// This provides both value transformation (XOR mask) and position transformation
-// (shuffle), making pattern analysis more difficult than XOR alone.
+// Example: obfuscator := &sigil.ShuffleMaskObfuscator{}
 type ShuffleMaskObfuscator struct{}
 
-// Obfuscate shuffles bytes and applies a mask derived from entropy.
-func (s *ShuffleMaskObfuscator) Obfuscate(data []byte, entropy []byte) []byte {
+func (obfuscator *ShuffleMaskObfuscator) Obfuscate(data []byte, entropy []byte) []byte {
 	if len(data) == 0 {
 		return data
 	}
@@ -132,42 +93,35 @@ func (s *ShuffleMaskObfuscator) Obfuscate(data []byte, entropy []byte) []byte {
 	result := make([]byte, len(data))
 	copy(result, data)
 
-	// Generate permutation and mask from entropy
-	perm := s.generatePermutation(entropy, len(data))
-	mask := s.deriveMask(entropy, len(data))
+	permutation := obfuscator.generatePermutation(entropy, len(data))
+	mask := obfuscator.deriveMask(entropy, len(data))
 
-	// Apply mask first, then shuffle
 	for i := range result {
 		result[i] ^= mask[i]
 	}
 
-	// Shuffle using Fisher-Yates with deterministic seed
 	shuffled := make([]byte, len(data))
-	for i, p := range perm {
-		shuffled[i] = result[p]
+	for destinationIndex, sourceIndex := range permutation {
+		shuffled[destinationIndex] = result[sourceIndex]
 	}
 
 	return shuffled
 }
 
-// Deobfuscate reverses the shuffle and mask operations.
-func (s *ShuffleMaskObfuscator) Deobfuscate(data []byte, entropy []byte) []byte {
+func (obfuscator *ShuffleMaskObfuscator) Deobfuscate(data []byte, entropy []byte) []byte {
 	if len(data) == 0 {
 		return data
 	}
 
 	result := make([]byte, len(data))
 
-	// Generate permutation and mask from entropy
-	perm := s.generatePermutation(entropy, len(data))
-	mask := s.deriveMask(entropy, len(data))
+	permutation := obfuscator.generatePermutation(entropy, len(data))
+	mask := obfuscator.deriveMask(entropy, len(data))
 
-	// Unshuffle first
-	for i, p := range perm {
-		result[p] = data[i]
+	for destinationIndex, sourceIndex := range permutation {
+		result[sourceIndex] = data[destinationIndex]
 	}
 
-	// Remove mask
 	for i := range result {
 		result[i] ^= mask[i]
 	}
@@ -175,49 +129,45 @@ func (s *ShuffleMaskObfuscator) Deobfuscate(data []byte, entropy []byte) []byte 
 	return result
 }
 
-// generatePermutation creates a deterministic permutation from entropy.
-func (s *ShuffleMaskObfuscator) generatePermutation(entropy []byte, length int) []int {
-	perm := make([]int, length)
-	for i := range perm {
-		perm[i] = i
+func (obfuscator *ShuffleMaskObfuscator) generatePermutation(entropy []byte, length int) []int {
+	permutation := make([]int, length)
+	for i := range permutation {
+		permutation[i] = i
 	}
 
-	// Use entropy to seed a deterministic shuffle
-	h := sha256.New()
-	h.Write(entropy)
-	h.Write([]byte("permutation"))
-	seed := h.Sum(nil)
+	hashFunction := sha256.New()
+	hashFunction.Write(entropy)
+	hashFunction.Write([]byte("permutation"))
+	seed := hashFunction.Sum(nil)
 
-	// Fisher-Yates shuffle with deterministic randomness
 	for i := length - 1; i > 0; i-- {
-		h.Reset()
-		h.Write(seed)
+		hashFunction.Reset()
+		hashFunction.Write(seed)
 		var iBytes [8]byte
 		binary.BigEndian.PutUint64(iBytes[:], uint64(i))
-		h.Write(iBytes[:])
-		jBytes := h.Sum(nil)
+		hashFunction.Write(iBytes[:])
+		jBytes := hashFunction.Sum(nil)
 		j := int(binary.BigEndian.Uint64(jBytes[:8]) % uint64(i+1))
-		perm[i], perm[j] = perm[j], perm[i]
+		permutation[i], permutation[j] = permutation[j], permutation[i]
 	}
 
-	return perm
+	return permutation
 }
 
-// deriveMask creates a mask byte array from entropy.
-func (s *ShuffleMaskObfuscator) deriveMask(entropy []byte, length int) []byte {
+func (obfuscator *ShuffleMaskObfuscator) deriveMask(entropy []byte, length int) []byte {
 	mask := make([]byte, length)
-	h := sha256.New()
+	hashFunction := sha256.New()
 
 	blockNum := uint64(0)
 	offset := 0
 	for offset < length {
-		h.Reset()
-		h.Write(entropy)
-		h.Write([]byte("mask"))
+		hashFunction.Reset()
+		hashFunction.Write(entropy)
+		hashFunction.Write([]byte("mask"))
 		var blockBytes [8]byte
 		binary.BigEndian.PutUint64(blockBytes[:], blockNum)
-		h.Write(blockBytes[:])
-		block := h.Sum(nil)
+		hashFunction.Write(blockBytes[:])
+		block := hashFunction.Sum(nil)
 
 		copyLen := min(len(block), length-offset)
 		copy(mask[offset:], block[:copyLen])
@@ -227,123 +177,118 @@ func (s *ShuffleMaskObfuscator) deriveMask(entropy []byte, length int) []byte {
 	return mask
 }
 
-// ChaChaPolySigil is a Sigil that encrypts/decrypts data using ChaCha20-Poly1305.
-// It applies pre-obfuscation before encryption to ensure raw plaintext never
-// goes directly to CPU encryption routines.
-//
-// The output format is:
-// [24-byte nonce][encrypted(obfuscated(plaintext))]
-//
-// Unlike demo implementations, the nonce is ONLY embedded in the ciphertext,
-// not exposed separately in headers.
+// Example: cipherSigil, _ := sigil.NewChaChaPolySigil(
+// Example:     []byte("0123456789abcdef0123456789abcdef"),
+// Example:     &sigil.ShuffleMaskObfuscator{},
+// Example: )
 type ChaChaPolySigil struct {
-	Key        []byte
-	Obfuscator PreObfuscator
-	randReader io.Reader // for testing injection
+	key          []byte
+	obfuscator   PreObfuscator
+	randomReader goio.Reader
 }
 
-// NewChaChaPolySigil creates a new encryption sigil with the given key.
-// The key must be exactly 32 bytes.
-func NewChaChaPolySigil(key []byte) (*ChaChaPolySigil, error) {
+// Example: key := cipherSigil.Key()
+func (s *ChaChaPolySigil) Key() []byte {
+	result := make([]byte, len(s.key))
+	copy(result, s.key)
+	return result
+}
+
+// Example: ob := cipherSigil.Obfuscator()
+func (s *ChaChaPolySigil) Obfuscator() PreObfuscator {
+	return s.obfuscator
+}
+
+// Example: cipherSigil.SetObfuscator(nil)
+func (s *ChaChaPolySigil) SetObfuscator(obfuscator PreObfuscator) {
+	s.obfuscator = obfuscator
+}
+
+// Example: cipherSigil, _ := sigil.NewChaChaPolySigil([]byte("0123456789abcdef0123456789abcdef"), nil)
+// Example: ciphertext, _ := cipherSigil.In([]byte("payload"))
+// Example: plaintext, _ := cipherSigil.Out(ciphertext)
+func NewChaChaPolySigil(key []byte, obfuscator PreObfuscator) (*ChaChaPolySigil, error) {
 	if len(key) != 32 {
-		return nil, ErrInvalidKey
+		return nil, InvalidKeyError
 	}
 
 	keyCopy := make([]byte, 32)
 	copy(keyCopy, key)
 
+	if obfuscator == nil {
+		obfuscator = &XORObfuscator{}
+	}
+
 	return &ChaChaPolySigil{
-		Key:        keyCopy,
-		Obfuscator: &XORObfuscator{},
-		randReader: rand.Reader,
+		key:          keyCopy,
+		obfuscator:   obfuscator,
+		randomReader: rand.Reader,
 	}, nil
 }
 
-// NewChaChaPolySigilWithObfuscator creates a new encryption sigil with custom obfuscator.
-func NewChaChaPolySigilWithObfuscator(key []byte, obfuscator PreObfuscator) (*ChaChaPolySigil, error) {
-	sigil, err := NewChaChaPolySigil(key)
-	if err != nil {
-		return nil, err
-	}
-	if obfuscator != nil {
-		sigil.Obfuscator = obfuscator
-	}
-	return sigil, nil
-}
-
-// In encrypts the data with pre-obfuscation.
-// The flow is: plaintext -> obfuscate -> encrypt
 func (s *ChaChaPolySigil) In(data []byte) ([]byte, error) {
-	if s.Key == nil {
-		return nil, ErrNoKeyConfigured
+	if s.key == nil {
+		return nil, NoKeyConfiguredError
 	}
 	if data == nil {
 		return nil, nil
 	}
 
-	aead, err := chacha20poly1305.NewX(s.Key)
+	aead, err := chacha20poly1305.NewX(s.key)
 	if err != nil {
-		return nil, err
+		return nil, core.E("sigil.ChaChaPolySigil.In", "create cipher", err)
 	}
 
-	// Generate nonce
 	nonce := make([]byte, aead.NonceSize())
-	reader := s.randReader
+	reader := s.randomReader
 	if reader == nil {
 		reader = rand.Reader
 	}
-	if _, err := io.ReadFull(reader, nonce); err != nil {
-		return nil, err
+	if _, err := goio.ReadFull(reader, nonce); err != nil {
+		return nil, core.E("sigil.ChaChaPolySigil.In", "read nonce", err)
 	}
 
-	// Pre-obfuscate the plaintext using nonce as entropy
-	// This ensures CPU encryption routines never see raw plaintext
 	obfuscated := data
-	if s.Obfuscator != nil {
-		obfuscated = s.Obfuscator.Obfuscate(data, nonce)
+	if s.obfuscator != nil {
+		obfuscated = s.obfuscator.Obfuscate(data, nonce)
 	}
 
-	// Encrypt the obfuscated data
-	// Output: [nonce | ciphertext | auth tag]
 	ciphertext := aead.Seal(nonce, nonce, obfuscated, nil)
 
 	return ciphertext, nil
 }
 
-// Out decrypts the data and reverses obfuscation.
-// The flow is: decrypt -> deobfuscate -> plaintext
 func (s *ChaChaPolySigil) Out(data []byte) ([]byte, error) {
-	if s.Key == nil {
-		return nil, ErrNoKeyConfigured
+	if s.key == nil {
+		return nil, NoKeyConfiguredError
 	}
 	if data == nil {
 		return nil, nil
 	}
 
-	aead, err := chacha20poly1305.NewX(s.Key)
+	aead, err := chacha20poly1305.NewX(s.key)
 	if err != nil {
-		return nil, err
+		return nil, core.E("sigil.ChaChaPolySigil.Out", "create cipher", err)
 	}
 
 	minLen := aead.NonceSize() + aead.Overhead()
 	if len(data) < minLen {
-		return nil, ErrCiphertextTooShort
+		return nil, CiphertextTooShortError
 	}
 
-	// Extract nonce from ciphertext
 	nonce := data[:aead.NonceSize()]
 	ciphertext := data[aead.NonceSize():]
 
-	// Decrypt
 	obfuscated, err := aead.Open(nil, nonce, ciphertext, nil)
 	if err != nil {
-		return nil, ErrDecryptionFailed
+		// The underlying aead error is intentionally hidden: surfacing raw AEAD errors can
+		// leak oracle information to an attacker. DecryptionFailedError is the safe sentinel.
+		return nil, core.E("sigil.ChaChaPolySigil.Out", "decrypt ciphertext", DecryptionFailedError)
 	}
 
-	// Deobfuscate using the same nonce as entropy
 	plaintext := obfuscated
-	if s.Obfuscator != nil {
-		plaintext = s.Obfuscator.Deobfuscate(obfuscated, nonce)
+	if s.obfuscator != nil {
+		plaintext = s.obfuscator.Deobfuscate(obfuscated, nonce)
 	}
 
 	if len(plaintext) == 0 {
@@ -353,13 +298,11 @@ func (s *ChaChaPolySigil) Out(data []byte) ([]byte, error) {
 	return plaintext, nil
 }
 
-// GetNonceFromCiphertext extracts the nonce from encrypted output.
-// This is provided for debugging/logging purposes only.
-// The nonce should NOT be stored separately in headers.
-func GetNonceFromCiphertext(ciphertext []byte) ([]byte, error) {
+// Example: nonce, _ := sigil.NonceFromCiphertext(ciphertext)
+func NonceFromCiphertext(ciphertext []byte) ([]byte, error) {
 	nonceSize := chacha20poly1305.NonceSizeX
 	if len(ciphertext) < nonceSize {
-		return nil, ErrCiphertextTooShort
+		return nil, CiphertextTooShortError
 	}
 	nonceCopy := make([]byte, nonceSize)
 	copy(nonceCopy, ciphertext[:nonceSize])

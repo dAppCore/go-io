@@ -3,348 +3,358 @@ package store
 import (
 	goio "io"
 	"io/fs"
-	"os"
 	"path"
-	"strings"
+	"slices"
 	"time"
 
-	coreerr "dappco.re/go/core/log"
+	core "dappco.re/go/core"
+	coreio "dappco.re/go/core/io"
 )
 
-// Medium wraps a Store to satisfy the io.Medium interface.
-// Paths are mapped as group/key — first segment is the group,
-// the rest is the key. List("") returns groups as directories,
-// List("group") returns keys as files.
+// ErrNotDirectory is returned by List when the path resolves to a key rather than a group.
+// Example: _, err := medium.List("app/theme") // err == store.ErrNotDirectory
+var ErrNotDirectory = core.E("store", "path is a key, not a directory", fs.ErrInvalid)
+
+// Example: medium, _ := store.NewMedium(store.Options{Path: "config.db"})
+// Example: _ = medium.Write("app/theme", "midnight")
+// Example: entries, _ := medium.List("")
+// Example: entries, _ := medium.List("app")
 type Medium struct {
-	s *Store
+	keyValueStore *KeyValueStore
 }
 
-// NewMedium creates an io.Medium backed by a KV store at the given SQLite path.
-func NewMedium(dbPath string) (*Medium, error) {
-	s, err := New(dbPath)
+var _ coreio.Medium = (*Medium)(nil)
+
+// Example: medium, _ := store.NewMedium(store.Options{Path: "config.db"})
+// Example: _ = medium.Write("app/theme", "midnight")
+func NewMedium(options Options) (*Medium, error) {
+	keyValueStore, err := New(options)
 	if err != nil {
 		return nil, err
 	}
-	return &Medium{s: s}, nil
+	return &Medium{keyValueStore: keyValueStore}, nil
 }
 
-// AsMedium returns a Medium adapter for an existing Store.
-func (s *Store) AsMedium() *Medium {
-	return &Medium{s: s}
+// Example: medium := keyValueStore.AsMedium()
+func (keyValueStore *KeyValueStore) AsMedium() *Medium {
+	return &Medium{keyValueStore: keyValueStore}
 }
 
-// Store returns the underlying KV store for direct access.
-func (m *Medium) Store() *Store {
-	return m.s
+// Example: keyValueStore := medium.KeyValueStore()
+func (medium *Medium) KeyValueStore() *KeyValueStore {
+	return medium.keyValueStore
 }
 
-// Close closes the underlying store.
-func (m *Medium) Close() error {
-	return m.s.Close()
+// Example: _ = medium.Close()
+func (medium *Medium) Close() error {
+	return medium.keyValueStore.Close()
 }
 
-// splitPath splits a medium-style path into group and key.
-// First segment = group, remainder = key.
-func splitPath(p string) (group, key string) {
-	clean := path.Clean(p)
-	clean = strings.TrimPrefix(clean, "/")
+func splitGroupKeyPath(entryPath string) (group, key string) {
+	clean := path.Clean(entryPath)
+	clean = core.TrimPrefix(clean, "/")
 	if clean == "" || clean == "." {
 		return "", ""
 	}
-	parts := strings.SplitN(clean, "/", 2)
+	parts := core.SplitN(clean, "/", 2)
 	if len(parts) == 1 {
 		return parts[0], ""
 	}
 	return parts[0], parts[1]
 }
 
-// Read retrieves the value at group/key.
-func (m *Medium) Read(p string) (string, error) {
-	group, key := splitPath(p)
+func (medium *Medium) Read(entryPath string) (string, error) {
+	group, key := splitGroupKeyPath(entryPath)
 	if key == "" {
-		return "", coreerr.E("store.Read", "path must include group/key", os.ErrInvalid)
+		return "", core.E("store.Read", "path must include group/key", fs.ErrInvalid)
 	}
-	return m.s.Get(group, key)
+	return medium.keyValueStore.Get(group, key)
 }
 
-// Write stores a value at group/key.
-func (m *Medium) Write(p, content string) error {
-	group, key := splitPath(p)
+func (medium *Medium) Write(entryPath, content string) error {
+	group, key := splitGroupKeyPath(entryPath)
 	if key == "" {
-		return coreerr.E("store.Write", "path must include group/key", os.ErrInvalid)
+		return core.E("store.Write", "path must include group/key", fs.ErrInvalid)
 	}
-	return m.s.Set(group, key, content)
+	return medium.keyValueStore.Set(group, key, content)
 }
 
-// EnsureDir is a no-op — groups are created implicitly on Set.
-func (m *Medium) EnsureDir(_ string) error {
+// Example: _ = medium.WriteMode("app/theme", "midnight", 0600)
+// Note: mode is not persisted — the SQLite store has no entry_mode column.
+// Use Write when mode is irrelevant; WriteMode satisfies the Medium interface only.
+func (medium *Medium) WriteMode(entryPath, content string, mode fs.FileMode) error {
+	return medium.Write(entryPath, content)
+}
+
+// Example: _ = medium.EnsureDir("app")
+func (medium *Medium) EnsureDir(entryPath string) error {
 	return nil
 }
 
-// IsFile returns true if a group/key pair exists.
-func (m *Medium) IsFile(p string) bool {
-	group, key := splitPath(p)
+func (medium *Medium) IsFile(entryPath string) bool {
+	group, key := splitGroupKeyPath(entryPath)
 	if key == "" {
 		return false
 	}
-	_, err := m.s.Get(group, key)
+	_, err := medium.keyValueStore.Get(group, key)
 	return err == nil
 }
 
-// FileGet is an alias for Read.
-func (m *Medium) FileGet(p string) (string, error) {
-	return m.Read(p)
-}
-
-// FileSet is an alias for Write.
-func (m *Medium) FileSet(p, content string) error {
-	return m.Write(p, content)
-}
-
-// Delete removes a key, or checks that a group is empty.
-func (m *Medium) Delete(p string) error {
-	group, key := splitPath(p)
+func (medium *Medium) Delete(entryPath string) error {
+	group, key := splitGroupKeyPath(entryPath)
 	if group == "" {
-		return coreerr.E("store.Delete", "path is required", os.ErrInvalid)
+		return core.E("store.Delete", "path is required", fs.ErrInvalid)
 	}
 	if key == "" {
-		n, err := m.s.Count(group)
+		entryCount, err := medium.keyValueStore.Count(group)
 		if err != nil {
 			return err
 		}
-		if n > 0 {
-			return coreerr.E("store.Delete", "group not empty: "+group, os.ErrExist)
+		if entryCount > 0 {
+			return core.E("store.Delete", core.Concat("group not empty: ", group), fs.ErrExist)
 		}
 		return nil
 	}
-	return m.s.Delete(group, key)
+	return medium.keyValueStore.Delete(group, key)
 }
 
-// DeleteAll removes a key, or all keys in a group.
-func (m *Medium) DeleteAll(p string) error {
-	group, key := splitPath(p)
+func (medium *Medium) DeleteAll(entryPath string) error {
+	group, key := splitGroupKeyPath(entryPath)
 	if group == "" {
-		return coreerr.E("store.DeleteAll", "path is required", os.ErrInvalid)
+		return core.E("store.DeleteAll", "path is required", fs.ErrInvalid)
 	}
 	if key == "" {
-		return m.s.DeleteGroup(group)
+		return medium.keyValueStore.DeleteGroup(group)
 	}
-	return m.s.Delete(group, key)
+	return medium.keyValueStore.Delete(group, key)
 }
 
-// Rename moves a key from one path to another.
-func (m *Medium) Rename(oldPath, newPath string) error {
-	og, ok := splitPath(oldPath)
-	ng, nk := splitPath(newPath)
-	if ok == "" || nk == "" {
-		return coreerr.E("store.Rename", "both paths must include group/key", os.ErrInvalid)
+func (medium *Medium) Rename(oldPath, newPath string) error {
+	oldGroup, oldKey := splitGroupKeyPath(oldPath)
+	newGroup, newKey := splitGroupKeyPath(newPath)
+	if oldKey == "" || newKey == "" {
+		return core.E("store.Rename", "both paths must include group/key", fs.ErrInvalid)
 	}
-	val, err := m.s.Get(og, ok)
+	if oldGroup == newGroup && oldKey == newKey {
+		return nil
+	}
+	value, err := medium.keyValueStore.Get(oldGroup, oldKey)
 	if err != nil {
 		return err
 	}
-	if err := m.s.Set(ng, nk, val); err != nil {
+	if err := medium.keyValueStore.Set(newGroup, newKey, value); err != nil {
 		return err
 	}
-	return m.s.Delete(og, ok)
+	return medium.keyValueStore.Delete(oldGroup, oldKey)
 }
 
-// List returns directory entries. Empty path returns groups.
-// A group path returns keys in that group.
-func (m *Medium) List(p string) ([]fs.DirEntry, error) {
-	group, key := splitPath(p)
+// Example: entries, _ := medium.List("app")
+func (medium *Medium) List(entryPath string) ([]fs.DirEntry, error) {
+	group, key := splitGroupKeyPath(entryPath)
 
 	if group == "" {
-		rows, err := m.s.db.Query("SELECT DISTINCT grp FROM kv ORDER BY grp")
+		groups, err := medium.keyValueStore.ListGroups()
 		if err != nil {
-			return nil, coreerr.E("store.List", "query groups", err)
+			return nil, err
 		}
-		defer rows.Close()
-
-		var entries []fs.DirEntry
-		for rows.Next() {
-			var g string
-			if err := rows.Scan(&g); err != nil {
-				return nil, coreerr.E("store.List", "scan", err)
-			}
-			entries = append(entries, &kvDirEntry{name: g, isDir: true})
+		entries := make([]fs.DirEntry, 0, len(groups))
+		for _, groupName := range groups {
+			entries = append(entries, &keyValueDirEntry{name: groupName, isDir: true})
 		}
-		return entries, rows.Err()
+		return entries, nil
 	}
 
 	if key != "" {
-		return nil, nil // leaf node, nothing beneath
+		return nil, ErrNotDirectory
 	}
 
-	all, err := m.s.GetAll(group)
+	all, err := medium.keyValueStore.GetAll(group)
 	if err != nil {
 		return nil, err
 	}
+	// Sort keys so that List returns entries in a deterministic order.
+	keys := make([]string, 0, len(all))
+	for k := range all {
+		keys = append(keys, k)
+	}
+	slices.Sort(keys)
 	var entries []fs.DirEntry
-	for k, v := range all {
-		entries = append(entries, &kvDirEntry{name: k, size: int64(len(v))})
+	for _, k := range keys {
+		entries = append(entries, &keyValueDirEntry{name: k, size: int64(len(all[k]))})
 	}
 	return entries, nil
 }
 
-// Stat returns file info for a group (dir) or key (file).
-func (m *Medium) Stat(p string) (fs.FileInfo, error) {
-	group, key := splitPath(p)
+// Example: info, _ := medium.Stat("app/theme")
+func (medium *Medium) Stat(entryPath string) (fs.FileInfo, error) {
+	group, key := splitGroupKeyPath(entryPath)
 	if group == "" {
-		return nil, coreerr.E("store.Stat", "path is required", os.ErrInvalid)
+		return nil, core.E("store.Stat", "path is required", fs.ErrInvalid)
 	}
 	if key == "" {
-		n, err := m.s.Count(group)
+		entryCount, err := medium.keyValueStore.Count(group)
 		if err != nil {
 			return nil, err
 		}
-		if n == 0 {
-			return nil, coreerr.E("store.Stat", "group not found: "+group, os.ErrNotExist)
+		if entryCount == 0 {
+			return nil, core.E("store.Stat", core.Concat("group not found: ", group), fs.ErrNotExist)
 		}
-		return &kvFileInfo{name: group, isDir: true}, nil
+		return &keyValueFileInfo{name: group, isDir: true}, nil
 	}
-	val, err := m.s.Get(group, key)
+	value, err := medium.keyValueStore.Get(group, key)
 	if err != nil {
 		return nil, err
 	}
-	return &kvFileInfo{name: key, size: int64(len(val))}, nil
+	return &keyValueFileInfo{name: key, size: int64(len(value))}, nil
 }
 
-// Open opens a key for reading.
-func (m *Medium) Open(p string) (fs.File, error) {
-	group, key := splitPath(p)
+func (medium *Medium) Open(entryPath string) (fs.File, error) {
+	group, key := splitGroupKeyPath(entryPath)
 	if key == "" {
-		return nil, coreerr.E("store.Open", "path must include group/key", os.ErrInvalid)
+		return nil, core.E("store.Open", "path must include group/key", fs.ErrInvalid)
 	}
-	val, err := m.s.Get(group, key)
+	value, err := medium.keyValueStore.Get(group, key)
 	if err != nil {
 		return nil, err
 	}
-	return &kvFile{name: key, content: []byte(val)}, nil
+	return &keyValueFile{name: key, content: []byte(value)}, nil
 }
 
-// Create creates or truncates a key. Content is stored on Close.
-func (m *Medium) Create(p string) (goio.WriteCloser, error) {
-	group, key := splitPath(p)
+func (medium *Medium) Create(entryPath string) (goio.WriteCloser, error) {
+	group, key := splitGroupKeyPath(entryPath)
 	if key == "" {
-		return nil, coreerr.E("store.Create", "path must include group/key", os.ErrInvalid)
+		return nil, core.E("store.Create", "path must include group/key", fs.ErrInvalid)
 	}
-	return &kvWriteCloser{s: m.s, group: group, key: key}, nil
+	return &keyValueWriteCloser{keyValueStore: medium.keyValueStore, group: group, key: key}, nil
 }
 
-// Append opens a key for appending. Content is stored on Close.
-func (m *Medium) Append(p string) (goio.WriteCloser, error) {
-	group, key := splitPath(p)
+func (medium *Medium) Append(entryPath string) (goio.WriteCloser, error) {
+	group, key := splitGroupKeyPath(entryPath)
 	if key == "" {
-		return nil, coreerr.E("store.Append", "path must include group/key", os.ErrInvalid)
+		return nil, core.E("store.Append", "path must include group/key", fs.ErrInvalid)
 	}
-	existing, _ := m.s.Get(group, key)
-	return &kvWriteCloser{s: m.s, group: group, key: key, data: []byte(existing)}, nil
+	existingValue, err := medium.keyValueStore.Get(group, key)
+	if err != nil && !core.Is(err, NotFoundError) {
+		return nil, core.E("store.Append", core.Concat("failed to read existing content: ", entryPath), err)
+	}
+	return &keyValueWriteCloser{keyValueStore: medium.keyValueStore, group: group, key: key, data: []byte(existingValue)}, nil
 }
 
-// ReadStream returns a reader for the value.
-func (m *Medium) ReadStream(p string) (goio.ReadCloser, error) {
-	group, key := splitPath(p)
+func (medium *Medium) ReadStream(entryPath string) (goio.ReadCloser, error) {
+	group, key := splitGroupKeyPath(entryPath)
 	if key == "" {
-		return nil, coreerr.E("store.ReadStream", "path must include group/key", os.ErrInvalid)
+		return nil, core.E("store.ReadStream", "path must include group/key", fs.ErrInvalid)
 	}
-	val, err := m.s.Get(group, key)
+	value, err := medium.keyValueStore.Get(group, key)
 	if err != nil {
 		return nil, err
 	}
-	return goio.NopCloser(strings.NewReader(val)), nil
+	return goio.NopCloser(core.NewReader(value)), nil
 }
 
-// WriteStream returns a writer. Content is stored on Close.
-func (m *Medium) WriteStream(p string) (goio.WriteCloser, error) {
-	return m.Create(p)
+func (medium *Medium) WriteStream(entryPath string) (goio.WriteCloser, error) {
+	return medium.Create(entryPath)
 }
 
-// Exists returns true if a group or key exists.
-func (m *Medium) Exists(p string) bool {
-	group, key := splitPath(p)
+func (medium *Medium) Exists(entryPath string) bool {
+	group, key := splitGroupKeyPath(entryPath)
 	if group == "" {
 		return false
 	}
 	if key == "" {
-		n, err := m.s.Count(group)
-		return err == nil && n > 0
+		entryCount, err := medium.keyValueStore.Count(group)
+		return err == nil && entryCount > 0
 	}
-	_, err := m.s.Get(group, key)
+	_, err := medium.keyValueStore.Get(group, key)
 	return err == nil
 }
 
-// IsDir returns true if the path is a group with entries.
-func (m *Medium) IsDir(p string) bool {
-	group, key := splitPath(p)
+func (medium *Medium) IsDir(entryPath string) bool {
+	group, key := splitGroupKeyPath(entryPath)
 	if key != "" || group == "" {
 		return false
 	}
-	n, err := m.s.Count(group)
-	return err == nil && n > 0
+	entryCount, err := medium.keyValueStore.Count(group)
+	return err == nil && entryCount > 0
 }
 
-// --- fs helper types ---
-
-type kvFileInfo struct {
+type keyValueFileInfo struct {
 	name  string
 	size  int64
 	isDir bool
 }
 
-func (fi *kvFileInfo) Name() string       { return fi.name }
-func (fi *kvFileInfo) Size() int64        { return fi.size }
-func (fi *kvFileInfo) Mode() fs.FileMode  { if fi.isDir { return fs.ModeDir | 0755 }; return 0644 }
-func (fi *kvFileInfo) ModTime() time.Time { return time.Time{} }
-func (fi *kvFileInfo) IsDir() bool        { return fi.isDir }
-func (fi *kvFileInfo) Sys() any           { return nil }
+func (fileInfo *keyValueFileInfo) Name() string { return fileInfo.name }
 
-type kvDirEntry struct {
+func (fileInfo *keyValueFileInfo) Size() int64 { return fileInfo.size }
+
+func (fileInfo *keyValueFileInfo) Mode() fs.FileMode {
+	if fileInfo.isDir {
+		return fs.ModeDir | 0755
+	}
+	return 0644
+}
+
+func (fileInfo *keyValueFileInfo) ModTime() time.Time { return time.Time{} }
+
+func (fileInfo *keyValueFileInfo) IsDir() bool { return fileInfo.isDir }
+
+func (fileInfo *keyValueFileInfo) Sys() any { return nil }
+
+type keyValueDirEntry struct {
 	name  string
 	isDir bool
 	size  int64
 }
 
-func (de *kvDirEntry) Name() string              { return de.name }
-func (de *kvDirEntry) IsDir() bool               { return de.isDir }
-func (de *kvDirEntry) Type() fs.FileMode         { if de.isDir { return fs.ModeDir }; return 0 }
-func (de *kvDirEntry) Info() (fs.FileInfo, error) {
-	return &kvFileInfo{name: de.name, size: de.size, isDir: de.isDir}, nil
+func (entry *keyValueDirEntry) Name() string { return entry.name }
+
+func (entry *keyValueDirEntry) IsDir() bool { return entry.isDir }
+
+func (entry *keyValueDirEntry) Type() fs.FileMode {
+	if entry.isDir {
+		return fs.ModeDir
+	}
+	return 0
 }
 
-type kvFile struct {
+func (entry *keyValueDirEntry) Info() (fs.FileInfo, error) {
+	return &keyValueFileInfo{name: entry.name, size: entry.size, isDir: entry.isDir}, nil
+}
+
+type keyValueFile struct {
 	name    string
 	content []byte
 	offset  int64
 }
 
-func (f *kvFile) Stat() (fs.FileInfo, error) {
-	return &kvFileInfo{name: f.name, size: int64(len(f.content))}, nil
+func (file *keyValueFile) Stat() (fs.FileInfo, error) {
+	return &keyValueFileInfo{name: file.name, size: int64(len(file.content))}, nil
 }
 
-func (f *kvFile) Read(b []byte) (int, error) {
-	if f.offset >= int64(len(f.content)) {
+func (file *keyValueFile) Read(buffer []byte) (int, error) {
+	if file.offset >= int64(len(file.content)) {
 		return 0, goio.EOF
 	}
-	n := copy(b, f.content[f.offset:])
-	f.offset += int64(n)
-	return n, nil
+	readCount := copy(buffer, file.content[file.offset:])
+	file.offset += int64(readCount)
+	return readCount, nil
 }
 
-func (f *kvFile) Close() error { return nil }
+func (file *keyValueFile) Close() error { return nil }
 
-type kvWriteCloser struct {
-	s     *Store
+type keyValueWriteCloser struct {
+	keyValueStore *KeyValueStore
 	group string
 	key   string
 	data  []byte
 }
 
-func (w *kvWriteCloser) Write(p []byte) (int, error) {
-	w.data = append(w.data, p...)
-	return len(p), nil
+func (writer *keyValueWriteCloser) Write(data []byte) (int, error) {
+	writer.data = append(writer.data, data...)
+	return len(data), nil
 }
 
-func (w *kvWriteCloser) Close() error {
-	return w.s.Set(w.group, w.key, string(w.data))
+func (writer *keyValueWriteCloser) Close() error {
+	return writer.keyValueStore.Set(writer.group, writer.key, string(writer.data))
 }

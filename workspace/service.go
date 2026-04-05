@@ -2,190 +2,280 @@ package workspace
 
 import (
 	"crypto/sha256"
-	"encoding/hex"
-	"os"
-	"strings"
+	goio "io"
+	"io/fs"
 	"sync"
 
 	core "dappco.re/go/core"
-	coreerr "dappco.re/go/core/log"
+	"golang.org/x/crypto/hkdf"
 
 	"dappco.re/go/core/io"
+	"dappco.re/go/core/io/sigil"
 )
 
-// Workspace provides management for encrypted user workspaces.
+// Example: service, _ := workspace.New(workspace.Options{KeyPairProvider: keyPairProvider})
 type Workspace interface {
-	CreateWorkspace(identifier, password string) (string, error)
-	SwitchWorkspace(name string) error
-	WorkspaceFileGet(filename string) (string, error)
-	WorkspaceFileSet(filename, content string) error
+	CreateWorkspace(identifier, passphrase string) (string, error)
+	SwitchWorkspace(workspaceID string) error
+	ReadWorkspaceFile(workspaceFilePath string) (string, error)
+	WriteWorkspaceFile(workspaceFilePath, content string) error
 }
 
-// cryptProvider is the interface for PGP key generation.
-type cryptProvider interface {
-	CreateKeyPair(name, passphrase string) (string, error)
+// Example: key, _ := keyPairProvider.CreateKeyPair("alice", "pass123")
+type KeyPairProvider interface {
+	CreateKeyPair(identifier, passphrase string) (string, error)
 }
 
-// Service implements the Workspace interface.
+const (
+	WorkspaceCreateAction = "workspace.create"
+	WorkspaceSwitchAction = "workspace.switch"
+)
+
+// Example: command := WorkspaceCommand{Action: WorkspaceCreateAction, Identifier: "alice", Password: "pass123"}
+type WorkspaceCommand struct {
+	Action      string
+	Identifier  string
+	Password    string
+	WorkspaceID string
+}
+
+// Example: service, _ := workspace.New(workspace.Options{
+// Example:     KeyPairProvider: keyPairProvider,
+// Example:     RootPath: "/srv/workspaces",
+// Example:     Medium: io.NewMemoryMedium(),
+// Example:     Core: c,
+// Example: })
+type Options struct {
+	KeyPairProvider KeyPairProvider
+	RootPath        string
+	Medium          io.Medium
+	// Example: service, _ := workspace.New(workspace.Options{Core: core.New()})
+	Core *core.Core
+}
+
+// Example: service, _ := workspace.New(workspace.Options{KeyPairProvider: keyPairProvider})
 type Service struct {
-	core            *core.Core
-	crypt           cryptProvider
-	activeWorkspace string
-	rootPath        string
-	medium          io.Medium
-	mu              sync.RWMutex
+	keyPairProvider   KeyPairProvider
+	activeWorkspaceID string
+	rootPath          string
+	medium            io.Medium
+	stateLock         sync.RWMutex
 }
 
-// New creates a new Workspace service instance.
-// An optional cryptProvider can be passed to supply PGP key generation.
-func New(c *core.Core, crypt ...cryptProvider) (any, error) {
-	home := workspaceHome()
-	if home == "" {
-		return nil, coreerr.E("workspace.New", "failed to determine home directory", os.ErrNotExist)
-	}
-	rootPath := core.Path(home, ".core", "workspaces")
+var _ Workspace = (*Service)(nil)
 
-	s := &Service{
-		core:     c,
-		rootPath: rootPath,
-		medium:   io.Local,
-	}
-
-	if len(crypt) > 0 && crypt[0] != nil {
-		s.crypt = crypt[0]
-	}
-
-	if err := s.medium.EnsureDir(rootPath); err != nil {
-		return nil, coreerr.E("workspace.New", "failed to ensure root directory", err)
+// Example: service, _ := workspace.New(workspace.Options{
+// Example:     KeyPairProvider: keyPairProvider,
+// Example:     RootPath: "/srv/workspaces",
+// Example:     Medium: io.NewMemoryMedium(),
+// Example: })
+// Example: workspaceID, _ := service.CreateWorkspace("alice", "pass123")
+func New(options Options) (*Service, error) {
+	rootPath := options.RootPath
+	if rootPath == "" {
+		home := resolveWorkspaceHomeDirectory()
+		if home == "" {
+			return nil, core.E("workspace.New", "failed to determine home directory", fs.ErrNotExist)
+		}
+		rootPath = core.Path(home, ".core", "workspaces")
 	}
 
-	return s, nil
+	if options.KeyPairProvider == nil {
+		return nil, core.E("workspace.New", "key pair provider is required", fs.ErrInvalid)
+	}
+
+	medium := options.Medium
+	if medium == nil {
+		medium = io.Local
+	}
+	if medium == nil {
+		return nil, core.E("workspace.New", "storage medium is required", fs.ErrInvalid)
+	}
+
+	service := &Service{
+		keyPairProvider: options.KeyPairProvider,
+		rootPath:        rootPath,
+		medium:          medium,
+	}
+
+	if err := service.medium.EnsureDir(rootPath); err != nil {
+		return nil, core.E("workspace.New", "failed to ensure root directory", err)
+	}
+
+	if options.Core != nil {
+		options.Core.RegisterAction(service.HandleWorkspaceMessage)
+	}
+
+	return service, nil
 }
 
-// CreateWorkspace creates a new encrypted workspace.
-// Identifier is hashed (SHA-256) to create the directory name.
-// A PGP keypair is generated using the password.
-func (s *Service) CreateWorkspace(identifier, password string) (string, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+// Example: workspaceID, _ := service.CreateWorkspace("alice", "pass123")
+func (service *Service) CreateWorkspace(identifier, passphrase string) (string, error) {
+	service.stateLock.Lock()
+	defer service.stateLock.Unlock()
 
-	if s.crypt == nil {
-		return "", coreerr.E("workspace.CreateWorkspace", "crypt service not available", nil)
+	if service.keyPairProvider == nil {
+		return "", core.E("workspace.CreateWorkspace", "key pair provider not available", fs.ErrInvalid)
 	}
 
 	hash := sha256.Sum256([]byte(identifier))
-	wsID := hex.EncodeToString(hash[:])
-	wsPath, err := s.workspacePath("workspace.CreateWorkspace", wsID)
+	workspaceID := hex.EncodeToString(hash[:])
+	workspaceDirectory, err := service.resolveWorkspaceDirectory("workspace.CreateWorkspace", workspaceID)
 	if err != nil {
 		return "", err
 	}
 
-	if s.medium.Exists(wsPath) {
-		return "", coreerr.E("workspace.CreateWorkspace", "workspace already exists", nil)
+	if service.medium.Exists(workspaceDirectory) {
+		return "", core.E("workspace.CreateWorkspace", "workspace already exists", fs.ErrExist)
 	}
 
-	for _, d := range []string{"config", "log", "data", "files", "keys"} {
-		if err := s.medium.EnsureDir(core.Path(wsPath, d)); err != nil {
-			return "", coreerr.E("workspace.CreateWorkspace", "failed to create directory: "+d, err)
+	for _, directoryName := range []string{"config", "log", "data", "files", "keys"} {
+		if err := service.medium.EnsureDir(core.Path(workspaceDirectory, directoryName)); err != nil {
+			return "", core.E("workspace.CreateWorkspace", core.Concat("failed to create directory: ", directoryName), err)
 		}
 	}
 
-	privKey, err := s.crypt.CreateKeyPair(identifier, password)
+	privateKey, err := service.keyPairProvider.CreateKeyPair(identifier, passphrase)
 	if err != nil {
-		return "", coreerr.E("workspace.CreateWorkspace", "failed to generate keys", err)
+		return "", core.E("workspace.CreateWorkspace", "failed to generate keys", err)
 	}
 
-	if err := s.medium.WriteMode(core.Path(wsPath, "keys", "private.key"), privKey, 0600); err != nil {
-		return "", coreerr.E("workspace.CreateWorkspace", "failed to save private key", err)
+	if err := service.medium.WriteMode(core.Path(workspaceDirectory, "keys", "private.key"), privateKey, 0600); err != nil {
+		return "", core.E("workspace.CreateWorkspace", "failed to save private key", err)
 	}
 
-	return wsID, nil
+	return workspaceID, nil
 }
 
-// SwitchWorkspace changes the active workspace.
-func (s *Service) SwitchWorkspace(name string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+// Example: _ = service.SwitchWorkspace(workspaceID)
+func (service *Service) SwitchWorkspace(workspaceID string) error {
+	service.stateLock.Lock()
+	defer service.stateLock.Unlock()
 
-	wsPath, err := s.workspacePath("workspace.SwitchWorkspace", name)
+	workspaceDirectory, err := service.resolveWorkspaceDirectory("workspace.SwitchWorkspace", workspaceID)
 	if err != nil {
 		return err
 	}
-	if !s.medium.IsDir(wsPath) {
-		return coreerr.E("workspace.SwitchWorkspace", "workspace not found: "+name, nil)
+	if !service.medium.IsDir(workspaceDirectory) {
+		return core.E("workspace.SwitchWorkspace", core.Concat("workspace not found: ", workspaceID), fs.ErrNotExist)
 	}
 
-	s.activeWorkspace = core.PathBase(wsPath)
+	service.activeWorkspaceID = core.PathBase(workspaceDirectory)
 	return nil
 }
 
-// activeFilePath returns the full path to a file in the active workspace,
-// or an error if no workspace is active.
-func (s *Service) activeFilePath(op, filename string) (string, error) {
-	if s.activeWorkspace == "" {
-		return "", coreerr.E(op, "no active workspace", nil)
+func (service *Service) resolveActiveWorkspaceFilePath(operation, workspaceFilePath string) (string, error) {
+	if service.activeWorkspaceID == "" {
+		return "", core.E(operation, "no active workspace", fs.ErrNotExist)
 	}
-	filesRoot := core.Path(s.rootPath, s.activeWorkspace, "files")
-	path, err := joinWithinRoot(filesRoot, filename)
+	filesRoot := core.Path(service.rootPath, service.activeWorkspaceID, "files")
+	filePath, err := joinPathWithinRoot(filesRoot, workspaceFilePath)
 	if err != nil {
-		return "", coreerr.E(op, "file path escapes workspace files", os.ErrPermission)
+		return "", core.E(operation, "file path escapes workspace files", fs.ErrPermission)
 	}
-	if path == filesRoot {
-		return "", coreerr.E(op, "filename is required", os.ErrInvalid)
+	if filePath == filesRoot {
+		return "", core.E(operation, "workspace file path is required", fs.ErrInvalid)
 	}
-	return path, nil
+	return filePath, nil
 }
 
-// WorkspaceFileGet retrieves the content of a file from the active workspace.
-func (s *Service) WorkspaceFileGet(filename string) (string, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+// Example: cipherSigil, _ := service.workspaceCipherSigil("workspace.ReadWorkspaceFile")
+func (service *Service) workspaceCipherSigil(operation string) (*sigil.ChaChaPolySigil, error) {
+	if service.activeWorkspaceID == "" {
+		return nil, core.E(operation, "no active workspace", fs.ErrNotExist)
+	}
+	keyPath := core.Path(service.rootPath, service.activeWorkspaceID, "keys", "private.key")
+	rawKey, err := service.medium.Read(keyPath)
+	if err != nil {
+		return nil, core.E(operation, "failed to read workspace key", err)
+	}
+	// Use HKDF (RFC 5869) for key derivation: it is purpose-bound, domain-separated,
+	// and more resistant to length-extension attacks than a bare SHA-256 hash.
+	hkdfReader := hkdf.New(sha256.New, []byte(rawKey), nil, []byte("workspace-cipher-key"))
+	derived := make([]byte, 32)
+	if _, err := goio.ReadFull(hkdfReader, derived); err != nil {
+		return nil, core.E(operation, "failed to derive workspace key", err)
+	}
+	cipherSigil, err := sigil.NewChaChaPolySigil(derived, nil)
+	if err != nil {
+		return nil, core.E(operation, "failed to create cipher sigil", err)
+	}
+	return cipherSigil, nil
+}
 
-	path, err := s.activeFilePath("workspace.WorkspaceFileGet", filename)
+// Example: content, _ := service.ReadWorkspaceFile("notes/todo.txt")
+func (service *Service) ReadWorkspaceFile(workspaceFilePath string) (string, error) {
+	service.stateLock.RLock()
+	defer service.stateLock.RUnlock()
+
+	filePath, err := service.resolveActiveWorkspaceFilePath("workspace.ReadWorkspaceFile", workspaceFilePath)
 	if err != nil {
 		return "", err
 	}
-	return s.medium.Read(path)
+	cipherSigil, err := service.workspaceCipherSigil("workspace.ReadWorkspaceFile")
+	if err != nil {
+		return "", err
+	}
+	encoded, err := service.medium.Read(filePath)
+	if err != nil {
+		return "", err
+	}
+	plaintext, err := sigil.Untransmute([]byte(encoded), []sigil.Sigil{cipherSigil})
+	if err != nil {
+		return "", core.E("workspace.ReadWorkspaceFile", "failed to decrypt file content", err)
+	}
+	return string(plaintext), nil
 }
 
-// WorkspaceFileSet saves content to a file in the active workspace.
-func (s *Service) WorkspaceFileSet(filename, content string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+// Example: _ = service.WriteWorkspaceFile("notes/todo.txt", "ship it")
+func (service *Service) WriteWorkspaceFile(workspaceFilePath, content string) error {
+	service.stateLock.Lock()
+	defer service.stateLock.Unlock()
 
-	path, err := s.activeFilePath("workspace.WorkspaceFileSet", filename)
+	filePath, err := service.resolveActiveWorkspaceFilePath("workspace.WriteWorkspaceFile", workspaceFilePath)
 	if err != nil {
 		return err
 	}
-	return s.medium.Write(path, content)
-}
-
-// HandleIPCEvents handles workspace-related IPC messages.
-func (s *Service) HandleIPCEvents(c *core.Core, msg core.Message) core.Result {
-	switch m := msg.(type) {
-	case map[string]any:
-		action, _ := m["action"].(string)
-		switch action {
-		case "workspace.create":
-			id, _ := m["identifier"].(string)
-			pass, _ := m["password"].(string)
-			wsID, err := s.CreateWorkspace(id, pass)
-			if err != nil {
-				return core.Result{}
-			}
-			return core.Result{Value: wsID, OK: true}
-		case "workspace.switch":
-			name, _ := m["name"].(string)
-			if err := s.SwitchWorkspace(name); err != nil {
-				return core.Result{}
-			}
-			return core.Result{OK: true}
-		}
+	cipherSigil, err := service.workspaceCipherSigil("workspace.WriteWorkspaceFile")
+	if err != nil {
+		return err
 	}
-	return core.Result{OK: true}
+	ciphertext, err := sigil.Transmute([]byte(content), []sigil.Sigil{cipherSigil})
+	if err != nil {
+		return core.E("workspace.WriteWorkspaceFile", "failed to encrypt file content", err)
+	}
+	return service.medium.Write(filePath, string(ciphertext))
 }
 
-func workspaceHome() string {
+// Example: commandResult := service.HandleWorkspaceCommand(WorkspaceCommand{Action: WorkspaceCreateAction, Identifier: "alice", Password: "pass123"})
+func (service *Service) HandleWorkspaceCommand(command WorkspaceCommand) core.Result {
+	switch command.Action {
+	case WorkspaceCreateAction:
+		passphrase := command.Password
+		workspaceID, err := service.CreateWorkspace(command.Identifier, passphrase)
+		if err != nil {
+			return core.Result{}.New(err)
+		}
+		return core.Result{Value: workspaceID, OK: true}
+	case WorkspaceSwitchAction:
+		if err := service.SwitchWorkspace(command.WorkspaceID); err != nil {
+			return core.Result{}.New(err)
+		}
+		return core.Result{OK: true}
+	}
+	return core.Result{}.New(core.E("workspace.HandleWorkspaceCommand", core.Concat("unsupported action: ", command.Action), fs.ErrInvalid))
+}
+
+// Example: result := service.HandleWorkspaceMessage(core.New(), WorkspaceCommand{Action: WorkspaceSwitchAction, WorkspaceID: "f3f0d7"})
+func (service *Service) HandleWorkspaceMessage(_ *core.Core, message core.Message) core.Result {
+	switch command := message.(type) {
+	case WorkspaceCommand:
+		return service.HandleWorkspaceCommand(command)
+	}
+	return core.Result{}.New(core.E("workspace.HandleWorkspaceMessage", "unsupported message type", fs.ErrInvalid))
+}
+
+func resolveWorkspaceHomeDirectory() string {
 	if home := core.Env("CORE_HOME"); home != "" {
 		return home
 	}
@@ -195,28 +285,31 @@ func workspaceHome() string {
 	return core.Env("DIR_HOME")
 }
 
-func joinWithinRoot(root string, parts ...string) (string, error) {
+func joinPathWithinRoot(root string, parts ...string) (string, error) {
 	candidate := core.Path(append([]string{root}, parts...)...)
-	sep := core.Env("DS")
-	if candidate == root || strings.HasPrefix(candidate, root+sep) {
+	separator := core.Env("CORE_PATH_SEPARATOR")
+	if separator == "" {
+		separator = core.Env("DS")
+	}
+	if separator == "" {
+		separator = "/"
+	}
+	if candidate == root || core.HasPrefix(candidate, root+separator) {
 		return candidate, nil
 	}
-	return "", os.ErrPermission
+	return "", fs.ErrPermission
 }
 
-func (s *Service) workspacePath(op, name string) (string, error) {
-	if name == "" {
-		return "", coreerr.E(op, "workspace name is required", os.ErrInvalid)
+func (service *Service) resolveWorkspaceDirectory(operation, workspaceID string) (string, error) {
+	if workspaceID == "" {
+		return "", core.E(operation, "workspace id is required", fs.ErrInvalid)
 	}
-	path, err := joinWithinRoot(s.rootPath, name)
+	workspaceDirectory, err := joinPathWithinRoot(service.rootPath, workspaceID)
 	if err != nil {
-		return "", coreerr.E(op, "workspace path escapes root", err)
+		return "", core.E(operation, "workspace path escapes root", err)
 	}
-	if core.PathDir(path) != s.rootPath {
-		return "", coreerr.E(op, "invalid workspace name: "+name, os.ErrPermission)
+	if core.PathDir(workspaceDirectory) != service.rootPath {
+		return "", core.E(operation, core.Concat("invalid workspace id: ", workspaceID), fs.ErrPermission)
 	}
-	return path, nil
+	return workspaceDirectory, nil
 }
-
-// Ensure Service implements Workspace.
-var _ Workspace = (*Service)(nil)

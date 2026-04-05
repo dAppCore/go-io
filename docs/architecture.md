@@ -25,7 +25,7 @@ The `Medium` interface is defined in `io.go`. It is the only type that consuming
 - **`io.Local`** — a package-level variable initialised in `init()` via `local.New("/")`. This gives unsandboxed access to the host filesystem, mirroring the behaviour of the standard `os` package.
 - **`io.NewSandboxed(root)`** — creates a `local.Medium` restricted to `root`. All path resolution is confined within that directory.
 - **`io.Copy(src, srcPath, dst, dstPath)`** — copies a file between any two mediums by reading from one and writing to the other.
-- **`io.MockMedium`** — a fully functional in-memory implementation for unit tests. It tracks files, directories, and modification times in plain maps.
+- **`io.NewMemoryMedium()`** — a fully functional in-memory implementation for unit tests. It tracks files, directories, and modification times in plain maps.
 
 ### FileInfo and DirEntry (root package)
 
@@ -36,7 +36,7 @@ Simple struct implementations of `fs.FileInfo` and `fs.DirEntry` are exported fr
 
 ### local.Medium
 
-**File:** `local/client.go`
+**File:** `local/medium.go`
 
 The local backend wraps the standard `os` package with two layers of path protection:
 
@@ -60,7 +60,7 @@ The S3 backend translates `Medium` operations into AWS SDK calls. Key design dec
 - **Directory semantics:** S3 has no real directories. `EnsureDir` is a no-op. `IsDir` and `Exists` for directory-like paths use `ListObjectsV2` with `MaxKeys: 1` to check for objects under the prefix.
 - **Rename:** Implemented as copy-then-delete, since S3 has no atomic rename.
 - **Append:** Downloads existing content, appends in memory, re-uploads on `Close()`. This is the only viable approach given S3's immutable-object model.
-- **Testability:** The `s3API` interface (unexported) abstracts the six SDK methods used. Tests inject a `mockS3` that stores objects in a `map[string][]byte` with a `sync.RWMutex`.
+- **Testability:** The `Client` interface abstracts the six SDK methods used. Tests inject a `mockS3` that stores objects in a `map[string][]byte` with a `sync.RWMutex`.
 
 ### sqlite.Medium
 
@@ -81,7 +81,7 @@ CREATE TABLE IF NOT EXISTS files (
 - **WAL mode** is enabled at connection time for better concurrent read performance.
 - **Path cleaning** uses the same `path.Clean("/" + p)` pattern as other backends.
 - **Rename** is transactional: it reads the source row, inserts at the destination, deletes the source, and moves all children (if it is a directory) within a single transaction.
-- **Custom tables** are supported via `WithTable("name")` to allow multiple logical filesystems in one database.
+- **Custom tables** are supported via `sqlite.Options{Path: ":memory:", Table: "name"}` to allow multiple logical filesystems in one database.
 - **`:memory:`** databases work out of the box for tests.
 
 ### node.Node
@@ -94,13 +94,13 @@ Key capabilities beyond `Medium`:
 
 - **`ToTar()` / `FromTar()`** — serialise the entire tree to a tar archive and back. This enables snapshotting, transport, and archival.
 - **`Walk()` with `WalkOptions`** — extends `fs.WalkDir` with `MaxDepth`, `Filter`, and `SkipErrors` controls.
-- **`CopyFile(src, dst, perm)`** — copies a file from the in-memory tree to the real filesystem.
+- **`ExportFile(src, dst, perm)`** — exports a file from the in-memory tree to the local filesystem. Use `CopyTo` for Medium-agnostic transfers.
 - **`CopyTo(target Medium, src, dst)`** — copies a file or directory tree to any other `Medium`.
 - **`ReadFile(name)`** — returns a defensive copy of file content, preventing callers from mutating internal state.
 
 ### datanode.Medium
 
-**File:** `datanode/client.go`
+**File:** `datanode/medium.go`
 
 A thread-safe `Medium` backed by Borg's `DataNode` (an in-memory `fs.FS` with tar serialisation). It adds:
 
@@ -117,7 +117,7 @@ A thread-safe `Medium` backed by Borg's `DataNode` (an in-memory `fs.FS` with ta
 
 The store package provides two complementary APIs:
 
-### Store (key-value)
+### KeyValueStore (key-value)
 
 A group-namespaced key-value store backed by SQLite:
 
@@ -135,22 +135,23 @@ Operations: `Get`, `Set`, `Delete`, `Count`, `DeleteGroup`, `GetAll`, `Render`.
 The `Render` method loads all key-value pairs from a group into a `map[string]string` and executes a Go `text/template` against them:
 
 ```go
-s.Set("user", "pool", "pool.lthn.io:3333")
-s.Set("user", "wallet", "iz...")
-out, _ := s.Render(`{"pool":"{{ .pool }}"}`, "user")
-// out: {"pool":"pool.lthn.io:3333"}
+keyValueStore, _ := store.New(store.Options{Path: ":memory:"})
+keyValueStore.Set("user", "pool", "pool.lthn.io:3333")
+keyValueStore.Set("user", "wallet", "iz...")
+renderedText, _ := keyValueStore.Render(`{"pool":"{{ .pool }}"}`, "user")
+assert.Equal(t, `{"pool":"pool.lthn.io:3333"}`, renderedText)
 ```
 
 ### store.Medium (Medium adapter)
 
-Wraps a `Store` to satisfy the `Medium` interface. Paths are split as `group/key`:
+Wraps a `KeyValueStore` to satisfy the `Medium` interface. Paths are split as `group/key`:
 
 - `Read("config/theme")` calls `Get("config", "theme")`
 - `List("")` returns all groups as directories
 - `List("config")` returns all keys in the `config` group as files
 - `IsDir("config")` returns true if the group has entries
 
-You can create it directly (`NewMedium(":memory:")`) or adapt an existing store (`store.AsMedium()`).
+You can create it directly (`store.NewMedium(store.Options{Path: ":memory:"})`) or adapt an existing store (`keyValueStore.AsMedium()`).
 
 
 ## sigil Package
@@ -163,8 +164,8 @@ The sigil package implements composable, reversible data transformations.
 
 ```go
 type Sigil interface {
-    In(data []byte) ([]byte, error)   // forward transform
-    Out(data []byte) ([]byte, error)  // reverse transform
+    In(data []byte) ([]byte, error)
+    Out(data []byte) ([]byte, error)
 }
 ```
 
@@ -198,10 +199,8 @@ Created via `NewSigil(name)`:
 ### Pipeline Functions
 
 ```go
-// Apply sigils left-to-right.
 encoded, _ := sigil.Transmute(data, []sigil.Sigil{gzipSigil, hexSigil})
 
-// Reverse sigils right-to-left.
 original, _ := sigil.Untransmute(encoded, []sigil.Sigil{gzipSigil, hexSigil})
 ```
 
@@ -230,12 +229,11 @@ The pre-obfuscation layer ensures that raw plaintext patterns are never sent dir
 key := make([]byte, 32)
 rand.Read(key)
 
-s, _ := sigil.NewChaChaPolySigil(key)
-ciphertext, _ := s.In([]byte("secret"))
-plaintext, _ := s.Out(ciphertext)
+cipherSigil, _ := sigil.NewChaChaPolySigil(key, nil)
+ciphertext, _ := cipherSigil.In([]byte("secret"))
+plaintext, _ := cipherSigil.Out(ciphertext)
 
-// With stronger obfuscation:
-s2, _ := sigil.NewChaChaPolySigilWithObfuscator(key, &sigil.ShuffleMaskObfuscator{})
+shuffleCipherSigil, _ := sigil.NewChaChaPolySigil(key, &sigil.ShuffleMaskObfuscator{})
 ```
 
 Each call to `In` generates a fresh random nonce, so encrypting the same plaintext twice produces different ciphertexts.
@@ -270,8 +268,8 @@ Application code
        +-- sqlite.Medium --> modernc.org/sqlite
        +-- node.Node     --> in-memory map + tar serialisation
        +-- datanode.Medium --> Borg DataNode + sync.RWMutex
-       +-- store.Medium  --> store.Store (SQLite KV) --> Medium adapter
-       +-- MockMedium    --> map[string]string (for tests)
+       +-- store.Medium  --> store.KeyValueStore (SQLite KV) --> Medium adapter
+       +-- MemoryMedium   --> map[string]string (for tests)
 ```
 
 Every backend normalises paths using the same `path.Clean("/" + p)` pattern, ensuring consistent behaviour regardless of which backend is in use.

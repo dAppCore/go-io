@@ -4,31 +4,31 @@ import (
 	"testing"
 )
 
-func BenchmarkMockMedium_Write(b *testing.B) {
-	m := NewMockMedium()
+func BenchmarkMemoryMedium_Write(b *testing.B) {
+	medium := NewMemoryMedium()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = m.Write("test.txt", "some content")
+		_ = medium.Write("test.txt", "some content")
 	}
 }
 
-func BenchmarkMockMedium_Read(b *testing.B) {
-	m := NewMockMedium()
-	_ = m.Write("test.txt", "some content")
+func BenchmarkMemoryMedium_Read(b *testing.B) {
+	medium := NewMemoryMedium()
+	_ = medium.Write("test.txt", "some content")
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _ = m.Read("test.txt")
+		_, _ = medium.Read("test.txt")
 	}
 }
 
-func BenchmarkMockMedium_List(b *testing.B) {
-	m := NewMockMedium()
-	_ = m.EnsureDir("dir")
+func BenchmarkMemoryMedium_List(b *testing.B) {
+	medium := NewMemoryMedium()
+	_ = medium.EnsureDir("dir")
 	for i := 0; i < 100; i++ {
-		_ = m.Write("dir/file"+string(rune(i))+".txt", "content")
+		_ = medium.Write("dir/file"+string(rune(i))+".txt", "content")
 	}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _ = m.List("dir")
+		_, _ = medium.List("dir")
 	}
 }

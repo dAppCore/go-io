@@ -1,4 +1,6 @@
-// Package s3 provides an S3-backed implementation of the io.Medium interface.
+// Example: client := awss3.NewFromConfig(aws.Config{Region: "us-east-1"})
+// Example: medium, _ := s3.New(s3.Options{Bucket: "backups", Client: client, Prefix: "daily/"})
+// Example: _ = medium.Write("reports/daily.txt", "done")
 package s3
 
 import (
@@ -6,35 +8,44 @@ import (
 	"context"
 	goio "io"
 	"io/fs"
-	"os"
 	"path"
-	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
+	awss3 "github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 
-	coreerr "dappco.re/go/core/log"
+	core "dappco.re/go/core"
+	coreio "dappco.re/go/core/io"
 )
 
-// s3API is the subset of the S3 client API used by this package.
-// This allows for interface-based mocking in tests.
-type s3API interface {
-	GetObject(ctx context.Context, params *s3.GetObjectInput, optFns ...func(*s3.Options)) (*s3.GetObjectOutput, error)
-	PutObject(ctx context.Context, params *s3.PutObjectInput, optFns ...func(*s3.Options)) (*s3.PutObjectOutput, error)
-	DeleteObject(ctx context.Context, params *s3.DeleteObjectInput, optFns ...func(*s3.Options)) (*s3.DeleteObjectOutput, error)
-	DeleteObjects(ctx context.Context, params *s3.DeleteObjectsInput, optFns ...func(*s3.Options)) (*s3.DeleteObjectsOutput, error)
-	HeadObject(ctx context.Context, params *s3.HeadObjectInput, optFns ...func(*s3.Options)) (*s3.HeadObjectOutput, error)
-	ListObjectsV2(ctx context.Context, params *s3.ListObjectsV2Input, optFns ...func(*s3.Options)) (*s3.ListObjectsV2Output, error)
-	CopyObject(ctx context.Context, params *s3.CopyObjectInput, optFns ...func(*s3.Options)) (*s3.CopyObjectOutput, error)
+// Example: client := awss3.NewFromConfig(aws.Config{Region: "us-east-1"})
+// Example: medium, _ := s3.New(s3.Options{Bucket: "backups", Client: client, Prefix: "daily/"})
+type Client interface {
+	GetObject(ctx context.Context, params *awss3.GetObjectInput, optFns ...func(*awss3.Options)) (*awss3.GetObjectOutput, error)
+	PutObject(ctx context.Context, params *awss3.PutObjectInput, optFns ...func(*awss3.Options)) (*awss3.PutObjectOutput, error)
+	DeleteObject(ctx context.Context, params *awss3.DeleteObjectInput, optFns ...func(*awss3.Options)) (*awss3.DeleteObjectOutput, error)
+	DeleteObjects(ctx context.Context, params *awss3.DeleteObjectsInput, optFns ...func(*awss3.Options)) (*awss3.DeleteObjectsOutput, error)
+	HeadObject(ctx context.Context, params *awss3.HeadObjectInput, optFns ...func(*awss3.Options)) (*awss3.HeadObjectOutput, error)
+	ListObjectsV2(ctx context.Context, params *awss3.ListObjectsV2Input, optFns ...func(*awss3.Options)) (*awss3.ListObjectsV2Output, error)
+	CopyObject(ctx context.Context, params *awss3.CopyObjectInput, optFns ...func(*awss3.Options)) (*awss3.CopyObjectOutput, error)
 }
 
-// Medium is an S3-backed storage backend implementing the io.Medium interface.
+// Example: medium, _ := s3.New(s3.Options{Bucket: "backups", Client: client, Prefix: "daily/"})
+// Example: _ = medium.Write("reports/daily.txt", "done")
 type Medium struct {
-	client s3API
+	client Client
 	bucket string
 	prefix string
+}
+
+var _ coreio.Medium = (*Medium)(nil)
+
+// Example: medium, _ := s3.New(s3.Options{Bucket: "backups", Client: client, Prefix: "daily/"})
+type Options struct {
+	Bucket string
+	Client Client
+	Prefix string
 }
 
 func deleteObjectsError(prefix string, errs []types.Error) error {
@@ -42,296 +53,275 @@ func deleteObjectsError(prefix string, errs []types.Error) error {
 		return nil
 	}
 	details := make([]string, 0, len(errs))
-	for _, item := range errs {
-		key := aws.ToString(item.Key)
-		code := aws.ToString(item.Code)
-		msg := aws.ToString(item.Message)
+	for _, errorItem := range errs {
+		key := aws.ToString(errorItem.Key)
+		code := aws.ToString(errorItem.Code)
+		message := aws.ToString(errorItem.Message)
 		switch {
-		case code != "" && msg != "":
-			details = append(details, key+": "+code+" "+msg)
+		case code != "" && message != "":
+			details = append(details, core.Concat(key, ": ", code, " ", message))
 		case code != "":
-			details = append(details, key+": "+code)
-		case msg != "":
-			details = append(details, key+": "+msg)
+			details = append(details, core.Concat(key, ": ", code))
+		case message != "":
+			details = append(details, core.Concat(key, ": ", message))
 		default:
 			details = append(details, key)
 		}
 	}
-	return coreerr.E("s3.DeleteAll", "partial delete failed under "+prefix+": "+strings.Join(details, "; "), nil)
+	return core.E("s3.DeleteAll", core.Concat("partial delete failed under ", prefix, ": ", core.Join("; ", details...)), nil)
 }
 
-// Option configures a Medium.
-type Option func(*Medium)
-
-// WithPrefix sets an optional key prefix for all operations.
-func WithPrefix(prefix string) Option {
-	return func(m *Medium) {
-		// Ensure prefix ends with "/" if non-empty
-		if prefix != "" && !strings.HasSuffix(prefix, "/") {
-			prefix += "/"
-		}
-		m.prefix = prefix
+func normalisePrefix(prefix string) string {
+	if prefix == "" {
+		return ""
 	}
+	clean := path.Clean("/" + prefix)
+	if clean == "/" {
+		return ""
+	}
+	clean = core.TrimPrefix(clean, "/")
+	if clean != "" && !core.HasSuffix(clean, "/") {
+		clean += "/"
+	}
+	return clean
 }
 
-// WithClient sets the S3 client for dependency injection.
-func WithClient(client *s3.Client) Option {
-	return func(m *Medium) {
-		m.client = client
+// Example: medium, _ := s3.New(s3.Options{Bucket: "backups", Client: client, Prefix: "daily/"})
+// Example: _ = medium.Write("reports/daily.txt", "done")
+func New(options Options) (*Medium, error) {
+	if options.Bucket == "" {
+		return nil, core.E("s3.New", "bucket name is required", fs.ErrInvalid)
 	}
+	if options.Client == nil {
+		return nil, core.E("s3.New", "client is required", fs.ErrInvalid)
+	}
+	medium := &Medium{
+		client: options.Client,
+		bucket: options.Bucket,
+		prefix: normalisePrefix(options.Prefix),
+	}
+	return medium, nil
 }
 
-// withAPI sets the s3API interface directly (for testing with mocks).
-func withAPI(api s3API) Option {
-	return func(m *Medium) {
-		m.client = api
-	}
-}
-
-// New creates a new S3 Medium for the given bucket.
-func New(bucket string, opts ...Option) (*Medium, error) {
-	if bucket == "" {
-		return nil, coreerr.E("s3.New", "bucket name is required", nil)
-	}
-	m := &Medium{bucket: bucket}
-	for _, opt := range opts {
-		opt(m)
-	}
-	if m.client == nil {
-		return nil, coreerr.E("s3.New", "S3 client is required (use WithClient option)", nil)
-	}
-	return m, nil
-}
-
-// key returns the full S3 object key for a given path.
-func (m *Medium) key(p string) string {
-	// Clean the path using a leading "/" to sandbox traversal attempts,
-	// then strip the "/" prefix. This ensures ".." can't escape.
-	clean := path.Clean("/" + p)
+func (medium *Medium) objectKey(filePath string) string {
+	clean := path.Clean("/" + filePath)
 	if clean == "/" {
 		clean = ""
 	}
-	clean = strings.TrimPrefix(clean, "/")
+	clean = core.TrimPrefix(clean, "/")
 
-	if m.prefix == "" {
+	if medium.prefix == "" {
 		return clean
 	}
 	if clean == "" {
-		return m.prefix
+		return medium.prefix
 	}
-	return m.prefix + clean
+	return medium.prefix + clean
 }
 
-// Read retrieves the content of a file as a string.
-func (m *Medium) Read(p string) (string, error) {
-	key := m.key(p)
+// Example: content, _ := medium.Read("reports/daily.txt")
+func (medium *Medium) Read(filePath string) (string, error) {
+	key := medium.objectKey(filePath)
 	if key == "" {
-		return "", coreerr.E("s3.Read", "path is required", os.ErrInvalid)
+		return "", core.E("s3.Read", "path is required", fs.ErrInvalid)
 	}
 
-	out, err := m.client.GetObject(context.Background(), &s3.GetObjectInput{
-		Bucket: aws.String(m.bucket),
+	out, err := medium.client.GetObject(context.Background(), &awss3.GetObjectInput{
+		Bucket: aws.String(medium.bucket),
 		Key:    aws.String(key),
 	})
 	if err != nil {
-		return "", coreerr.E("s3.Read", "failed to get object: "+key, err)
+		return "", core.E("s3.Read", core.Concat("failed to get object: ", key), err)
 	}
 	defer out.Body.Close()
 
 	data, err := goio.ReadAll(out.Body)
 	if err != nil {
-		return "", coreerr.E("s3.Read", "failed to read body: "+key, err)
+		return "", core.E("s3.Read", core.Concat("failed to read body: ", key), err)
 	}
 	return string(data), nil
 }
 
-// Write saves the given content to a file, overwriting it if it exists.
-func (m *Medium) Write(p, content string) error {
-	key := m.key(p)
+// Example: _ = medium.Write("reports/daily.txt", "done")
+func (medium *Medium) Write(filePath, content string) error {
+	key := medium.objectKey(filePath)
 	if key == "" {
-		return coreerr.E("s3.Write", "path is required", os.ErrInvalid)
+		return core.E("s3.Write", "path is required", fs.ErrInvalid)
 	}
 
-	_, err := m.client.PutObject(context.Background(), &s3.PutObjectInput{
-		Bucket: aws.String(m.bucket),
+	_, err := medium.client.PutObject(context.Background(), &awss3.PutObjectInput{
+		Bucket: aws.String(medium.bucket),
 		Key:    aws.String(key),
-		Body:   strings.NewReader(content),
+		Body:   core.NewReader(content),
 	})
 	if err != nil {
-		return coreerr.E("s3.Write", "failed to put object: "+key, err)
+		return core.E("s3.Write", core.Concat("failed to put object: ", key), err)
 	}
 	return nil
 }
 
-// EnsureDir is a no-op for S3 (S3 has no real directories).
-func (m *Medium) EnsureDir(_ string) error {
+// Example: _ = medium.WriteMode("keys/private.key", key, 0600)
+// Note: mode is intentionally ignored — S3 has no POSIX permission model.
+// Use S3 bucket policies and IAM for access control.
+func (medium *Medium) WriteMode(filePath, content string, mode fs.FileMode) error {
+	return medium.Write(filePath, content)
+}
+
+// Example: _ = medium.EnsureDir("reports/2026")
+func (medium *Medium) EnsureDir(directoryPath string) error {
 	return nil
 }
 
-// IsFile checks if a path exists and is a regular file (not a "directory" prefix).
-func (m *Medium) IsFile(p string) bool {
-	key := m.key(p)
+// Example: isFile := medium.IsFile("reports/daily.txt")
+func (medium *Medium) IsFile(filePath string) bool {
+	key := medium.objectKey(filePath)
 	if key == "" {
 		return false
 	}
-	// A "file" in S3 is an object whose key does not end with "/"
-	if strings.HasSuffix(key, "/") {
+	if core.HasSuffix(key, "/") {
 		return false
 	}
-	_, err := m.client.HeadObject(context.Background(), &s3.HeadObjectInput{
-		Bucket: aws.String(m.bucket),
+	_, err := medium.client.HeadObject(context.Background(), &awss3.HeadObjectInput{
+		Bucket: aws.String(medium.bucket),
 		Key:    aws.String(key),
 	})
 	return err == nil
 }
 
-// FileGet is a convenience function that reads a file from the medium.
-func (m *Medium) FileGet(p string) (string, error) {
-	return m.Read(p)
-}
-
-// FileSet is a convenience function that writes a file to the medium.
-func (m *Medium) FileSet(p, content string) error {
-	return m.Write(p, content)
-}
-
-// Delete removes a single object.
-func (m *Medium) Delete(p string) error {
-	key := m.key(p)
+// Example: _ = medium.Delete("reports/daily.txt")
+func (medium *Medium) Delete(filePath string) error {
+	key := medium.objectKey(filePath)
 	if key == "" {
-		return coreerr.E("s3.Delete", "path is required", os.ErrInvalid)
+		return core.E("s3.Delete", "path is required", fs.ErrInvalid)
 	}
 
-	_, err := m.client.DeleteObject(context.Background(), &s3.DeleteObjectInput{
-		Bucket: aws.String(m.bucket),
+	_, err := medium.client.DeleteObject(context.Background(), &awss3.DeleteObjectInput{
+		Bucket: aws.String(medium.bucket),
 		Key:    aws.String(key),
 	})
 	if err != nil {
-		return coreerr.E("s3.Delete", "failed to delete object: "+key, err)
+		return core.E("s3.Delete", core.Concat("failed to delete object: ", key), err)
 	}
 	return nil
 }
 
-// DeleteAll removes all objects under the given prefix.
-func (m *Medium) DeleteAll(p string) error {
-	key := m.key(p)
+// Example: _ = medium.DeleteAll("reports/2026")
+func (medium *Medium) DeleteAll(filePath string) error {
+	key := medium.objectKey(filePath)
 	if key == "" {
-		return coreerr.E("s3.DeleteAll", "path is required", os.ErrInvalid)
+		return core.E("s3.DeleteAll", "path is required", fs.ErrInvalid)
 	}
 
-	// First, try deleting the exact key
-	_, err := m.client.DeleteObject(context.Background(), &s3.DeleteObjectInput{
-		Bucket: aws.String(m.bucket),
+	_, err := medium.client.DeleteObject(context.Background(), &awss3.DeleteObjectInput{
+		Bucket: aws.String(medium.bucket),
 		Key:    aws.String(key),
 	})
 	if err != nil {
-		return coreerr.E("s3.DeleteAll", "failed to delete object: "+key, err)
+		return core.E("s3.DeleteAll", core.Concat("failed to delete object: ", key), err)
 	}
 
-	// Then delete all objects under the prefix
 	prefix := key
-	if !strings.HasSuffix(prefix, "/") {
+	if !core.HasSuffix(prefix, "/") {
 		prefix += "/"
 	}
 
-	paginator := true
+	continueListing := true
 	var continuationToken *string
 
-	for paginator {
-		listOut, err := m.client.ListObjectsV2(context.Background(), &s3.ListObjectsV2Input{
-			Bucket:            aws.String(m.bucket),
+	for continueListing {
+		listOutput, err := medium.client.ListObjectsV2(context.Background(), &awss3.ListObjectsV2Input{
+			Bucket:            aws.String(medium.bucket),
 			Prefix:            aws.String(prefix),
 			ContinuationToken: continuationToken,
 		})
 		if err != nil {
-			return coreerr.E("s3.DeleteAll", "failed to list objects: "+prefix, err)
+			return core.E("s3.DeleteAll", core.Concat("failed to list objects: ", prefix), err)
 		}
 
-		if len(listOut.Contents) == 0 {
+		if len(listOutput.Contents) == 0 {
 			break
 		}
 
-		objects := make([]types.ObjectIdentifier, len(listOut.Contents))
-		for i, obj := range listOut.Contents {
-			objects[i] = types.ObjectIdentifier{Key: obj.Key}
+		objects := make([]types.ObjectIdentifier, len(listOutput.Contents))
+		for i, object := range listOutput.Contents {
+			objects[i] = types.ObjectIdentifier{Key: object.Key}
 		}
 
-		deleteOut, err := m.client.DeleteObjects(context.Background(), &s3.DeleteObjectsInput{
-			Bucket: aws.String(m.bucket),
+		deleteOut, err := medium.client.DeleteObjects(context.Background(), &awss3.DeleteObjectsInput{
+			Bucket: aws.String(medium.bucket),
 			Delete: &types.Delete{Objects: objects, Quiet: aws.Bool(true)},
 		})
 		if err != nil {
-			return coreerr.E("s3.DeleteAll", "failed to delete objects", err)
+			return core.E("s3.DeleteAll", "failed to delete objects", err)
 		}
 		if err := deleteObjectsError(prefix, deleteOut.Errors); err != nil {
 			return err
 		}
 
-		if listOut.IsTruncated != nil && *listOut.IsTruncated {
-			continuationToken = listOut.NextContinuationToken
+		if listOutput.IsTruncated != nil && *listOutput.IsTruncated {
+			continuationToken = listOutput.NextContinuationToken
 		} else {
-			paginator = false
+			continueListing = false
 		}
 	}
 
 	return nil
 }
 
-// Rename moves an object by copying then deleting the original.
-func (m *Medium) Rename(oldPath, newPath string) error {
-	oldKey := m.key(oldPath)
-	newKey := m.key(newPath)
+// Example: _ = medium.Rename("drafts/todo.txt", "archive/todo.txt")
+func (medium *Medium) Rename(oldPath, newPath string) error {
+	oldKey := medium.objectKey(oldPath)
+	newKey := medium.objectKey(newPath)
 	if oldKey == "" || newKey == "" {
-		return coreerr.E("s3.Rename", "both old and new paths are required", os.ErrInvalid)
+		return core.E("s3.Rename", "both old and new paths are required", fs.ErrInvalid)
 	}
 
-	copySource := m.bucket + "/" + oldKey
+	copySource := medium.bucket + "/" + oldKey
 
-	_, err := m.client.CopyObject(context.Background(), &s3.CopyObjectInput{
-		Bucket:     aws.String(m.bucket),
+	_, err := medium.client.CopyObject(context.Background(), &awss3.CopyObjectInput{
+		Bucket:     aws.String(medium.bucket),
 		CopySource: aws.String(copySource),
 		Key:        aws.String(newKey),
 	})
 	if err != nil {
-		return coreerr.E("s3.Rename", "failed to copy object: "+oldKey+" -> "+newKey, err)
+		return core.E("s3.Rename", core.Concat("failed to copy object: ", oldKey, " -> ", newKey), err)
 	}
 
-	_, err = m.client.DeleteObject(context.Background(), &s3.DeleteObjectInput{
-		Bucket: aws.String(m.bucket),
+	_, err = medium.client.DeleteObject(context.Background(), &awss3.DeleteObjectInput{
+		Bucket: aws.String(medium.bucket),
 		Key:    aws.String(oldKey),
 	})
 	if err != nil {
-		return coreerr.E("s3.Rename", "failed to delete source object: "+oldKey, err)
+		return core.E("s3.Rename", core.Concat("failed to delete source object: ", oldKey), err)
 	}
 
 	return nil
 }
 
-// List returns directory entries for the given path using ListObjectsV2 with delimiter.
-func (m *Medium) List(p string) ([]fs.DirEntry, error) {
-	prefix := m.key(p)
-	if prefix != "" && !strings.HasSuffix(prefix, "/") {
+// Example: entries, _ := medium.List("reports")
+func (medium *Medium) List(filePath string) ([]fs.DirEntry, error) {
+	prefix := medium.objectKey(filePath)
+	if prefix != "" && !core.HasSuffix(prefix, "/") {
 		prefix += "/"
 	}
 
 	var entries []fs.DirEntry
 
-	listOut, err := m.client.ListObjectsV2(context.Background(), &s3.ListObjectsV2Input{
-		Bucket:    aws.String(m.bucket),
+	listOutput, err := medium.client.ListObjectsV2(context.Background(), &awss3.ListObjectsV2Input{
+		Bucket:    aws.String(medium.bucket),
 		Prefix:    aws.String(prefix),
 		Delimiter: aws.String("/"),
 	})
 	if err != nil {
-		return nil, coreerr.E("s3.List", "failed to list objects: "+prefix, err)
+		return nil, core.E("s3.List", core.Concat("failed to list objects: ", prefix), err)
 	}
 
-	// Common prefixes are "directories"
-	for _, cp := range listOut.CommonPrefixes {
-		if cp.Prefix == nil {
+	for _, commonPrefix := range listOutput.CommonPrefixes {
+		if commonPrefix.Prefix == nil {
 			continue
 		}
-		name := strings.TrimPrefix(*cp.Prefix, prefix)
-		name = strings.TrimSuffix(name, "/")
+		name := core.TrimPrefix(*commonPrefix.Prefix, prefix)
+		name = core.TrimSuffix(name, "/")
 		if name == "" {
 			continue
 		}
@@ -347,22 +337,21 @@ func (m *Medium) List(p string) ([]fs.DirEntry, error) {
 		})
 	}
 
-	// Contents are "files" (excluding the prefix itself)
-	for _, obj := range listOut.Contents {
-		if obj.Key == nil {
+	for _, object := range listOutput.Contents {
+		if object.Key == nil {
 			continue
 		}
-		name := strings.TrimPrefix(*obj.Key, prefix)
-		if name == "" || strings.Contains(name, "/") {
+		name := core.TrimPrefix(*object.Key, prefix)
+		if name == "" || core.Contains(name, "/") {
 			continue
 		}
 		var size int64
-		if obj.Size != nil {
-			size = *obj.Size
+		if object.Size != nil {
+			size = *object.Size
 		}
 		var modTime time.Time
-		if obj.LastModified != nil {
-			modTime = *obj.LastModified
+		if object.LastModified != nil {
+			modTime = *object.LastModified
 		}
 		entries = append(entries, &dirEntry{
 			name:  name,
@@ -380,19 +369,19 @@ func (m *Medium) List(p string) ([]fs.DirEntry, error) {
 	return entries, nil
 }
 
-// Stat returns file information for the given path using HeadObject.
-func (m *Medium) Stat(p string) (fs.FileInfo, error) {
-	key := m.key(p)
+// Example: info, _ := medium.Stat("reports/daily.txt")
+func (medium *Medium) Stat(filePath string) (fs.FileInfo, error) {
+	key := medium.objectKey(filePath)
 	if key == "" {
-		return nil, coreerr.E("s3.Stat", "path is required", os.ErrInvalid)
+		return nil, core.E("s3.Stat", "path is required", fs.ErrInvalid)
 	}
 
-	out, err := m.client.HeadObject(context.Background(), &s3.HeadObjectInput{
-		Bucket: aws.String(m.bucket),
+	out, err := medium.client.HeadObject(context.Background(), &awss3.HeadObjectInput{
+		Bucket: aws.String(medium.bucket),
 		Key:    aws.String(key),
 	})
 	if err != nil {
-		return nil, coreerr.E("s3.Stat", "failed to head object: "+key, err)
+		return nil, core.E("s3.Stat", core.Concat("failed to head object: ", key), err)
 	}
 
 	var size int64
@@ -413,25 +402,24 @@ func (m *Medium) Stat(p string) (fs.FileInfo, error) {
 	}, nil
 }
 
-// Open opens the named file for reading.
-func (m *Medium) Open(p string) (fs.File, error) {
-	key := m.key(p)
+func (medium *Medium) Open(filePath string) (fs.File, error) {
+	key := medium.objectKey(filePath)
 	if key == "" {
-		return nil, coreerr.E("s3.Open", "path is required", os.ErrInvalid)
+		return nil, core.E("s3.Open", "path is required", fs.ErrInvalid)
 	}
 
-	out, err := m.client.GetObject(context.Background(), &s3.GetObjectInput{
-		Bucket: aws.String(m.bucket),
+	out, err := medium.client.GetObject(context.Background(), &awss3.GetObjectInput{
+		Bucket: aws.String(medium.bucket),
 		Key:    aws.String(key),
 	})
 	if err != nil {
-		return nil, coreerr.E("s3.Open", "failed to get object: "+key, err)
+		return nil, core.E("s3.Open", core.Concat("failed to get object: ", key), err)
 	}
 
 	data, err := goio.ReadAll(out.Body)
 	out.Body.Close()
 	if err != nil {
-		return nil, coreerr.E("s3.Open", "failed to read body: "+key, err)
+		return nil, core.E("s3.Open", core.Concat("failed to read body: ", key), err)
 	}
 
 	var size int64
@@ -451,30 +439,28 @@ func (m *Medium) Open(p string) (fs.File, error) {
 	}, nil
 }
 
-// Create creates or truncates the named file. Returns a writer that
-// uploads the content on Close.
-func (m *Medium) Create(p string) (goio.WriteCloser, error) {
-	key := m.key(p)
+// Example: writer, _ := medium.Create("reports/daily.txt")
+func (medium *Medium) Create(filePath string) (goio.WriteCloser, error) {
+	key := medium.objectKey(filePath)
 	if key == "" {
-		return nil, coreerr.E("s3.Create", "path is required", os.ErrInvalid)
+		return nil, core.E("s3.Create", "path is required", fs.ErrInvalid)
 	}
 	return &s3WriteCloser{
-		medium: m,
+		medium: medium,
 		key:    key,
 	}, nil
 }
 
-// Append opens the named file for appending. It downloads the existing
-// content (if any) and re-uploads the combined content on Close.
-func (m *Medium) Append(p string) (goio.WriteCloser, error) {
-	key := m.key(p)
+// Example: writer, _ := medium.Append("reports/daily.txt")
+func (medium *Medium) Append(filePath string) (goio.WriteCloser, error) {
+	key := medium.objectKey(filePath)
 	if key == "" {
-		return nil, coreerr.E("s3.Append", "path is required", os.ErrInvalid)
+		return nil, core.E("s3.Append", "path is required", fs.ErrInvalid)
 	}
 
 	var existing []byte
-	out, err := m.client.GetObject(context.Background(), &s3.GetObjectInput{
-		Bucket: aws.String(m.bucket),
+	out, err := medium.client.GetObject(context.Background(), &awss3.GetObjectInput{
+		Bucket: aws.String(medium.bucket),
 		Key:    aws.String(key),
 	})
 	if err == nil {
@@ -483,92 +469,87 @@ func (m *Medium) Append(p string) (goio.WriteCloser, error) {
 	}
 
 	return &s3WriteCloser{
-		medium: m,
+		medium: medium,
 		key:    key,
 		data:   existing,
 	}, nil
 }
 
-// ReadStream returns a reader for the file content.
-func (m *Medium) ReadStream(p string) (goio.ReadCloser, error) {
-	key := m.key(p)
+// Example: reader, _ := medium.ReadStream("reports/daily.txt")
+func (medium *Medium) ReadStream(filePath string) (goio.ReadCloser, error) {
+	key := medium.objectKey(filePath)
 	if key == "" {
-		return nil, coreerr.E("s3.ReadStream", "path is required", os.ErrInvalid)
+		return nil, core.E("s3.ReadStream", "path is required", fs.ErrInvalid)
 	}
 
-	out, err := m.client.GetObject(context.Background(), &s3.GetObjectInput{
-		Bucket: aws.String(m.bucket),
+	out, err := medium.client.GetObject(context.Background(), &awss3.GetObjectInput{
+		Bucket: aws.String(medium.bucket),
 		Key:    aws.String(key),
 	})
 	if err != nil {
-		return nil, coreerr.E("s3.ReadStream", "failed to get object: "+key, err)
+		return nil, core.E("s3.ReadStream", core.Concat("failed to get object: ", key), err)
 	}
 	return out.Body, nil
 }
 
-// WriteStream returns a writer for the file content. Content is uploaded on Close.
-func (m *Medium) WriteStream(p string) (goio.WriteCloser, error) {
-	return m.Create(p)
+// Example: writer, _ := medium.WriteStream("reports/daily.txt")
+func (medium *Medium) WriteStream(filePath string) (goio.WriteCloser, error) {
+	return medium.Create(filePath)
 }
 
-// Exists checks if a path exists (file or directory prefix).
-func (m *Medium) Exists(p string) bool {
-	key := m.key(p)
+// Example: exists := medium.Exists("reports/daily.txt")
+func (medium *Medium) Exists(filePath string) bool {
+	key := medium.objectKey(filePath)
 	if key == "" {
 		return false
 	}
 
-	// Check as an exact object
-	_, err := m.client.HeadObject(context.Background(), &s3.HeadObjectInput{
-		Bucket: aws.String(m.bucket),
+	_, err := medium.client.HeadObject(context.Background(), &awss3.HeadObjectInput{
+		Bucket: aws.String(medium.bucket),
 		Key:    aws.String(key),
 	})
 	if err == nil {
 		return true
 	}
 
-	// Check as a "directory" prefix
 	prefix := key
-	if !strings.HasSuffix(prefix, "/") {
+	if !core.HasSuffix(prefix, "/") {
 		prefix += "/"
 	}
-	listOut, err := m.client.ListObjectsV2(context.Background(), &s3.ListObjectsV2Input{
-		Bucket:  aws.String(m.bucket),
+	listOutput, err := medium.client.ListObjectsV2(context.Background(), &awss3.ListObjectsV2Input{
+		Bucket:  aws.String(medium.bucket),
 		Prefix:  aws.String(prefix),
 		MaxKeys: aws.Int32(1),
 	})
 	if err != nil {
 		return false
 	}
-	return len(listOut.Contents) > 0 || len(listOut.CommonPrefixes) > 0
+	return len(listOutput.Contents) > 0 || len(listOutput.CommonPrefixes) > 0
 }
 
-// IsDir checks if a path exists and is a directory (has objects under it as a prefix).
-func (m *Medium) IsDir(p string) bool {
-	key := m.key(p)
+// Example: isDirectory := medium.IsDir("reports")
+func (medium *Medium) IsDir(filePath string) bool {
+	key := medium.objectKey(filePath)
 	if key == "" {
 		return false
 	}
 
 	prefix := key
-	if !strings.HasSuffix(prefix, "/") {
+	if !core.HasSuffix(prefix, "/") {
 		prefix += "/"
 	}
 
-	listOut, err := m.client.ListObjectsV2(context.Background(), &s3.ListObjectsV2Input{
-		Bucket:  aws.String(m.bucket),
+	listOutput, err := medium.client.ListObjectsV2(context.Background(), &awss3.ListObjectsV2Input{
+		Bucket:  aws.String(medium.bucket),
 		Prefix:  aws.String(prefix),
 		MaxKeys: aws.Int32(1),
 	})
 	if err != nil {
 		return false
 	}
-	return len(listOut.Contents) > 0 || len(listOut.CommonPrefixes) > 0
+	return len(listOutput.Contents) > 0 || len(listOutput.CommonPrefixes) > 0
 }
 
-// --- Internal types ---
-
-// fileInfo implements fs.FileInfo for S3 objects.
 type fileInfo struct {
 	name    string
 	size    int64
@@ -577,14 +558,18 @@ type fileInfo struct {
 	isDir   bool
 }
 
-func (fi *fileInfo) Name() string       { return fi.name }
-func (fi *fileInfo) Size() int64        { return fi.size }
-func (fi *fileInfo) Mode() fs.FileMode  { return fi.mode }
-func (fi *fileInfo) ModTime() time.Time { return fi.modTime }
-func (fi *fileInfo) IsDir() bool        { return fi.isDir }
-func (fi *fileInfo) Sys() any           { return nil }
+func (info *fileInfo) Name() string { return info.name }
 
-// dirEntry implements fs.DirEntry for S3 listings.
+func (info *fileInfo) Size() int64 { return info.size }
+
+func (info *fileInfo) Mode() fs.FileMode { return info.mode }
+
+func (info *fileInfo) ModTime() time.Time { return info.modTime }
+
+func (info *fileInfo) IsDir() bool { return info.isDir }
+
+func (info *fileInfo) Sys() any { return nil }
+
 type dirEntry struct {
 	name  string
 	isDir bool
@@ -592,12 +577,14 @@ type dirEntry struct {
 	info  fs.FileInfo
 }
 
-func (de *dirEntry) Name() string               { return de.name }
-func (de *dirEntry) IsDir() bool                { return de.isDir }
-func (de *dirEntry) Type() fs.FileMode          { return de.mode.Type() }
-func (de *dirEntry) Info() (fs.FileInfo, error) { return de.info, nil }
+func (entry *dirEntry) Name() string { return entry.name }
 
-// s3File implements fs.File for S3 objects.
+func (entry *dirEntry) IsDir() bool { return entry.isDir }
+
+func (entry *dirEntry) Type() fs.FileMode { return entry.mode.Type() }
+
+func (entry *dirEntry) Info() (fs.FileInfo, error) { return entry.info, nil }
+
 type s3File struct {
 	name    string
 	content []byte
@@ -606,48 +593,47 @@ type s3File struct {
 	modTime time.Time
 }
 
-func (f *s3File) Stat() (fs.FileInfo, error) {
+func (file *s3File) Stat() (fs.FileInfo, error) {
 	return &fileInfo{
-		name:    f.name,
-		size:    int64(len(f.content)),
+		name:    file.name,
+		size:    int64(len(file.content)),
 		mode:    0644,
-		modTime: f.modTime,
+		modTime: file.modTime,
 	}, nil
 }
 
-func (f *s3File) Read(b []byte) (int, error) {
-	if f.offset >= int64(len(f.content)) {
+func (file *s3File) Read(buffer []byte) (int, error) {
+	if file.offset >= int64(len(file.content)) {
 		return 0, goio.EOF
 	}
-	n := copy(b, f.content[f.offset:])
-	f.offset += int64(n)
-	return n, nil
+	bytesRead := copy(buffer, file.content[file.offset:])
+	file.offset += int64(bytesRead)
+	return bytesRead, nil
 }
 
-func (f *s3File) Close() error {
+func (file *s3File) Close() error {
 	return nil
 }
 
-// s3WriteCloser buffers writes and uploads to S3 on Close.
 type s3WriteCloser struct {
 	medium *Medium
 	key    string
 	data   []byte
 }
 
-func (w *s3WriteCloser) Write(p []byte) (int, error) {
-	w.data = append(w.data, p...)
-	return len(p), nil
+func (writer *s3WriteCloser) Write(data []byte) (int, error) {
+	writer.data = append(writer.data, data...)
+	return len(data), nil
 }
 
-func (w *s3WriteCloser) Close() error {
-	_, err := w.medium.client.PutObject(context.Background(), &s3.PutObjectInput{
-		Bucket: aws.String(w.medium.bucket),
-		Key:    aws.String(w.key),
-		Body:   bytes.NewReader(w.data),
+func (writer *s3WriteCloser) Close() error {
+	_, err := writer.medium.client.PutObject(context.Background(), &awss3.PutObjectInput{
+		Bucket: aws.String(writer.medium.bucket),
+		Key:    aws.String(writer.key),
+		Body:   bytes.NewReader(writer.data),
 	})
 	if err != nil {
-		return coreerr.E("s3.writeCloser.Close", "failed to upload on close", err)
+		return core.E("s3.writeCloser.Close", "failed to upload on close", err)
 	}
 	return nil
 }

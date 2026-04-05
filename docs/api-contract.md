@@ -126,7 +126,7 @@ Test coverage is `Yes` when same-package tests directly execute or reference the
 | `New` | `func New() *Node` | `dappco.re/go/core/io/node` | New creates a new, empty Node. | Yes |
 | `Node.AddData` | `func (*Node) AddData(name string, content []byte)` | `dappco.re/go/core/io/node` | AddData stages content in the in-memory filesystem. | Yes |
 | `Node.Append` | `func (*Node) Append(p string) (goio.WriteCloser, error)` | `dappco.re/go/core/io/node` | Append opens the named file for appending, creating it if needed. | No |
-| `Node.CopyFile` | `func (*Node) CopyFile(src, dst string, perm fs.FileMode) error` | `dappco.re/go/core/io/node` | CopyFile copies a file from the in-memory tree to the local filesystem. | Yes |
+| `Node.ExportFile` | `func (*Node) ExportFile(src, dst string, perm fs.FileMode) error` | `dappco.re/go/core/io/node` | ExportFile exports a file from the in-memory tree to the local filesystem. Use CopyTo for Medium-agnostic transfers. | Yes |
 | `Node.CopyTo` | `func (*Node) CopyTo(target coreio.Medium, sourcePath, destPath string) error` | `dappco.re/go/core/io/node` | CopyTo copies a file (or directory tree) from the node to any Medium. | No |
 | `Node.Create` | `func (*Node) Create(p string) (goio.WriteCloser, error)` | `dappco.re/go/core/io/node` | Create creates or truncates the named file, returning a WriteCloser. | No |
 | `Node.Delete` | `func (*Node) Delete(p string) error` | `dappco.re/go/core/io/node` | Delete removes a single file. | No |

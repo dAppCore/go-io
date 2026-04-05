@@ -3,151 +3,188 @@ package store
 import (
 	"database/sql"
 	"errors"
-	"strings"
+	"io/fs"
 	"text/template"
 
-	coreerr "dappco.re/go/core/log"
+	core "dappco.re/go/core"
 	_ "modernc.org/sqlite"
 )
 
-// ErrNotFound is returned when a key does not exist in the store.
-var ErrNotFound = errors.New("store: not found")
+// NotFoundError is the sentinel returned when a key does not exist in the store.
+// Callers test for it with errors.Is. It is defined with errors.New so that
+// identity comparison works correctly across package boundaries.
+// Example: _, err := keyValueStore.Get("app", "theme"); errors.Is(err, store.NotFoundError)
+var NotFoundError = errors.New("key not found")
 
-// Store is a group-namespaced key-value store backed by SQLite.
-type Store struct {
-	db *sql.DB
+// Example: keyValueStore, _ := store.New(store.Options{Path: ":memory:"})
+type KeyValueStore struct {
+	database *sql.DB
 }
 
-// New creates a Store at the given SQLite path. Use ":memory:" for tests.
-func New(dbPath string) (*Store, error) {
-	db, err := sql.Open("sqlite", dbPath)
+// Example: keyValueStore, _ := store.New(store.Options{Path: ":memory:"})
+type Options struct {
+	Path string
+}
+
+// Example: keyValueStore, _ := store.New(store.Options{Path: ":memory:"})
+// Example: _ = keyValueStore.Set("app", "theme", "midnight")
+func New(options Options) (*KeyValueStore, error) {
+	if options.Path == "" {
+		return nil, core.E("store.New", "database path is required", fs.ErrInvalid)
+	}
+
+	database, err := sql.Open("sqlite", options.Path)
 	if err != nil {
-		return nil, coreerr.E("store.New", "open db", err)
+		return nil, core.E("store.New", "open db", err)
 	}
-	if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
-		db.Close()
-		return nil, coreerr.E("store.New", "WAL mode", err)
+	if _, err := database.Exec("PRAGMA journal_mode=WAL"); err != nil {
+		database.Close()
+		return nil, core.E("store.New", "WAL mode", err)
 	}
-	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS kv (
-		grp   TEXT NOT NULL,
-		key   TEXT NOT NULL,
-		value TEXT NOT NULL,
-		PRIMARY KEY (grp, key)
+	if _, err := database.Exec(`CREATE TABLE IF NOT EXISTS entries (
+		group_name TEXT NOT NULL,
+		entry_key  TEXT NOT NULL,
+		entry_value TEXT NOT NULL,
+		PRIMARY KEY (group_name, entry_key)
 	)`); err != nil {
-		db.Close()
-		return nil, coreerr.E("store.New", "create schema", err)
+		database.Close()
+		return nil, core.E("store.New", "create schema", err)
 	}
-	return &Store{db: db}, nil
+	return &KeyValueStore{database: database}, nil
 }
 
-// Close closes the underlying database.
-func (s *Store) Close() error {
-	return s.db.Close()
+// Example: _ = keyValueStore.Close()
+func (keyValueStore *KeyValueStore) Close() error {
+	return keyValueStore.database.Close()
 }
 
-// Get retrieves a value by group and key.
-func (s *Store) Get(group, key string) (string, error) {
-	var val string
-	err := s.db.QueryRow("SELECT value FROM kv WHERE grp = ? AND key = ?", group, key).Scan(&val)
+// Example: theme, _ := keyValueStore.Get("app", "theme")
+func (keyValueStore *KeyValueStore) Get(group, key string) (string, error) {
+	var value string
+	err := keyValueStore.database.QueryRow("SELECT entry_value FROM entries WHERE group_name = ? AND entry_key = ?", group, key).Scan(&value)
 	if err == sql.ErrNoRows {
-		return "", coreerr.E("store.Get", "not found: "+group+"/"+key, ErrNotFound)
+		return "", core.E("store.Get", core.Concat("not found: ", group, "/", key), NotFoundError)
 	}
 	if err != nil {
-		return "", coreerr.E("store.Get", "query", err)
+		return "", core.E("store.Get", "query", err)
 	}
-	return val, nil
+	return value, nil
 }
 
-// Set stores a value by group and key, overwriting if exists.
-func (s *Store) Set(group, key, value string) error {
-	_, err := s.db.Exec(
-		`INSERT INTO kv (grp, key, value) VALUES (?, ?, ?)
-		 ON CONFLICT(grp, key) DO UPDATE SET value = excluded.value`,
+// Example: _ = keyValueStore.Set("app", "theme", "midnight")
+func (keyValueStore *KeyValueStore) Set(group, key, value string) error {
+	_, err := keyValueStore.database.Exec(
+		`INSERT INTO entries (group_name, entry_key, entry_value) VALUES (?, ?, ?)
+		 ON CONFLICT(group_name, entry_key) DO UPDATE SET entry_value = excluded.entry_value`,
 		group, key, value,
 	)
 	if err != nil {
-		return coreerr.E("store.Set", "exec", err)
+		return core.E("store.Set", "exec", err)
 	}
 	return nil
 }
 
-// Delete removes a single key from a group.
-func (s *Store) Delete(group, key string) error {
-	_, err := s.db.Exec("DELETE FROM kv WHERE grp = ? AND key = ?", group, key)
+// Example: _ = keyValueStore.Delete("app", "theme")
+func (keyValueStore *KeyValueStore) Delete(group, key string) error {
+	_, err := keyValueStore.database.Exec("DELETE FROM entries WHERE group_name = ? AND entry_key = ?", group, key)
 	if err != nil {
-		return coreerr.E("store.Delete", "exec", err)
+		return core.E("store.Delete", "exec", err)
 	}
 	return nil
 }
 
-// Count returns the number of keys in a group.
-func (s *Store) Count(group string) (int, error) {
-	var n int
-	err := s.db.QueryRow("SELECT COUNT(*) FROM kv WHERE grp = ?", group).Scan(&n)
+// Example: count, _ := keyValueStore.Count("app")
+func (keyValueStore *KeyValueStore) Count(group string) (int, error) {
+	var count int
+	err := keyValueStore.database.QueryRow("SELECT COUNT(*) FROM entries WHERE group_name = ?", group).Scan(&count)
 	if err != nil {
-		return 0, coreerr.E("store.Count", "query", err)
+		return 0, core.E("store.Count", "query", err)
 	}
-	return n, nil
+	return count, nil
 }
 
-// DeleteGroup removes all keys in a group.
-func (s *Store) DeleteGroup(group string) error {
-	_, err := s.db.Exec("DELETE FROM kv WHERE grp = ?", group)
+// Example: _ = keyValueStore.DeleteGroup("app")
+func (keyValueStore *KeyValueStore) DeleteGroup(group string) error {
+	_, err := keyValueStore.database.Exec("DELETE FROM entries WHERE group_name = ?", group)
 	if err != nil {
-		return coreerr.E("store.DeleteGroup", "exec", err)
+		return core.E("store.DeleteGroup", "exec", err)
 	}
 	return nil
 }
 
-// GetAll returns all key-value pairs in a group.
-func (s *Store) GetAll(group string) (map[string]string, error) {
-	rows, err := s.db.Query("SELECT key, value FROM kv WHERE grp = ?", group)
+// Example: groups, _ := keyValueStore.ListGroups()
+func (keyValueStore *KeyValueStore) ListGroups() ([]string, error) {
+	rows, err := keyValueStore.database.Query("SELECT DISTINCT group_name FROM entries ORDER BY group_name")
 	if err != nil {
-		return nil, coreerr.E("store.GetAll", "query", err)
+		return nil, core.E("store.ListGroups", "query groups", err)
+	}
+	defer rows.Close()
+
+	var groups []string
+	for rows.Next() {
+		var groupName string
+		if err := rows.Scan(&groupName); err != nil {
+			return nil, core.E("store.ListGroups", "scan", err)
+		}
+		groups = append(groups, groupName)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, core.E("store.ListGroups", "rows", err)
+	}
+	return groups, nil
+}
+
+// Example: values, _ := keyValueStore.GetAll("app")
+func (keyValueStore *KeyValueStore) GetAll(group string) (map[string]string, error) {
+	rows, err := keyValueStore.database.Query("SELECT entry_key, entry_value FROM entries WHERE group_name = ?", group)
+	if err != nil {
+		return nil, core.E("store.GetAll", "query", err)
 	}
 	defer rows.Close()
 
 	result := make(map[string]string)
 	for rows.Next() {
-		var k, v string
-		if err := rows.Scan(&k, &v); err != nil {
-			return nil, coreerr.E("store.GetAll", "scan", err)
+		var key, value string
+		if err := rows.Scan(&key, &value); err != nil {
+			return nil, core.E("store.GetAll", "scan", err)
 		}
-		result[k] = v
+		result[key] = value
 	}
 	if err := rows.Err(); err != nil {
-		return nil, coreerr.E("store.GetAll", "rows", err)
+		return nil, core.E("store.GetAll", "rows", err)
 	}
 	return result, nil
 }
 
-// Render loads all key-value pairs from a group and renders a Go template.
-func (s *Store) Render(tmplStr, group string) (string, error) {
-	rows, err := s.db.Query("SELECT key, value FROM kv WHERE grp = ?", group)
+// Example: keyValueStore, _ := store.New(store.Options{Path: ":memory:"})
+// Example: _ = keyValueStore.Set("user", "name", "alice")
+// Example: renderedText, _ := keyValueStore.Render("hello {{ .name }}", "user")
+func (keyValueStore *KeyValueStore) Render(templateText, group string) (string, error) {
+	rows, err := keyValueStore.database.Query("SELECT entry_key, entry_value FROM entries WHERE group_name = ?", group)
 	if err != nil {
-		return "", coreerr.E("store.Render", "query", err)
+		return "", core.E("store.Render", "query", err)
 	}
 	defer rows.Close()
 
-	vars := make(map[string]string)
+	templateValues := make(map[string]string)
 	for rows.Next() {
-		var k, v string
-		if err := rows.Scan(&k, &v); err != nil {
-			return "", coreerr.E("store.Render", "scan", err)
+		var key, value string
+		if err := rows.Scan(&key, &value); err != nil {
+			return "", core.E("store.Render", "scan", err)
 		}
-		vars[k] = v
+		templateValues[key] = value
 	}
 	if err := rows.Err(); err != nil {
-		return "", coreerr.E("store.Render", "rows", err)
+		return "", core.E("store.Render", "rows", err)
 	}
 
-	tmpl, err := template.New("render").Parse(tmplStr)
+	renderTemplate, err := template.New("render").Parse(templateText)
 	if err != nil {
-		return "", coreerr.E("store.Render", "parse template", err)
+		return "", core.E("store.Render", "parse template", err)
 	}
-	var b strings.Builder
-	if err := tmpl.Execute(&b, vars); err != nil {
-		return "", coreerr.E("store.Render", "execute template", err)
+	builder := core.NewBuilder()
+	if err := renderTemplate.Execute(builder, templateValues); err != nil {
+		return "", core.E("store.Render", "execute template", err)
 	}
-	return b.String(), nil
+	return builder.String(), nil
 }
