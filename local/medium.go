@@ -197,6 +197,14 @@ func (medium *Medium) sandboxedPath(path string) string {
 	return core.Path(medium.filesystemRoot, core.TrimPrefix(clean, dirSeparator()))
 }
 
+// validatePath resolves the caller-supplied path against the sandbox root, rejecting any path
+// that would escape via symlinks.
+//
+// TODO(security): the per-component Lstat + join loop is subject to a TOCTOU race: a symlink
+// could be swapped between the Lstat and the subsequent open. A proper fix requires opening each
+// directory component with O_NOFOLLOW (openat-style) so that the resolved fd is used for the
+// next step rather than re-resolving from a path string. Until then, symlink-based escape is
+// only possible on systems where an attacker can swap filesystem objects between syscalls.
 func (medium *Medium) validatePath(path string) (string, error) {
 	if medium.filesystemRoot == dirSeparator() {
 		return medium.sandboxedPath(path), nil
@@ -358,6 +366,9 @@ func (medium *Medium) Delete(path string) error {
 	if err != nil {
 		return err
 	}
+	if resolvedPath == medium.filesystemRoot {
+		return core.E("local.Delete", "refusing to delete sandbox root", nil)
+	}
 	if isProtectedPath(resolvedPath) {
 		return core.E("local.Delete", core.Concat("refusing to delete protected path: ", resolvedPath), nil)
 	}
@@ -369,6 +380,9 @@ func (medium *Medium) DeleteAll(path string) error {
 	resolvedPath, err := medium.validatePath(path)
 	if err != nil {
 		return err
+	}
+	if resolvedPath == medium.filesystemRoot {
+		return core.E("local.DeleteAll", "refusing to delete sandbox root", nil)
 	}
 	if isProtectedPath(resolvedPath) {
 		return core.E("local.DeleteAll", core.Concat("refusing to delete protected path: ", resolvedPath), nil)

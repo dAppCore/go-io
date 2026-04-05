@@ -171,7 +171,11 @@ func (medium *Medium) IsFile(filePath string) bool {
 	medium.lock.RLock()
 	defer medium.lock.RUnlock()
 
-	filePath = normaliseEntryPath(filePath)
+	return medium.isFileLocked(normaliseEntryPath(filePath))
+}
+
+// isFileLocked reports whether filePath is a regular file. Caller must hold at least medium.lock.RLock.
+func (medium *Medium) isFileLocked(filePath string) bool {
 	info, err := medium.dataNode.Stat(filePath)
 	return err == nil && !info.IsDir()
 }
@@ -415,7 +419,7 @@ func (medium *Medium) Append(filePath string) (goio.WriteCloser, error) {
 
 	var existing []byte
 	medium.lock.RLock()
-	if medium.IsFile(filePath) {
+	if medium.isFileLocked(filePath) {
 		data, err := medium.readFileLocked(filePath)
 		if err != nil {
 			medium.lock.RUnlock()
@@ -522,6 +526,10 @@ func (medium *Medium) readFileLocked(filePath string) ([]byte, error) {
 	return data, nil
 }
 
+// removeFileLocked rebuilds the entire DataNode excluding the target entry.
+// This is O(n) per call, leading to O(n²) behaviour when deleting many files in a loop.
+// TODO(perf): use a DataNode deletion API if borgdatanode ever exposes one, or batch deletions
+// by collecting targets before rebuilding once.
 func (medium *Medium) removeFileLocked(target string) error {
 	entries, err := medium.collectAllLocked()
 	if err != nil {

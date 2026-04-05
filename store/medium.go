@@ -4,6 +4,7 @@ import (
 	goio "io"
 	"io/fs"
 	"path"
+	"slices"
 	"time"
 
 	core "dappco.re/go/core"
@@ -171,9 +172,15 @@ func (medium *Medium) List(entryPath string) ([]fs.DirEntry, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Sort keys so that List returns entries in a deterministic order.
+	keys := make([]string, 0, len(all))
+	for k := range all {
+		keys = append(keys, k)
+	}
+	slices.Sort(keys)
 	var entries []fs.DirEntry
-	for key, value := range all {
-		entries = append(entries, &keyValueDirEntry{name: key, size: int64(len(value))})
+	for _, k := range keys {
+		entries = append(entries, &keyValueDirEntry{name: k, size: int64(len(all[k]))})
 	}
 	return entries, nil
 }

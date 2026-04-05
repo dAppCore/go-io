@@ -334,6 +334,7 @@ func (node *Node) Write(filePath, content string) error {
 }
 
 // Example: _ = nodeTree.WriteMode("keys/private.key", key, 0600)
+// Note: mode is intentionally ignored — in-memory nodes have no filesystem permission model.
 func (node *Node) WriteMode(filePath, content string, mode fs.FileMode) error {
 	return node.Write(filePath, content)
 }

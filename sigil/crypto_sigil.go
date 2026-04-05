@@ -264,6 +264,8 @@ func (sigil *ChaChaPolySigil) Out(data []byte) ([]byte, error) {
 
 	obfuscated, err := aead.Open(nil, nonce, ciphertext, nil)
 	if err != nil {
+		// The underlying aead error is intentionally hidden: surfacing raw AEAD errors can
+		// leak oracle information to an attacker. DecryptionFailedError is the safe sentinel.
 		return nil, core.E("sigil.ChaChaPolySigil.Out", "decrypt ciphertext", DecryptionFailedError)
 	}
 

@@ -1,7 +1,7 @@
 package local
 
 import (
-	"io"
+	goio "io"
 	"io/fs"
 	"syscall"
 	"testing"
@@ -379,8 +379,8 @@ func TestLocal_ReadStream_Basic_Good(t *testing.T) {
 	assert.NoError(t, err)
 	defer reader.Close()
 
-	limitReader := io.LimitReader(reader, 9)
-	data, err := io.ReadAll(limitReader)
+	limitReader := goio.LimitReader(reader, 9)
+	data, err := goio.ReadAll(limitReader)
 	assert.NoError(t, err)
 	assert.Equal(t, "streaming", string(data))
 }
@@ -392,7 +392,7 @@ func TestLocal_WriteStream_Basic_Good(t *testing.T) {
 	writer, err := localMedium.WriteStream("output.txt")
 	assert.NoError(t, err)
 
-	_, err = io.Copy(writer, core.NewReader("piped data"))
+	_, err = goio.Copy(writer, core.NewReader("piped data"))
 	assert.NoError(t, err)
 	err = writer.Close()
 	assert.NoError(t, err)

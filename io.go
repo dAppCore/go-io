@@ -272,6 +272,18 @@ func (medium *MemoryMedium) Write(path, content string) error {
 
 // Example: _ = io.NewMemoryMedium().WriteMode("keys/private.key", "secret", 0600)
 func (medium *MemoryMedium) WriteMode(path, content string, mode fs.FileMode) error {
+	// Verify no ancestor directory component is stored as a file.
+	ancestor := path.Dir(path)
+	for ancestor != "." && ancestor != "" {
+		if _, ok := medium.fileContents[ancestor]; ok {
+			return core.E("io.MemoryMedium.WriteMode", core.Concat("ancestor path is a file: ", ancestor), fs.ErrExist)
+		}
+		next := path.Dir(ancestor)
+		if next == ancestor {
+			break
+		}
+		ancestor = next
+	}
 	medium.ensureAncestorDirectories(path)
 	medium.fileContents[path] = content
 	medium.fileModes[path] = mode
@@ -281,6 +293,9 @@ func (medium *MemoryMedium) WriteMode(path, content string, mode fs.FileMode) er
 
 // Example: _ = io.NewMemoryMedium().EnsureDir("config/app")
 func (medium *MemoryMedium) EnsureDir(path string) error {
+	if _, ok := medium.fileContents[path]; ok {
+		return core.E("io.MemoryMedium.EnsureDir", core.Concat("path is already a file: ", path), fs.ErrExist)
+	}
 	medium.ensureAncestorDirectories(path)
 	medium.directories[path] = true
 	return nil
@@ -410,6 +425,10 @@ func (medium *MemoryMedium) Rename(oldPath, newPath string) error {
 			if modTime, ok := medium.modificationTimes[oldFilePath]; ok {
 				medium.modificationTimes[newFilePath] = modTime
 				delete(medium.modificationTimes, oldFilePath)
+			}
+			if fileMode, ok := medium.fileModes[oldFilePath]; ok {
+				medium.fileModes[newFilePath] = fileMode
+				delete(medium.fileModes, oldFilePath)
 			}
 		}
 

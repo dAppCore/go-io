@@ -102,6 +102,11 @@ func (sigil *GzipSigil) In(data []byte) ([]byte, error) {
 	if err := gzipWriter.Close(); err != nil {
 		return nil, core.E("sigil.GzipSigil.In", "close gzip writer", err)
 	}
+	// When a custom outputWriter was supplied the caller owns the bytes; return nil so the
+	// pipeline does not propagate a stale empty-buffer value.
+	if sigil.outputWriter != nil {
+		return nil, nil
+	}
 	return buffer.Bytes(), nil
 }
 
@@ -203,7 +208,9 @@ func (sigil *HashSigil) In(data []byte) ([]byte, error) {
 		return nil, core.E("sigil.HashSigil.In", "hash algorithm not available", fs.ErrInvalid)
 	}
 
-	hasher.Write(data)
+	if _, err := hasher.Write(data); err != nil {
+		return nil, core.E("sigil.HashSigil.In", "write hash input", err)
+	}
 	return hasher.(interface{ Sum([]byte) []byte }).Sum(nil), nil
 }
 

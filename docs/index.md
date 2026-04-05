@@ -5,7 +5,7 @@ description: Unified storage abstraction for Go with pluggable backends — loca
 
 # go-io
 
-`forge.lthn.ai/core/go-io` is a storage abstraction library that provides a single `Medium` interface for reading and writing files across different backends. Write your code against `Medium` once, then swap between local disk, S3, SQLite, or in-memory storage without changing a line of business logic.
+`dappco.re/go/core/io` is a storage abstraction library that provides a single `Medium` interface for reading and writing files across different backends. Write your code against `Medium` once, then swap between local disk, S3, SQLite, or in-memory storage without changing a line of business logic.
 
 The library also includes `sigil`, a composable data-transformation pipeline for encoding, compression, hashing, and authenticated encryption.
 
@@ -14,9 +14,9 @@ The library also includes `sigil`, a composable data-transformation pipeline for
 
 ```go
 import (
-    io "forge.lthn.ai/core/go-io"
-    "forge.lthn.ai/core/go-io/s3"
-    "forge.lthn.ai/core/go-io/node"
+    io "dappco.re/go/core/io"
+    "dappco.re/go/core/io/s3"
+    "dappco.re/go/core/io/node"
 )
 
 content, _ := io.Local.Read("/etc/hostname")
@@ -37,15 +37,15 @@ _ = s3Medium.Write("photo.jpg", rawData)
 
 | Package | Import Path | Purpose |
 |---------|-------------|---------|
-| `io` (root) | `forge.lthn.ai/core/go-io` | `Medium` interface, helper functions, `MemoryMedium` for tests |
-| `local` | `forge.lthn.ai/core/go-io/local` | Local filesystem backend with path sandboxing and symlink-escape protection |
-| `s3` | `forge.lthn.ai/core/go-io/s3` | Amazon S3 / S3-compatible backend (Garage, MinIO, etc.) |
-| `sqlite` | `forge.lthn.ai/core/go-io/sqlite` | SQLite-backed virtual filesystem (pure Go driver, no CGO) |
-| `node` | `forge.lthn.ai/core/go-io/node` | In-memory filesystem implementing both `Medium` and `fs.FS`, with tar round-tripping |
-| `datanode` | `forge.lthn.ai/core/go-io/datanode` | Thread-safe in-memory `Medium` backed by Borg's DataNode, with snapshot/restore |
-| `store` | `forge.lthn.ai/core/go-io/store` | Group-namespaced key-value store (SQLite), with a `Medium` adapter and Go template rendering |
-| `sigil` | `forge.lthn.ai/core/go-io/sigil` | Composable data transformations: encoding, compression, hashing, XChaCha20-Poly1305 encryption |
-| `workspace` | `forge.lthn.ai/core/go-io/workspace` | Encrypted workspace service integrated with the Core DI container |
+| `io` (root) | `dappco.re/go/core/io` | `Medium` interface, helper functions, `MemoryMedium` for tests |
+| `local` | `dappco.re/go/core/io/local` | Local filesystem backend with path sandboxing and symlink-escape protection |
+| `s3` | `dappco.re/go/core/io/s3` | Amazon S3 / S3-compatible backend (Garage, MinIO, etc.) |
+| `sqlite` | `dappco.re/go/core/io/sqlite` | SQLite-backed virtual filesystem (pure Go driver, no CGO) |
+| `node` | `dappco.re/go/core/io/node` | In-memory filesystem implementing both `Medium` and `fs.FS`, with tar round-tripping |
+| `datanode` | `dappco.re/go/core/io/datanode` | Thread-safe in-memory `Medium` backed by Borg's DataNode, with snapshot/restore |
+| `store` | `dappco.re/go/core/io/store` | Group-namespaced key-value store (SQLite), with a `Medium` adapter and Go template rendering |
+| `sigil` | `dappco.re/go/core/io/sigil` | Composable data transformations: encoding, compression, hashing, XChaCha20-Poly1305 encryption |
+| `workspace` | `dappco.re/go/core/io/workspace` | Encrypted workspace service integrated with the Core DI container |
 
 
 ## The Medium Interface

@@ -131,10 +131,22 @@ func (client *testS3Client) ListObjectsV2(operationContext context.Context, para
 	}
 	sort.Strings(allKeys)
 
+	continuationToken := aws.ToString(params.ContinuationToken)
+
 	var contents []types.Object
 	commonPrefixes := make(map[string]bool)
+	truncated := false
+	var nextToken string
 
+	past := continuationToken == ""
 	for _, k := range allKeys {
+		if !past {
+			if k == continuationToken {
+				past = true
+			}
+			continue
+		}
+
 		rest := core.TrimPrefix(k, prefix)
 
 		if delimiter != "" {
@@ -147,6 +159,8 @@ func (client *testS3Client) ListObjectsV2(operationContext context.Context, para
 		}
 
 		if int32(len(contents)) >= maxKeys {
+			truncated = true
+			nextToken = k
 			break
 		}
 
@@ -169,11 +183,15 @@ func (client *testS3Client) ListObjectsV2(operationContext context.Context, para
 		cpSlice = append(cpSlice, types.CommonPrefix{Prefix: aws.String(cp)})
 	}
 
-	return &awss3.ListObjectsV2Output{
+	out := &awss3.ListObjectsV2Output{
 		Contents:       contents,
 		CommonPrefixes: cpSlice,
-		IsTruncated:    aws.Bool(false),
-	}, nil
+		IsTruncated:    aws.Bool(truncated),
+	}
+	if truncated {
+		out.NextContinuationToken = aws.String(nextToken)
+	}
+	return out, nil
 }
 
 func (client *testS3Client) CopyObject(operationContext context.Context, params *awss3.CopyObjectInput, optionFns ...func(*awss3.Options)) (*awss3.CopyObjectOutput, error) {

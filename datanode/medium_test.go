@@ -1,7 +1,7 @@
 package datanode
 
 import (
-	"io"
+	goio "io"
 	"io/fs"
 	"testing"
 
@@ -155,7 +155,7 @@ func TestDataNode_Delete_RemoveFailure_Bad(t *testing.T) {
 	require.NoError(t, dataNodeMedium.Write("bad.txt", "bad"))
 
 	original := dataNodeReadAll
-	dataNodeReadAll = func(_ io.Reader) ([]byte, error) {
+	dataNodeReadAll = func(_ goio.Reader) ([]byte, error) {
 		return nil, core.NewError("read failed")
 	}
 	t.Cleanup(func() {
@@ -203,7 +203,7 @@ func TestDataNode_RenameDir_ReadFailure_Bad(t *testing.T) {
 	require.NoError(t, dataNodeMedium.Write("src/a.go", "package a"))
 
 	original := dataNodeReadAll
-	dataNodeReadAll = func(_ io.Reader) ([]byte, error) {
+	dataNodeReadAll = func(_ goio.Reader) ([]byte, error) {
 		return nil, core.NewError("read failed")
 	}
 	t.Cleanup(func() {
@@ -268,7 +268,7 @@ func TestDataNode_Open_Good(t *testing.T) {
 	require.NoError(t, err)
 	defer file.Close()
 
-	data, err := io.ReadAll(file)
+	data, err := goio.ReadAll(file)
 	require.NoError(t, err)
 	assert.Equal(t, "opened", string(data))
 }
@@ -300,7 +300,7 @@ func TestDataNode_Append_ReadFailure_Bad(t *testing.T) {
 	require.NoError(t, dataNodeMedium.Write("new.txt", "hello"))
 
 	original := dataNodeReadAll
-	dataNodeReadAll = func(_ io.Reader) ([]byte, error) {
+	dataNodeReadAll = func(_ goio.Reader) ([]byte, error) {
 		return nil, core.NewError("read failed")
 	}
 	t.Cleanup(func() {
@@ -322,7 +322,7 @@ func TestDataNode_Streams_Good(t *testing.T) {
 
 	readStream, err := dataNodeMedium.ReadStream("stream.txt")
 	require.NoError(t, err)
-	data, err := io.ReadAll(readStream)
+	data, err := goio.ReadAll(readStream)
 	require.NoError(t, err)
 	assert.Equal(t, "streamed", string(data))
 	require.NoError(t, readStream.Close())
@@ -382,7 +382,7 @@ func TestDataNode_DataNode_Good(t *testing.T) {
 	require.NoError(t, err)
 	defer file.Close()
 
-	data, err := io.ReadAll(file)
+	data, err := goio.ReadAll(file)
 	require.NoError(t, err)
 	assert.Equal(t, "borg", string(data))
 }

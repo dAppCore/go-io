@@ -161,6 +161,8 @@ func (medium *Medium) Write(filePath, content string) error {
 }
 
 // Example: _ = medium.WriteMode("keys/private.key", key, 0600)
+// Note: mode is intentionally ignored — S3 has no POSIX permission model.
+// Use S3 bucket policies and IAM for access control.
 func (medium *Medium) WriteMode(filePath, content string, mode fs.FileMode) error {
 	return medium.Write(filePath, content)
 }

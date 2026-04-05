@@ -7,9 +7,9 @@ description: Complete API reference for go-io.
 
 This document enumerates every exported type, function, method, and variable in go-io, with short usage examples.
 
-Examples use the import paths from `docs/index.md` (`forge.lthn.ai/core/go-io`). Adjust paths if your module path differs.
+Examples use the import paths from `docs/index.md` (`dappco.re/go/core/io`). Adjust paths if your module path differs.
 
-## Package io (`forge.lthn.ai/core/go-io`)
+## Package io (`dappco.re/go/core/io`)
 
 Defines the `Medium` interface, helper functions, and in-memory `MemoryMedium` implementation.
 
@@ -63,23 +63,6 @@ Example:
 m := io.NewMemoryMedium()
 _ = m.Write("notes.txt", "hello")
 ok := m.IsFile("notes.txt")
-```
-
-**Read(path string) (string, error)**
-Alias for `Read`.
-Example:
-```go
-m := io.NewMemoryMedium()
-_ = m.Write("notes.txt", "hello")
-value, _ := m.Read("notes.txt")
-```
-
-**Write(path, content string) error**
-Alias for `Write`.
-Example:
-```go
-m := io.NewMemoryMedium()
-_ = m.Write("notes.txt", "hello")
 ```
 
 **Delete(path string) error**
@@ -620,7 +603,7 @@ _, _ = w.Write([]byte("hello"))
 _ = w.Close()
 ```
 
-## Package local (`forge.lthn.ai/core/go-io/local`)
+## Package local (`dappco.re/go/core/io/local`)
 
 Local filesystem backend with sandboxed roots and symlink-escape protection.
 
@@ -798,7 +781,7 @@ m, _ := local.New("/srv/app")
 _ = m.Write("notes.txt", "hello")
 ```
 
-## Package node (`forge.lthn.ai/core/go-io/node`)
+## Package node (`dappco.re/go/core/io/node`)
 
 In-memory filesystem implementing `io.Medium` and `fs.FS`, with tar serialisation.
 
@@ -1087,7 +1070,7 @@ _, _ = w.Write([]byte("data"))
 _ = w.Close()
 ```
 
-## Package store (`forge.lthn.ai/core/go-io/store`)
+## Package store (`dappco.re/go/core/io/store`)
 
 Group-namespaced key-value store backed by SQLite, plus a `Medium` adapter.
 
@@ -1387,7 +1370,7 @@ _ = m.Write("config/theme", "midnight")
 ok := m.IsDir("config")
 ```
 
-## Package sqlite (`forge.lthn.ai/core/go-io/sqlite`)
+## Package sqlite (`dappco.re/go/core/io/sqlite`)
 
 SQLite-backed `io.Medium` implementation using the pure-Go driver.
 
@@ -1575,7 +1558,7 @@ _ = m.EnsureDir("config")
 ok := m.IsDir("config")
 ```
 
-## Package s3 (`forge.lthn.ai/core/go-io/s3`)
+## Package s3 (`dappco.re/go/core/io/s3`)
 
 Amazon S3-backed `io.Medium` implementation.
 
@@ -1773,7 +1756,7 @@ m, _ := s3.New(s3.Options{Bucket: "bucket", Client: client})
 ok := m.IsDir("logs")
 ```
 
-## Package datanode (`forge.lthn.ai/core/go-io/datanode`)
+## Package datanode (`dappco.re/go/core/io/datanode`)
 
 In-memory `io.Medium` backed by Borg's DataNode, with tar snapshot/restore support.
 
@@ -1986,7 +1969,7 @@ _ = m.EnsureDir("config")
 ok := m.IsDir("config")
 ```
 
-## Package workspace (`forge.lthn.ai/core/go-io/workspace`)
+## Package workspace (`dappco.re/go/core/io/workspace`)
 
 Encrypted user workspace management.
 
@@ -2123,7 +2106,7 @@ result := service.HandleWorkspaceMessage(core.New(), workspace.WorkspaceCommand{
 _ = result.OK
 ```
 
-## Package sigil (`forge.lthn.ai/core/go-io/sigil`)
+## Package sigil (`dappco.re/go/core/io/sigil`)
 
 Composable data-transformation sigils for encoding, compression, hashing, and encryption.
 

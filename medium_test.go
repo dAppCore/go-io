@@ -427,6 +427,6 @@ func TestIO_Copy_Bad(t *testing.T) {
 func TestIO_LocalGlobal_Good(t *testing.T) {
 	assert.NotNil(t, Local, "io.Local should be initialised")
 
-	var memoryMedium = Local
-	assert.NotNil(t, memoryMedium)
+	var localMedium = Local
+	assert.NotNil(t, localMedium)
 }

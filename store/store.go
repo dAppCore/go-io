@@ -10,7 +10,10 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-// Example: _, err := keyValueStore.Get("app", "theme")
+// NotFoundError is the sentinel returned when a key does not exist in the store.
+// Callers test for it with errors.Is. It is defined with errors.New so that
+// identity comparison works correctly across package boundaries.
+// Example: _, err := keyValueStore.Get("app", "theme"); errors.Is(err, store.NotFoundError)
 var NotFoundError = errors.New("key not found")
 
 // Example: keyValueStore, _ := store.New(store.Options{Path: ":memory:"})

@@ -38,6 +38,27 @@ func normaliseTableName(table string) string {
 	return table
 }
 
+// isValidTableName reports whether name consists only of ASCII letters, digits, and underscores,
+// starting with a letter or underscore. This prevents SQL-injection via table-name concatenation.
+func isValidTableName(name string) bool {
+	if name == "" {
+		return false
+	}
+	for i, ch := range name {
+		switch {
+		case ch >= 'a' && ch <= 'z', ch >= 'A' && ch <= 'Z', ch == '_':
+			// always valid
+		case ch >= '0' && ch <= '9':
+			if i == 0 {
+				return false // must not start with a digit
+			}
+		default:
+			return false
+		}
+	}
+	return true
+}
+
 // Example: medium, _ := sqlite.New(sqlite.Options{Path: ":memory:", Table: "files"})
 // Example: _ = medium.Write("config/app.yaml", "port: 8080")
 func New(options Options) (*Medium, error) {
@@ -45,7 +66,12 @@ func New(options Options) (*Medium, error) {
 		return nil, core.E("sqlite.New", "database path is required", fs.ErrInvalid)
 	}
 
-	medium := &Medium{table: normaliseTableName(options.Table)}
+	tableName := normaliseTableName(options.Table)
+	if !isValidTableName(tableName) {
+		return nil, core.E("sqlite.New", core.Concat("table name contains invalid characters: ", tableName), fs.ErrInvalid)
+	}
+
+	medium := &Medium{table: tableName}
 
 	database, err := sql.Open("sqlite", options.Path)
 	if err != nil {
@@ -338,8 +364,8 @@ func (medium *Medium) List(filePath string) ([]fs.DirEntry, error) {
 	}
 
 	rows, err := medium.database.Query(
-		`SELECT path, content, mode, is_dir, mtime FROM `+medium.table+` WHERE path LIKE ? OR path LIKE ?`,
-		prefix+"%", prefix+"%",
+		`SELECT path, content, mode, is_dir, mtime FROM `+medium.table+` WHERE path LIKE ?`,
+		prefix+"%",
 	)
 	if err != nil {
 		return nil, core.E("sqlite.List", "query failed", err)
@@ -635,6 +661,7 @@ type sqliteWriteCloser struct {
 	medium *Medium
 	path   string
 	data   []byte
+	mode   fs.FileMode
 }
 
 func (writer *sqliteWriteCloser) Write(data []byte) (int, error) {
@@ -643,10 +670,14 @@ func (writer *sqliteWriteCloser) Write(data []byte) (int, error) {
 }
 
 func (writer *sqliteWriteCloser) Close() error {
+	mode := writer.mode
+	if mode == 0 {
+		mode = 0644
+	}
 	_, err := writer.medium.database.Exec(
-		`INSERT INTO `+writer.medium.table+` (path, content, mode, is_dir, mtime) VALUES (?, ?, 420, FALSE, ?)
-		 ON CONFLICT(path) DO UPDATE SET content = excluded.content, is_dir = FALSE, mtime = excluded.mtime`,
-		writer.path, writer.data, time.Now().UTC(),
+		`INSERT INTO `+writer.medium.table+` (path, content, mode, is_dir, mtime) VALUES (?, ?, ?, FALSE, ?)
+		 ON CONFLICT(path) DO UPDATE SET content = excluded.content, mode = excluded.mode, is_dir = FALSE, mtime = excluded.mtime`,
+		writer.path, writer.data, int(mode), time.Now().UTC(),
 	)
 	if err != nil {
 		return core.E("sqlite.WriteCloser.Close", core.Concat("store failed: ", writer.path), err)

@@ -2,11 +2,12 @@ package workspace
 
 import (
 	"crypto/sha256"
-	"encoding/hex"
+	goio "io"
 	"io/fs"
 	"sync"
 
 	core "dappco.re/go/core"
+	"golang.org/x/crypto/hkdf"
 
 	"dappco.re/go/core/io"
 	"dappco.re/go/core/io/sigil"
@@ -188,8 +189,14 @@ func (service *Service) workspaceCipherSigil(operation string) (*sigil.ChaChaPol
 	if err != nil {
 		return nil, core.E(operation, "failed to read workspace key", err)
 	}
-	derived := sha256.Sum256([]byte(rawKey))
-	cipherSigil, err := sigil.NewChaChaPolySigil(derived[:], nil)
+	// Use HKDF (RFC 5869) for key derivation: it is purpose-bound, domain-separated,
+	// and more resistant to length-extension attacks than a bare SHA-256 hash.
+	hkdfReader := hkdf.New(sha256.New, []byte(rawKey), nil, []byte("workspace-cipher-key"))
+	derived := make([]byte, 32)
+	if _, err := goio.ReadFull(hkdfReader, derived); err != nil {
+		return nil, core.E(operation, "failed to derive workspace key", err)
+	}
+	cipherSigil, err := sigil.NewChaChaPolySigil(derived, nil)
 	if err != nil {
 		return nil, core.E(operation, "failed to create cipher sigil", err)
 	}
