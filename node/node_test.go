@@ -334,7 +334,8 @@ func TestNode_ExportFile_Bad(t *testing.T) {
 	assert.Error(t, err)
 
 	nodeTree.AddData("foo.txt", []byte("foo"))
-	err = nodeTree.ExportFile("foo.txt", "/nonexistent_dir/test.txt", 0644)
+	nonExistentParent := core.Path(t.TempDir(), "nonexistent_subdir", "test.txt")
+	err = nodeTree.ExportFile("foo.txt", nonExistentParent, 0644)
 	assert.Error(t, err)
 }
 

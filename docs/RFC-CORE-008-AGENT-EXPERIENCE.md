@@ -76,7 +76,7 @@ setup.Run(setup.Options{Path: "./my-module", Template: "php"})
 
 File and directory paths should be self-describing. An agent navigating the filesystem should understand what it is looking at without reading a README.
 
-```
+```text
 flow/deploy/to/homelab.yaml    — deploy TO the homelab
 flow/deploy/from/github.yaml   — deploy FROM GitHub
 flow/code/review.yaml           — code review flow
@@ -178,7 +178,7 @@ core.New(core.Options{
 
 The directory structure tells an agent the intent before it reads a word. Top-level directories are semantic categories, not organisational bins.
 
-```
+```text
 plans/
 ├── code/       # Pure primitives — read for WHAT exists
 ├── project/    # Products — read for WHAT we're building and WHY
@@ -208,7 +208,7 @@ code/core/gui/     → consumer tier (composes from go/*)
 
 Problems in code and specs are layered. Surface issues mask deeper issues. Fixing the surface reveals the next layer. This is not a failure mode — it is the discovery process.
 
-```
+```text
 Pass 1: Find 16 issues (surface — naming, imports, obvious errors)
 Pass 2: Find 11 issues (structural — contradictions, missing types)
 Pass 3: Find 5 issues (architectural — signature mismatches, registration gaps)
@@ -227,7 +227,7 @@ Pass N: Findings are trivial → spec/code is complete
 
 Unit tests verify the code. CLI tests verify the binary. The directory structure IS the command structure — path maps to command, Taskfile runs the test.
 
-```
+```text
 tests/cli/
 ├── core/
 │   └── lint/

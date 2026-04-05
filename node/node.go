@@ -209,6 +209,9 @@ func (node *Node) ExportFile(sourcePath, destinationPath string, permissions fs.
 // Example: _ = nodeTree.CopyTo(io.NewMemoryMedium(), "config", "backup/config")
 func (node *Node) CopyTo(target coreio.Medium, sourcePath, destinationPath string) error {
 	sourcePath = core.TrimPrefix(sourcePath, "/")
+	if sourcePath == "." {
+		sourcePath = ""
+	}
 	info, err := node.Stat(sourcePath)
 	if err != nil {
 		return err
@@ -246,13 +249,16 @@ func (node *Node) CopyTo(target coreio.Medium, sourcePath, destinationPath strin
 // Example: file, _ := nodeTree.Open("config/app.yaml")
 func (node *Node) Open(name string) (fs.File, error) {
 	name = core.TrimPrefix(name, "/")
+	if name == "." {
+		name = ""
+	}
 	if dataFile, ok := node.files[name]; ok {
 		return &dataFileReader{file: dataFile}, nil
 	}
-	prefix := name + "/"
-	if name == "." || name == "" {
-		prefix = ""
+	if name == "" {
+		return &dirFile{path: ".", modTime: time.Now()}, nil
 	}
+	prefix := name + "/"
 	for filePath := range node.files {
 		if core.HasPrefix(filePath, prefix) {
 			return &dirFile{path: name, modTime: time.Now()}, nil
@@ -264,13 +270,16 @@ func (node *Node) Open(name string) (fs.File, error) {
 // Example: info, _ := nodeTree.Stat("config/app.yaml")
 func (node *Node) Stat(name string) (fs.FileInfo, error) {
 	name = core.TrimPrefix(name, "/")
+	if name == "." {
+		name = ""
+	}
 	if dataFile, ok := node.files[name]; ok {
 		return dataFile.Stat()
 	}
-	prefix := name + "/"
-	if name == "." || name == "" {
-		prefix = ""
+	if name == "" {
+		return &dirInfo{name: ".", modTime: time.Now()}, nil
 	}
+	prefix := name + "/"
 	for filePath := range node.files {
 		if core.HasPrefix(filePath, prefix) {
 			return &dirInfo{name: path.Base(name), modTime: time.Now()}, nil
@@ -286,7 +295,11 @@ func (node *Node) ReadDir(name string) ([]fs.DirEntry, error) {
 		name = ""
 	}
 
-	if info, err := node.Stat(name); err == nil && !info.IsDir() {
+	info, statErr := node.Stat(name)
+	if statErr != nil {
+		return nil, &fs.PathError{Op: "readdir", Path: name, Err: fs.ErrNotExist}
+	}
+	if !info.IsDir() {
 		return nil, &fs.PathError{Op: "readdir", Path: name, Err: fs.ErrInvalid}
 	}
 
@@ -340,6 +353,10 @@ func (node *Node) Read(filePath string) (string, error) {
 
 // Example: _ = nodeTree.Write("config/app.yaml", "port: 8080")
 func (node *Node) Write(filePath, content string) error {
+	filePath = core.TrimPrefix(filePath, "/")
+	if filePath == "" || filePath == "." {
+		return core.E("node.Write", "empty path", fs.ErrInvalid)
+	}
 	node.AddData(filePath, []byte(content))
 	return nil
 }
@@ -501,6 +518,9 @@ func (writer *nodeWriter) Write(data []byte) (int, error) {
 }
 
 func (writer *nodeWriter) Close() error {
+	if writer.path == "" || writer.path == "." {
+		return core.E("node.nodeWriter.Close", "empty path", fs.ErrInvalid)
+	}
 	writer.node.files[writer.path] = &dataFile{
 		name:    writer.path,
 		content: writer.buffer,

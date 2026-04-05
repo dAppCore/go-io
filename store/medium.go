@@ -131,6 +131,9 @@ func (medium *Medium) Rename(oldPath, newPath string) error {
 	if oldKey == "" || newKey == "" {
 		return core.E("store.Rename", "both paths must include group/key", fs.ErrInvalid)
 	}
+	if oldGroup == newGroup && oldKey == newKey {
+		return nil
+	}
 	value, err := medium.keyValueStore.Get(oldGroup, oldKey)
 	if err != nil {
 		return err
@@ -226,7 +229,10 @@ func (medium *Medium) Append(entryPath string) (goio.WriteCloser, error) {
 	if key == "" {
 		return nil, core.E("store.Append", "path must include group/key", fs.ErrInvalid)
 	}
-	existingValue, _ := medium.keyValueStore.Get(group, key)
+	existingValue, err := medium.keyValueStore.Get(group, key)
+	if err != nil && !core.Is(err, NotFoundError) {
+		return nil, core.E("store.Append", core.Concat("failed to read existing content: ", entryPath), err)
+	}
 	return &keyValueWriteCloser{keyValueStore: medium.keyValueStore, group: group, key: key, data: []byte(existingValue)}, nil
 }
 

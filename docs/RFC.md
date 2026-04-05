@@ -751,21 +751,6 @@ _ = m.Write("old.txt", "data")
 _ = m.Rename("old.txt", "new.txt")
 ```
 
-**Read(path string) (string, error)**
-Example:
-```go
-m, _ := local.New("/srv/app")
-_ = m.Write("notes.txt", "hello")
-value, _ := m.Read("notes.txt")
-```
-
-**Write(path, content string) error**
-Example:
-```go
-m, _ := local.New("/srv/app")
-_ = m.Write("notes.txt", "hello")
-```
-
 ## Package node (`dappco.re/go/core/io/node`)
 
 In-memory filesystem implementing `io.Medium` and `fs.FS`, with tar serialisation.

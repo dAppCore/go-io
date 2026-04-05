@@ -58,10 +58,12 @@ func FromTar(data []byte) (*Medium, error) {
 	if err != nil {
 		return nil, core.E("datanode.FromTar", "failed to restore", err)
 	}
-	return &Medium{
+	m := &Medium{
 		dataNode:     dataNode,
 		directorySet: make(map[string]bool),
-	}, nil
+	}
+	m.rebuildDirectorySetLocked()
+	return m, nil
 }
 
 // Example: snapshot, _ := medium.Snapshot()
@@ -85,7 +87,20 @@ func (medium *Medium) Restore(data []byte) error {
 	defer medium.lock.Unlock()
 	medium.dataNode = dataNode
 	medium.directorySet = make(map[string]bool)
+	medium.rebuildDirectorySetLocked()
 	return nil
+}
+
+// rebuildDirectorySetLocked walks all file entries and registers parent directories.
+// Caller must hold at least a write lock.
+func (medium *Medium) rebuildDirectorySetLocked() {
+	entries, err := medium.collectAllLocked()
+	if err != nil {
+		return
+	}
+	for _, name := range entries {
+		medium.ensureDirsLocked(path.Dir(name))
+	}
 }
 
 // Example: dataNode := medium.DataNode()
