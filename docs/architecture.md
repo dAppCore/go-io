@@ -94,7 +94,7 @@ Key capabilities beyond `Medium`:
 
 - **`ToTar()` / `FromTar()`** — serialise the entire tree to a tar archive and back. This enables snapshotting, transport, and archival.
 - **`Walk()` with `WalkOptions`** — extends `fs.WalkDir` with `MaxDepth`, `Filter`, and `SkipErrors` controls.
-- **`CopyFile(src, dst, perm)`** — copies a file from the in-memory tree to the real filesystem.
+- **`ExportFile(src, dst, perm)`** — exports a file from the in-memory tree to the local filesystem. Use `CopyTo` for Medium-agnostic transfers.
 - **`CopyTo(target Medium, src, dst)`** — copies a file or directory tree to any other `Medium`.
 - **`ReadFile(name)`** — returns a defensive copy of file content, preventing callers from mutating internal state.
 

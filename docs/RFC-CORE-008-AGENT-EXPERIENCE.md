@@ -41,7 +41,7 @@ AX does not replace UX or DX. End users still need good UX. Developers still nee
 
 Names are tokens that agents pattern-match across languages and contexts. Abbreviations introduce mapping overhead.
 
-```
+```text
 Config    not  Cfg
 Service   not  Srv
 Embed     not  Emb

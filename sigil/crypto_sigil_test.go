@@ -145,8 +145,8 @@ func TestCryptoSigil_NewChaChaPolySigil_Good(t *testing.T) {
 	cipherSigil, err := NewChaChaPolySigil(key, nil)
 	require.NoError(t, err)
 	assert.NotNil(t, cipherSigil)
-	assert.Equal(t, key, cipherSigil.Key)
-	assert.NotNil(t, cipherSigil.Obfuscator)
+	assert.Equal(t, key, cipherSigil.Key())
+	assert.NotNil(t, cipherSigil.Obfuscator())
 }
 
 func TestCryptoSigil_NewChaChaPolySigil_KeyIsCopied_Good(t *testing.T) {
@@ -159,7 +159,7 @@ func TestCryptoSigil_NewChaChaPolySigil_KeyIsCopied_Good(t *testing.T) {
 	require.NoError(t, err)
 
 	key[0] ^= 0xFF
-	assert.Equal(t, original, cipherSigil.Key)
+	assert.Equal(t, original, cipherSigil.Key())
 }
 
 func TestCryptoSigil_NewChaChaPolySigil_ShortKey_Bad(t *testing.T) {
@@ -184,7 +184,7 @@ func TestCryptoSigil_NewChaChaPolySigil_CustomObfuscator_Good(t *testing.T) {
 	ob := &ShuffleMaskObfuscator{}
 	cipherSigil, err := NewChaChaPolySigil(key, ob)
 	require.NoError(t, err)
-	assert.Equal(t, ob, cipherSigil.Obfuscator)
+	assert.Equal(t, ob, cipherSigil.Obfuscator())
 }
 
 func TestCryptoSigil_NewChaChaPolySigil_CustomObfuscatorNil_Good(t *testing.T) {
@@ -193,7 +193,7 @@ func TestCryptoSigil_NewChaChaPolySigil_CustomObfuscatorNil_Good(t *testing.T) {
 
 	cipherSigil, err := NewChaChaPolySigil(key, nil)
 	require.NoError(t, err)
-	assert.IsType(t, &XORObfuscator{}, cipherSigil.Obfuscator)
+	assert.IsType(t, &XORObfuscator{}, cipherSigil.Obfuscator())
 }
 
 func TestCryptoSigil_NewChaChaPolySigil_CustomObfuscator_InvalidKey_Bad(t *testing.T) {
@@ -351,7 +351,7 @@ func TestCryptoSigil_ChaChaPolySigil_NoObfuscator_Good(t *testing.T) {
 	_, _ = rand.Read(key)
 
 	cipherSigil, _ := NewChaChaPolySigil(key, nil)
-	cipherSigil.Obfuscator = nil
+	cipherSigil.SetObfuscator(nil)
 
 	plaintext := []byte("raw encryption without pre-obfuscation")
 	ciphertext, err := cipherSigil.In(plaintext)

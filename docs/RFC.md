@@ -422,21 +422,6 @@ _ = m.Write("notes.txt", "hello")
 ok := m.IsFile("notes.txt")
 ```
 
-**Read(path string) (string, error)**
-Example:
-```go
-m := io.NewMemoryMedium()
-_ = m.Write("notes.txt", "hello")
-value, _ := m.Read("notes.txt")
-```
-
-**Write(path, content string) error**
-Example:
-```go
-m := io.NewMemoryMedium()
-_ = m.Write("notes.txt", "hello")
-```
-
 **Delete(path string) error**
 Example:
 ```go
@@ -869,13 +854,13 @@ _ = n.Write("file.txt", "data")
 b, _ := n.ReadFile("file.txt")
 ```
 
-**CopyFile(sourcePath, destinationPath string, perm fs.FileMode) error**
-Copies a file to the local filesystem.
+**ExportFile(sourcePath, destinationPath string, perm fs.FileMode) error**
+Exports a file from the in-memory tree to the local filesystem. Operates on coreio.Local directly — use CopyTo for Medium-agnostic transfers.
 Example:
 ```go
 n := node.New()
 _ = n.Write("file.txt", "data")
-_ = n.CopyFile("file.txt", "/tmp/file.txt", 0644)
+_ = n.ExportFile("file.txt", "/tmp/file.txt", 0644)
 ```
 
 **CopyTo(target io.Medium, sourcePath, destPath string) error**

@@ -182,9 +182,26 @@ func (obfuscator *ShuffleMaskObfuscator) deriveMask(entropy []byte, length int) 
 // Example:     &sigil.ShuffleMaskObfuscator{},
 // Example: )
 type ChaChaPolySigil struct {
-	Key          []byte
-	Obfuscator   PreObfuscator
+	key          []byte
+	obfuscator   PreObfuscator
 	randomReader goio.Reader
+}
+
+// Example: key := cipherSigil.Key()
+func (s *ChaChaPolySigil) Key() []byte {
+	result := make([]byte, len(s.key))
+	copy(result, s.key)
+	return result
+}
+
+// Example: ob := cipherSigil.Obfuscator()
+func (s *ChaChaPolySigil) Obfuscator() PreObfuscator {
+	return s.obfuscator
+}
+
+// Example: cipherSigil.SetObfuscator(nil)
+func (s *ChaChaPolySigil) SetObfuscator(obfuscator PreObfuscator) {
+	s.obfuscator = obfuscator
 }
 
 // Example: cipherSigil, _ := sigil.NewChaChaPolySigil([]byte("0123456789abcdef0123456789abcdef"), nil)
@@ -203,27 +220,27 @@ func NewChaChaPolySigil(key []byte, obfuscator PreObfuscator) (*ChaChaPolySigil,
 	}
 
 	return &ChaChaPolySigil{
-		Key:          keyCopy,
-		Obfuscator:   obfuscator,
+		key:          keyCopy,
+		obfuscator:   obfuscator,
 		randomReader: rand.Reader,
 	}, nil
 }
 
-func (sigil *ChaChaPolySigil) In(data []byte) ([]byte, error) {
-	if sigil.Key == nil {
+func (s *ChaChaPolySigil) In(data []byte) ([]byte, error) {
+	if s.key == nil {
 		return nil, NoKeyConfiguredError
 	}
 	if data == nil {
 		return nil, nil
 	}
 
-	aead, err := chacha20poly1305.NewX(sigil.Key)
+	aead, err := chacha20poly1305.NewX(s.key)
 	if err != nil {
 		return nil, core.E("sigil.ChaChaPolySigil.In", "create cipher", err)
 	}
 
 	nonce := make([]byte, aead.NonceSize())
-	reader := sigil.randomReader
+	reader := s.randomReader
 	if reader == nil {
 		reader = rand.Reader
 	}
@@ -232,8 +249,8 @@ func (sigil *ChaChaPolySigil) In(data []byte) ([]byte, error) {
 	}
 
 	obfuscated := data
-	if sigil.Obfuscator != nil {
-		obfuscated = sigil.Obfuscator.Obfuscate(data, nonce)
+	if s.obfuscator != nil {
+		obfuscated = s.obfuscator.Obfuscate(data, nonce)
 	}
 
 	ciphertext := aead.Seal(nonce, nonce, obfuscated, nil)
@@ -241,15 +258,15 @@ func (sigil *ChaChaPolySigil) In(data []byte) ([]byte, error) {
 	return ciphertext, nil
 }
 
-func (sigil *ChaChaPolySigil) Out(data []byte) ([]byte, error) {
-	if sigil.Key == nil {
+func (s *ChaChaPolySigil) Out(data []byte) ([]byte, error) {
+	if s.key == nil {
 		return nil, NoKeyConfiguredError
 	}
 	if data == nil {
 		return nil, nil
 	}
 
-	aead, err := chacha20poly1305.NewX(sigil.Key)
+	aead, err := chacha20poly1305.NewX(s.key)
 	if err != nil {
 		return nil, core.E("sigil.ChaChaPolySigil.Out", "create cipher", err)
 	}
@@ -270,8 +287,8 @@ func (sigil *ChaChaPolySigil) Out(data []byte) ([]byte, error) {
 	}
 
 	plaintext := obfuscated
-	if sigil.Obfuscator != nil {
-		plaintext = sigil.Obfuscator.Deobfuscate(obfuscated, nonce)
+	if s.obfuscator != nil {
+		plaintext = s.obfuscator.Deobfuscate(obfuscated, nonce)
 	}
 
 	if len(plaintext) == 0 {

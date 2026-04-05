@@ -189,7 +189,11 @@ func Copy(sourceMedium Medium, sourcePath string, destinationMedium Medium, dest
 	if err != nil {
 		return core.E("io.Copy", core.Concat("read failed: ", sourcePath), err)
 	}
-	if err := destinationMedium.Write(destinationPath, content); err != nil {
+	mode := fs.FileMode(0644)
+	if info, err := sourceMedium.Stat(sourcePath); err == nil {
+		mode = info.Mode()
+	}
+	if err := destinationMedium.WriteMode(destinationPath, content, mode); err != nil {
 		return core.E("io.Copy", core.Concat("write failed: ", destinationPath), err)
 	}
 	return nil
@@ -271,9 +275,9 @@ func (medium *MemoryMedium) Write(path, content string) error {
 }
 
 // Example: _ = io.NewMemoryMedium().WriteMode("keys/private.key", "secret", 0600)
-func (medium *MemoryMedium) WriteMode(path, content string, mode fs.FileMode) error {
+func (medium *MemoryMedium) WriteMode(filePath, content string, mode fs.FileMode) error {
 	// Verify no ancestor directory component is stored as a file.
-	ancestor := path.Dir(path)
+	ancestor := path.Dir(filePath)
 	for ancestor != "." && ancestor != "" {
 		if _, ok := medium.fileContents[ancestor]; ok {
 			return core.E("io.MemoryMedium.WriteMode", core.Concat("ancestor path is a file: ", ancestor), fs.ErrExist)
@@ -284,10 +288,13 @@ func (medium *MemoryMedium) WriteMode(path, content string, mode fs.FileMode) er
 		}
 		ancestor = next
 	}
-	medium.ensureAncestorDirectories(path)
-	medium.fileContents[path] = content
-	medium.fileModes[path] = mode
-	medium.modificationTimes[path] = time.Now()
+	if _, ok := medium.directories[filePath]; ok {
+		return core.E("io.MemoryMedium.WriteMode", core.Concat("path is a directory: ", filePath), fs.ErrExist)
+	}
+	medium.ensureAncestorDirectories(filePath)
+	medium.fileContents[filePath] = content
+	medium.fileModes[filePath] = mode
+	medium.modificationTimes[filePath] = time.Now()
 	return nil
 }
 
@@ -537,6 +544,9 @@ func (writeCloser *MemoryWriteCloser) Write(data []byte) (int, error) {
 }
 
 func (writeCloser *MemoryWriteCloser) Close() error {
+	if _, ok := writeCloser.medium.directories[writeCloser.path]; ok {
+		return core.E("io.MemoryWriteCloser.Close", core.Concat("path is a directory: ", writeCloser.path), fs.ErrExist)
+	}
 	writeCloser.medium.ensureAncestorDirectories(writeCloser.path)
 	writeCloser.medium.fileContents[writeCloser.path] = string(writeCloser.data)
 	writeCloser.medium.fileModes[writeCloser.path] = writeCloser.mode

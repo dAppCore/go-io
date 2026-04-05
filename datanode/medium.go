@@ -14,6 +14,7 @@ import (
 	"time"
 
 	core "dappco.re/go/core"
+	coreio "dappco.re/go/core/io"
 	borgdatanode "forge.lthn.ai/Snider/Borg/pkg/datanode"
 )
 
@@ -28,6 +29,8 @@ var (
 		return goio.ReadAll(reader)
 	}
 )
+
+var _ coreio.Medium = (*Medium)(nil)
 
 // Example: medium := datanode.New()
 // Example: _ = medium.Write("jobs/run.log", "started")

@@ -22,6 +22,8 @@ import (
 // Example: nodeTree.AddData("config/app.yaml", []byte("port: 8080"))
 // Example: snapshot, _ := nodeTree.ToTar()
 // Example: restored, _ := node.FromTar(snapshot)
+// Note: Node is not goroutine-safe. All methods must be called from a single goroutine,
+// or the caller must provide external synchronisation.
 type Node struct {
 	files map[string]*dataFile
 }
@@ -152,7 +154,13 @@ func (node *Node) Walk(root string, walkFunc fs.WalkDirFunc, options WalkOptions
 		if walkResult == nil && options.MaxDepth > 0 && entry != nil && entry.IsDir() && entryPath != root {
 			relativePath := core.TrimPrefix(entryPath, root)
 			relativePath = core.TrimPrefix(relativePath, "/")
-			depth := len(core.Split(relativePath, "/"))
+			parts := core.Split(relativePath, "/")
+			depth := 0
+			for _, part := range parts {
+				if part != "" {
+					depth++
+				}
+			}
 			if depth >= options.MaxDepth {
 				return fs.SkipDir
 			}
@@ -174,23 +182,26 @@ func (node *Node) ReadFile(name string) ([]byte, error) {
 	return result, nil
 }
 
-// Example: _ = nodeTree.CopyFile("config/app.yaml", "backup/app.yaml", 0644)
-func (node *Node) CopyFile(sourcePath, destinationPath string, permissions fs.FileMode) error {
+// ExportFile writes a node file to the local filesystem. It operates on coreio.Local directly
+// and is intentionally local-only — use CopyTo for Medium-agnostic transfers.
+// Example: _ = nodeTree.ExportFile("config/app.yaml", "backup/app.yaml", 0644)
+func (node *Node) ExportFile(sourcePath, destinationPath string, permissions fs.FileMode) error {
 	sourcePath = core.TrimPrefix(sourcePath, "/")
 	file, ok := node.files[sourcePath]
 	if !ok {
 		info, err := node.Stat(sourcePath)
 		if err != nil {
-			return core.E("node.CopyFile", core.Concat("source not found: ", sourcePath), fs.ErrNotExist)
+			return core.E("node.ExportFile", core.Concat("source not found: ", sourcePath), fs.ErrNotExist)
 		}
 		if info.IsDir() {
-			return core.E("node.CopyFile", core.Concat("source is a directory: ", sourcePath), fs.ErrInvalid)
+			return core.E("node.ExportFile", core.Concat("source is a directory: ", sourcePath), fs.ErrInvalid)
 		}
-		return core.E("node.CopyFile", core.Concat("source not found: ", sourcePath), fs.ErrNotExist)
+		// unreachable: Stat only succeeds for directories when file is absent
+		return core.E("node.ExportFile", core.Concat("source not found: ", sourcePath), fs.ErrNotExist)
 	}
 	parent := core.PathDir(destinationPath)
 	if parent != "." && parent != "" && parent != destinationPath && !coreio.Local.IsDir(parent) {
-		return &fs.PathError{Op: "copyfile", Path: destinationPath, Err: fs.ErrNotExist}
+		return core.E("node.ExportFile", core.Concat("parent directory not found: ", destinationPath), fs.ErrNotExist)
 	}
 	return coreio.Local.WriteMode(destinationPath, string(file.content), permissions)
 }
@@ -401,18 +412,42 @@ func (node *Node) DeleteAll(filePath string) error {
 }
 
 // Example: _ = nodeTree.Rename("drafts/todo.txt", "archive/todo.txt")
+// Example: _ = nodeTree.Rename("drafts", "archive")
 func (node *Node) Rename(oldPath, newPath string) error {
 	oldPath = core.TrimPrefix(oldPath, "/")
 	newPath = core.TrimPrefix(newPath, "/")
 
-	file, ok := node.files[oldPath]
-	if !ok {
-		return core.E("node.Rename", core.Concat("path not found: ", oldPath), fs.ErrNotExist)
+	if file, ok := node.files[oldPath]; ok {
+		file.name = newPath
+		node.files[newPath] = file
+		delete(node.files, oldPath)
+		return nil
 	}
 
-	file.name = newPath
-	node.files[newPath] = file
-	delete(node.files, oldPath)
+	// Directory rename: batch-rename all entries that share the prefix.
+	oldPrefix := oldPath + "/"
+	newPrefix := newPath + "/"
+	renamed := 0
+	toAdd := make(map[string]*dataFile)
+	toDelete := make([]string, 0)
+	for filePath, file := range node.files {
+		if core.HasPrefix(filePath, oldPrefix) {
+			updatedPath := core.Concat(newPrefix, core.TrimPrefix(filePath, oldPrefix))
+			file.name = updatedPath
+			toAdd[updatedPath] = file
+			toDelete = append(toDelete, filePath)
+			renamed++
+		}
+	}
+	for _, p := range toDelete {
+		delete(node.files, p)
+	}
+	for p, f := range toAdd {
+		node.files[p] = f
+	}
+	if renamed == 0 {
+		return core.E("node.Rename", core.Concat("path not found: ", oldPath), fs.ErrNotExist)
+	}
 	return nil
 }
 

@@ -313,12 +313,12 @@ func TestNode_Walk_Good(t *testing.T) {
 	})
 }
 
-func TestNode_CopyFile_Good(t *testing.T) {
+func TestNode_ExportFile_Good(t *testing.T) {
 	nodeTree := New()
 	nodeTree.AddData("foo.txt", []byte("foo"))
 
 	destinationPath := core.Path(t.TempDir(), "test.txt")
-	err := nodeTree.CopyFile("foo.txt", destinationPath, 0644)
+	err := nodeTree.ExportFile("foo.txt", destinationPath, 0644)
 	require.NoError(t, err)
 
 	content, err := coreio.Local.Read(destinationPath)
@@ -326,24 +326,24 @@ func TestNode_CopyFile_Good(t *testing.T) {
 	assert.Equal(t, "foo", content)
 }
 
-func TestNode_CopyFile_Bad(t *testing.T) {
+func TestNode_ExportFile_Bad(t *testing.T) {
 	nodeTree := New()
 	destinationPath := core.Path(t.TempDir(), "test.txt")
 
-	err := nodeTree.CopyFile("nonexistent.txt", destinationPath, 0644)
+	err := nodeTree.ExportFile("nonexistent.txt", destinationPath, 0644)
 	assert.Error(t, err)
 
 	nodeTree.AddData("foo.txt", []byte("foo"))
-	err = nodeTree.CopyFile("foo.txt", "/nonexistent_dir/test.txt", 0644)
+	err = nodeTree.ExportFile("foo.txt", "/nonexistent_dir/test.txt", 0644)
 	assert.Error(t, err)
 }
 
-func TestNode_CopyFile_DirectorySource_Bad(t *testing.T) {
+func TestNode_ExportFile_DirectorySource_Bad(t *testing.T) {
 	nodeTree := New()
 	nodeTree.AddData("bar/baz.txt", []byte("baz"))
 	destinationPath := core.Path(t.TempDir(), "test.txt")
 
-	err := nodeTree.CopyFile("bar", destinationPath, 0644)
+	err := nodeTree.ExportFile("bar", destinationPath, 0644)
 	assert.Error(t, err)
 }
 

@@ -76,6 +76,8 @@ func (medium *Medium) Write(entryPath, content string) error {
 }
 
 // Example: _ = medium.WriteMode("app/theme", "midnight", 0600)
+// Note: mode is not persisted — the SQLite store has no entry_mode column.
+// Use Write when mode is irrelevant; WriteMode satisfies the Medium interface only.
 func (medium *Medium) WriteMode(entryPath, content string, mode fs.FileMode) error {
 	return medium.Write(entryPath, content)
 }
@@ -144,22 +146,13 @@ func (medium *Medium) List(entryPath string) ([]fs.DirEntry, error) {
 	group, key := splitGroupKeyPath(entryPath)
 
 	if group == "" {
-		rows, err := medium.keyValueStore.database.Query("SELECT DISTINCT group_name FROM entries ORDER BY group_name")
+		groups, err := medium.keyValueStore.ListGroups()
 		if err != nil {
-			return nil, core.E("store.List", "query groups", err)
+			return nil, err
 		}
-		defer rows.Close()
-
-		var entries []fs.DirEntry
-		for rows.Next() {
-			var groupName string
-			if err := rows.Scan(&groupName); err != nil {
-				return nil, core.E("store.List", "scan", err)
-			}
+		entries := make([]fs.DirEntry, 0, len(groups))
+		for _, groupName := range groups {
 			entries = append(entries, &keyValueDirEntry{name: groupName, isDir: true})
-		}
-		if err := rows.Err(); err != nil {
-			return nil, core.E("store.List", "rows", err)
 		}
 		return entries, nil
 	}

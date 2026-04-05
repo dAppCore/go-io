@@ -112,6 +112,28 @@ func (keyValueStore *KeyValueStore) DeleteGroup(group string) error {
 	return nil
 }
 
+// Example: groups, _ := keyValueStore.ListGroups()
+func (keyValueStore *KeyValueStore) ListGroups() ([]string, error) {
+	rows, err := keyValueStore.database.Query("SELECT DISTINCT group_name FROM entries ORDER BY group_name")
+	if err != nil {
+		return nil, core.E("store.ListGroups", "query groups", err)
+	}
+	defer rows.Close()
+
+	var groups []string
+	for rows.Next() {
+		var groupName string
+		if err := rows.Scan(&groupName); err != nil {
+			return nil, core.E("store.ListGroups", "scan", err)
+		}
+		groups = append(groups, groupName)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, core.E("store.ListGroups", "rows", err)
+	}
+	return groups, nil
+}
+
 // Example: values, _ := keyValueStore.GetAll("app")
 func (keyValueStore *KeyValueStore) GetAll(group string) (map[string]string, error) {
 	rows, err := keyValueStore.database.Query("SELECT entry_key, entry_value FROM entries WHERE group_name = ?", group)
