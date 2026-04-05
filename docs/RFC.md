@@ -911,23 +911,6 @@ n := node.New()
 _ = n.WriteMode("file.txt", "data", 0600)
 ```
 
-**Read(p string) (string, error)**
-Alias for `Read`.
-Example:
-```go
-n := node.New()
-_ = n.Write("file.txt", "data")
-value, _ := n.Read("file.txt")
-```
-
-**Write(p, content string) error**
-Alias for `Write`.
-Example:
-```go
-n := node.New()
-_ = n.Write("file.txt", "data")
-```
-
 **EnsureDir(path string) error**
 No-op (directories are implicit).
 Example:
@@ -1223,21 +1206,6 @@ _ = m.Write("config/theme", "midnight")
 ok := m.IsFile("config/theme")
 ```
 
-**Read(p string) (string, error)**
-Example:
-```go
-m, _ := store.NewMedium(store.Options{Path: ":memory:"})
-_ = m.Write("config/theme", "midnight")
-value, _ := m.Read("config/theme")
-```
-
-**Write(p, content string) error**
-Example:
-```go
-m, _ := store.NewMedium(store.Options{Path: ":memory:"})
-_ = m.Write("config/theme", "midnight")
-```
-
 **Delete(p string) error**
 Example:
 ```go
@@ -1409,21 +1377,6 @@ Example:
 m, _ := sqlite.New(sqlite.Options{Path: ":memory:"})
 _ = m.Write("notes.txt", "hello")
 ok := m.IsFile("notes.txt")
-```
-
-**Read(p string) (string, error)**
-Example:
-```go
-m, _ := sqlite.New(sqlite.Options{Path: ":memory:"})
-_ = m.Write("notes.txt", "hello")
-value, _ := m.Read("notes.txt")
-```
-
-**Write(p, content string) error**
-Example:
-```go
-m, _ := sqlite.New(sqlite.Options{Path: ":memory:"})
-_ = m.Write("notes.txt", "hello")
 ```
 
 **Delete(p string) error**
@@ -1604,22 +1557,6 @@ Example:
 client := awss3.NewFromConfig(aws.Config{Region: "us-east-1"})
 m, _ := s3.New(s3.Options{Bucket: "bucket", Client: client})
 ok := m.IsFile("notes.txt")
-```
-
-**Read(p string) (string, error)**
-Example:
-```go
-client := awss3.NewFromConfig(aws.Config{Region: "us-east-1"})
-m, _ := s3.New(s3.Options{Bucket: "bucket", Client: client})
-value, _ := m.Read("notes.txt")
-```
-
-**Write(p, content string) error**
-Example:
-```go
-client := awss3.NewFromConfig(aws.Config{Region: "us-east-1"})
-m, _ := s3.New(s3.Options{Bucket: "bucket", Client: client})
-_ = m.Write("notes.txt", "hello")
 ```
 
 **Delete(p string) error**
@@ -1820,21 +1757,6 @@ Example:
 m := datanode.New()
 _ = m.Write("notes.txt", "hello")
 ok := m.IsFile("notes.txt")
-```
-
-**Read(p string) (string, error)**
-Example:
-```go
-m := datanode.New()
-_ = m.Write("notes.txt", "hello")
-value, _ := m.Read("notes.txt")
-```
-
-**Write(p, content string) error**
-Example:
-```go
-m := datanode.New()
-_ = m.Write("notes.txt", "hello")
 ```
 
 **Delete(p string) error**

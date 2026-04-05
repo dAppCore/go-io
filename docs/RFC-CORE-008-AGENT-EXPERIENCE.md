@@ -193,7 +193,7 @@ plans/
 
 Dependency flows one direction. Libraries define primitives. Consumers compose from them. A new feature in a consumer can never break a library.
 
-```
+```text
 code/core/go/*     → lib tier (stable foundation)
 code/core/agent/   → consumer tier (composes from go/*)
 code/core/cli/     → consumer tier (composes from go/*)
@@ -266,7 +266,7 @@ tasks:
 
 ### File Structure
 
-```
+```text
 # AX-native: path describes content
 core/agent/
 ├── go/                    # Go source
@@ -326,7 +326,7 @@ The `plans/` directory structure encodes a development methodology designed for 
 
 ### The Three-Way Split
 
-```
+```text
 plans/
 ├── project/    # 1. WHAT and WHY — start here
 ├── rfc/        # 2. CONSTRAINTS — immutable contracts
@@ -369,7 +369,7 @@ The code spec IS the product. Write the spec → dispatch to an agent → review
 
 Before dispatching for implementation, verify spec-model alignment:
 
-```
+```text
 1. REVIEW — The implementation model (Codex/Jules) reads the spec
    and reports missing elements. This surfaces the delta between
    the model's training and the spec's assumptions.
@@ -393,7 +393,7 @@ Before dispatching for implementation, verify spec-model alignment:
 
 Same prompt, multiple runs. Each pass sees deeper because the context evolved:
 
-```
+```text
 Round 1: Build features (the obvious gaps)
 Round 2: Write tests (verify what was built)
 Round 3: Harden security (what can go wrong?)

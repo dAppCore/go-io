@@ -11,6 +11,10 @@ import (
 	coreio "dappco.re/go/core/io"
 )
 
+// ErrNotDirectory is returned by List when the path resolves to a key rather than a group.
+// Example: _, err := medium.List("app/theme") // err == store.ErrNotDirectory
+var ErrNotDirectory = core.E("store", "path is a key, not a directory", fs.ErrInvalid)
+
 // Example: medium, _ := store.NewMedium(store.Options{Path: "config.db"})
 // Example: _ = medium.Write("app/theme", "midnight")
 // Example: entries, _ := medium.List("")
@@ -161,7 +165,7 @@ func (medium *Medium) List(entryPath string) ([]fs.DirEntry, error) {
 	}
 
 	if key != "" {
-		return nil, nil
+		return nil, ErrNotDirectory
 	}
 
 	all, err := medium.keyValueStore.GetAll(group)
