@@ -2,6 +2,7 @@ package workspace
 
 import (
 	"crypto/sha256"
+	"encoding/hex"
 	goio "io"
 	"io/fs"
 	"sync"
