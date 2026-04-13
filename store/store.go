@@ -2,7 +2,6 @@ package store
 
 import (
 	"database/sql"
-	"errors"
 	"io/fs"
 	"text/template"
 
@@ -14,7 +13,7 @@ import (
 // Callers test for it with errors.Is. It is defined with errors.New so that
 // identity comparison works correctly across package boundaries.
 // Example: _, err := keyValueStore.Get("app", "theme"); errors.Is(err, store.NotFoundError)
-var NotFoundError = errors.New("key not found")
+var NotFoundError = core.E("store", "key not found", nil)
 
 // Example: keyValueStore, _ := store.New(store.Options{Path: ":memory:"})
 type KeyValueStore struct {

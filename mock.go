@@ -4,9 +4,10 @@ package io
 
 import (
 	"bytes"
+	"cmp"
 	goio "io"
 	"io/fs"
-	"sort"
+	"slices"
 	"sync"
 	"time"
 )
@@ -152,7 +153,7 @@ func (m *MockMedium) List(path string) ([]fs.DirEntry, error) {
 			}
 		}
 	}
-	sort.Slice(entries, func(i, j int) bool { return entries[i].Name() < entries[j].Name() })
+	slices.SortFunc(entries, func(a, b fs.DirEntry) int { return cmp.Compare(a.Name(), b.Name()) })
 	return entries, nil
 }
 
