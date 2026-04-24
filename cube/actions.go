@@ -13,7 +13,7 @@ import (
 	"io/fs"
 
 	core "dappco.re/go/core"
-	coreio "dappco.re/go/core/io"
+	coreio "dappco.re/go/io"
 )
 
 // Named action identifiers for the Cube Medium. Matches the go-io RFC §15

@@ -10,7 +10,7 @@ import (
 	"time"
 
 	core "dappco.re/go/core"
-	"dappco.re/go/core/io/local"
+	"dappco.re/go/io/local"
 )
 
 // Example: medium, _ := io.NewSandboxed("/srv/app")

@@ -5,8 +5,8 @@ import (
 	goio "io"
 	"testing"
 
-	coreio "dappco.re/go/core/io"
-	"dappco.re/go/core/io/local"
+	coreio "dappco.re/go/io"
+	"dappco.re/go/io/local"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

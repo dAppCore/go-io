@@ -10,8 +10,8 @@ import (
 	core "dappco.re/go/core"
 	"golang.org/x/crypto/hkdf"
 
-	"dappco.re/go/core/io"
-	"dappco.re/go/core/io/sigil"
+	"dappco.re/go/io"
+	"dappco.re/go/io/sigil"
 )
 
 // Example: service, _ := workspace.New(workspace.Options{KeyPairProvider: keyPairProvider})

@@ -12,7 +12,7 @@ import (
 	"io/fs"
 
 	core "dappco.re/go/core"
-	"dappco.re/go/core/io/local"
+	"dappco.re/go/io/local"
 )
 
 // Named action identifiers used by Core consumers. Each maps to a Medium

@@ -11,7 +11,7 @@ import (
 	"time"
 
 	core "dappco.re/go/core"
-	coreio "dappco.re/go/core/io"
+	coreio "dappco.re/go/io"
 
 	_ "modernc.org/sqlite"
 )

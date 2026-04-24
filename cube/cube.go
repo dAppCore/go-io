@@ -12,10 +12,10 @@ import (
 	"time"
 
 	core "dappco.re/go/core"
-	coreio "dappco.re/go/core/io"
-	"dappco.re/go/core/io/local"
-	"dappco.re/go/core/io/node"
-	"dappco.re/go/core/io/sigil"
+	coreio "dappco.re/go/io"
+	"dappco.re/go/io/local"
+	"dappco.re/go/io/node"
+	"dappco.re/go/io/sigil"
 )
 
 // Example: medium, _ := cube.New(cube.Options{Inner: inner, Key: key})
