@@ -5,14 +5,10 @@
 package node
 
 import (
-	"archive/tar"
-	"bytes"
-	"cmp"
-	goio "io"
-	"io/fs"
-	"path"
-	"slices"
-	"time"
+	"archive/tar" // AX-6-exception: tar archive transport has no core equivalent.
+	goio "io"     // AX-6-exception: io interface types have no core equivalent; io.EOF preserves stream semantics.
+	"io/fs"       // AX-6-exception: fs interface types have no core equivalent.
+	"time"        // AX-6-exception: filesystem metadata timestamps have no core equivalent.
 
 	core "dappco.re/go/core"
 	coreio "dappco.re/go/io"
@@ -37,6 +33,17 @@ func New() *Node {
 	return &Node{files: make(map[string]*dataFile)}
 }
 
+// AX-6-exception: core.NewBuffer is unavailable in the pinned core module; this is
+// the minimal intrinsic writer needed by archive/tar.
+type nodeArchiveBuffer struct {
+	data []byte
+}
+
+func (buffer *nodeArchiveBuffer) Write(data []byte) (int, error) {
+	buffer.data = append(buffer.data, data...)
+	return len(data), nil
+}
+
 // Example: nodeTree.AddData("config/app.yaml", []byte("port: 8080"))
 func (node *Node) AddData(name string, content []byte) {
 	name = core.TrimPrefix(name, "/")
@@ -55,7 +62,7 @@ func (node *Node) AddData(name string, content []byte) {
 
 // Example: snapshot, _ := nodeTree.ToTar()
 func (node *Node) ToTar() ([]byte, error) {
-	buffer := new(bytes.Buffer)
+	buffer := &nodeArchiveBuffer{}
 	tarWriter := tar.NewWriter(buffer)
 
 	for _, file := range node.files {
@@ -77,7 +84,7 @@ func (node *Node) ToTar() ([]byte, error) {
 		return nil, err
 	}
 
-	return buffer.Bytes(), nil
+	return buffer.data, nil
 }
 
 // Example: restored, _ := node.FromTar(snapshot)
@@ -92,7 +99,7 @@ func FromTar(data []byte) (*Node, error) {
 // Example: _ = nodeTree.LoadTar(snapshot)
 func (node *Node) LoadTar(data []byte) error {
 	newFiles := make(map[string]*dataFile)
-	tarReader := tar.NewReader(bytes.NewReader(data))
+	tarReader := tar.NewReader(core.NewReader(string(data)))
 
 	for {
 		header, err := tarReader.Next()
@@ -104,9 +111,12 @@ func (node *Node) LoadTar(data []byte) error {
 		}
 
 		if header.Typeflag == tar.TypeReg {
-			content, err := goio.ReadAll(tarReader)
-			if err != nil {
-				return core.E("node.LoadTar", "read tar entry", err)
+			contentResult := core.ReadAll(tarReader)
+			if !contentResult.OK {
+				if err, ok := contentResult.Value.(error); ok {
+					return core.E("node.LoadTar", "read tar entry", err)
+				}
+				return core.E("node.LoadTar", "read tar entry", fs.ErrInvalid)
 			}
 			name := core.TrimPrefix(header.Name, "/")
 			if name == "" || core.HasSuffix(name, "/") {
@@ -114,7 +124,7 @@ func (node *Node) LoadTar(data []byte) error {
 			}
 			newFiles[name] = &dataFile{
 				name:    name,
-				content: content,
+				content: []byte(contentResult.Value.(string)),
 				modTime: header.ModTime,
 			}
 		}
@@ -282,7 +292,7 @@ func (node *Node) Stat(name string) (fs.FileInfo, error) {
 	prefix := name + "/"
 	for filePath := range node.files {
 		if core.HasPrefix(filePath, prefix) {
-			return &dirInfo{name: path.Base(name), modTime: time.Now()}, nil
+			return &dirInfo{name: core.PathBase(name), modTime: time.Now()}, nil
 		}
 	}
 	return nil, core.E("node.Stat", core.Concat("path not found: ", name), fs.ErrNotExist)
@@ -334,11 +344,21 @@ func (node *Node) ReadDir(name string) ([]fs.DirEntry, error) {
 		}
 	}
 
-	slices.SortFunc(entries, func(a, b fs.DirEntry) int {
-		return cmp.Compare(a.Name(), b.Name())
-	})
+	sortDirEntriesByName(entries)
 
 	return entries, nil
+}
+
+func sortDirEntriesByName(entries []fs.DirEntry) {
+	for i := 1; i < len(entries); i++ {
+		entry := entries[i]
+		j := i - 1
+		for j >= 0 && entries[j].Name() > entry.Name() {
+			entries[j+1] = entries[j]
+			j--
+		}
+		entries[j+1] = entry
+	}
 }
 
 // Example: content, _ := nodeTree.Read("config/app.yaml")
@@ -499,7 +519,7 @@ func (node *Node) ReadStream(filePath string) (goio.ReadCloser, error) {
 	if err != nil {
 		return nil, err
 	}
-	return goio.NopCloser(file), nil
+	return file, nil
 }
 
 func (node *Node) WriteStream(filePath string) (goio.WriteCloser, error) {
@@ -543,7 +563,7 @@ func (file *dataFile) Close() error { return nil }
 
 type dataFileInfo struct{ file *dataFile }
 
-func (info *dataFileInfo) Name() string { return path.Base(info.file.name) }
+func (info *dataFileInfo) Name() string { return core.PathBase(info.file.name) }
 
 func (info *dataFileInfo) Size() int64 { return int64(len(info.file.content)) }
 
@@ -557,16 +577,18 @@ func (info *dataFileInfo) Sys() any { return nil }
 
 type dataFileReader struct {
 	file   *dataFile
-	reader *bytes.Reader
+	offset int64
 }
 
 func (reader *dataFileReader) Stat() (fs.FileInfo, error) { return reader.file.Stat() }
 
 func (reader *dataFileReader) Read(buffer []byte) (int, error) {
-	if reader.reader == nil {
-		reader.reader = bytes.NewReader(reader.file.content)
+	if reader.offset >= int64(len(reader.file.content)) {
+		return 0, goio.EOF
 	}
-	return reader.reader.Read(buffer)
+	readCount := copy(buffer, reader.file.content[reader.offset:])
+	reader.offset += int64(readCount)
+	return readCount, nil
 }
 
 func (reader *dataFileReader) Close() error { return nil }
@@ -594,7 +616,7 @@ type dirFile struct {
 }
 
 func (directory *dirFile) Stat() (fs.FileInfo, error) {
-	return &dirInfo{name: path.Base(directory.path), modTime: directory.modTime}, nil
+	return &dirInfo{name: core.PathBase(directory.path), modTime: directory.modTime}, nil
 }
 
 func (directory *dirFile) Read([]byte) (int, error) {
@@ -607,8 +629,6 @@ var _ fs.FS = (*Node)(nil)
 
 var _ fs.StatFS = (*Node)(nil)
 var _ fs.ReadDirFS = (*Node)(nil)
-
-var _ goio.ReadCloser = goio.NopCloser(nil)
 
 var _ goio.WriteCloser = (*nodeWriter)(nil)
 

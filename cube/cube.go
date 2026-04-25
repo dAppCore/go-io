@@ -5,10 +5,10 @@
 package cube
 
 import (
-	"archive/tar"
-	goio "io"
-	"io/fs"
-	"time"
+	"archive/tar" // AX-6-exception: tar archive transport has no core equivalent.
+	goio "io"     // AX-6-exception: io interface types have no core equivalent; io.EOF preserves stream semantics.
+	"io/fs"       // AX-6-exception: fs interface types have no core equivalent.
+	"time"        // AX-6-exception: filesystem metadata timestamps have no core equivalent.
 
 	core "dappco.re/go/core"
 	coreio "dappco.re/go/io"
@@ -229,7 +229,7 @@ func (writer *cubeWriteCloser) Close() error {
 	return writer.medium.WriteMode(writer.path, string(writer.data), mode)
 }
 
-// Note: AX-6 - core.NewBuffer is unavailable in the pinned core module; this is
+// AX-6-exception: core.NewBuffer is unavailable in the pinned core module; this is
 // the minimal intrinsic writer needed by archive/tar.
 type cubeArchiveBuffer struct {
 	data []byte
@@ -416,9 +416,12 @@ func extractTarToMedium(archiveBytes []byte, destination coreio.Medium) error {
 		if header.Typeflag != tar.TypeReg {
 			continue
 		}
-		content, err := goio.ReadAll(tarReader)
-		if err != nil {
-			return core.E("cube.extract", core.Concat("failed to read entry: ", header.Name), err)
+		contentResult := core.ReadAll(tarReader)
+		if !contentResult.OK {
+			if err, ok := contentResult.Value.(error); ok {
+				return core.E("cube.extract", core.Concat("failed to read entry: ", header.Name), err)
+			}
+			return core.E("cube.extract", core.Concat("failed to read entry: ", header.Name), fs.ErrInvalid)
 		}
 		name := core.TrimPrefix(header.Name, "/")
 		if name == "" || core.HasSuffix(name, "/") {
@@ -428,7 +431,7 @@ func extractTarToMedium(archiveBytes []byte, destination coreio.Medium) error {
 		if mode == 0 {
 			mode = 0644
 		}
-		if err := destination.WriteMode(name, string(content), mode); err != nil {
+		if err := destination.WriteMode(name, contentResult.Value.(string), mode); err != nil {
 			return core.E("cube.extract", core.Concat("failed to write entry: ", name), err)
 		}
 	}

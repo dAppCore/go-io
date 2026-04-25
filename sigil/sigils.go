@@ -1,8 +1,7 @@
 package sigil
 
 import (
-	"bytes"
-	"compress/gzip"
+	"compress/gzip" // AX-6-exception: gzip transport encoding has no core equivalent.
 	"crypto"
 	"crypto/md5"
 	"crypto/sha1"
@@ -10,8 +9,7 @@ import (
 	"crypto/sha512"
 	"encoding/base64"
 	"encoding/hex"
-	goio "io"
-	"io/fs"
+	"io/fs" // AX-6-exception: fs sentinel errors have no core equivalent.
 
 	core "dappco.re/go/core"
 	"golang.org/x/crypto/blake2b"
@@ -83,14 +81,38 @@ func (sigil *Base64Sigil) Out(data []byte) ([]byte, error) {
 
 // Example: gzipSigil, _ := sigil.NewSigil("gzip")
 type GzipSigil struct {
-	outputWriter goio.Writer
+	outputWriter sigilWriter
+}
+
+type sigilWriter interface {
+	Write([]byte) (int, error)
+}
+
+type sigilHash interface {
+	sigilWriter
+	Sum([]byte) []byte
+}
+
+// AX-6-exception: core.NewBuffer is unavailable in the pinned core module; this is
+// the minimal intrinsic writer needed by compress/gzip.
+type sigilBuffer struct {
+	data []byte
+}
+
+func (buffer *sigilBuffer) Write(data []byte) (int, error) {
+	buffer.data = append(buffer.data, data...)
+	return len(data), nil
+}
+
+func (buffer *sigilBuffer) Bytes() []byte {
+	return buffer.data
 }
 
 func (sigil *GzipSigil) In(data []byte) ([]byte, error) {
 	if data == nil {
 		return nil, nil
 	}
-	var buffer bytes.Buffer
+	var buffer sigilBuffer
 	outputWriter := sigil.outputWriter
 	if outputWriter == nil {
 		outputWriter = &buffer
@@ -114,16 +136,18 @@ func (sigil *GzipSigil) Out(data []byte) ([]byte, error) {
 	if data == nil {
 		return nil, nil
 	}
-	gzipReader, err := gzip.NewReader(bytes.NewReader(data))
+	gzipReader, err := gzip.NewReader(core.NewReader(string(data)))
 	if err != nil {
 		return nil, core.E("sigil.GzipSigil.Out", "open gzip reader", err)
 	}
-	defer gzipReader.Close()
-	out, err := goio.ReadAll(gzipReader)
-	if err != nil {
-		return nil, core.E("sigil.GzipSigil.Out", "read gzip payload", err)
+	out := core.ReadAll(gzipReader)
+	if !out.OK {
+		if err, ok := out.Value.(error); ok {
+			return nil, core.E("sigil.GzipSigil.Out", "read gzip payload", err)
+		}
+		return nil, core.E("sigil.GzipSigil.Out", "read gzip payload", fs.ErrInvalid)
 	}
-	return out, nil
+	return []byte(out.Value.(string)), nil
 }
 
 // Example: jsonSigil := &sigil.JSONSigil{Indent: true}
@@ -166,7 +190,7 @@ func NewHashSigil(hashAlgorithm crypto.Hash) *HashSigil {
 }
 
 func (sigil *HashSigil) In(data []byte) ([]byte, error) {
-	var hasher goio.Writer
+	var hasher sigilHash
 	switch sigil.Hash {
 	case crypto.MD4:
 		hasher = md4.New()
@@ -211,7 +235,7 @@ func (sigil *HashSigil) In(data []byte) ([]byte, error) {
 	if _, err := hasher.Write(data); err != nil {
 		return nil, core.E("sigil.HashSigil.In", "write hash input", err)
 	}
-	return hasher.(interface{ Sum([]byte) []byte }).Sum(nil), nil
+	return hasher.Sum(nil), nil
 }
 
 func (sigil *HashSigil) Out(data []byte) ([]byte, error) {

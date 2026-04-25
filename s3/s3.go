@@ -4,12 +4,10 @@
 package s3
 
 import (
-	"bytes"
-	"context"
-	goio "io"
-	"io/fs"
-	"path"
-	"time"
+	"context" // AX-6-exception: AWS SDK transport APIs require context.Context.
+	goio "io" // AX-6-exception: io interface types have no core equivalent; io.EOF preserves stream semantics.
+	"io/fs"   // AX-6-exception: fs interface types have no core equivalent.
+	"time"    // AX-6-exception: S3 object metadata timestamps have no core equivalent.
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awss3 "github.com/aws/aws-sdk-go-v2/service/s3"
@@ -71,11 +69,26 @@ func deleteObjectsError(prefix string, errs []types.Error) error {
 	return core.E("s3.DeleteAll", core.Concat("partial delete failed under ", prefix, ": ", core.Join("; ", details...)), nil)
 }
 
+func readAllString(reader any) (string, error) {
+	result := core.ReadAll(reader)
+	if !result.OK {
+		if err, ok := result.Value.(error); ok {
+			return "", err
+		}
+		return "", fs.ErrInvalid
+	}
+	content, ok := result.Value.(string)
+	if !ok {
+		return "", fs.ErrInvalid
+	}
+	return content, nil
+}
+
 func normalisePrefix(prefix string) string {
 	if prefix == "" {
 		return ""
 	}
-	clean := path.Clean("/" + prefix)
+	clean := core.CleanPath("/"+prefix, "/")
 	if clean == "/" {
 		return ""
 	}
@@ -104,7 +117,7 @@ func New(options Options) (*Medium, error) {
 }
 
 func (medium *Medium) objectKey(filePath string) string {
-	clean := path.Clean("/" + filePath)
+	clean := core.CleanPath("/"+filePath, "/")
 	if clean == "/" {
 		clean = ""
 	}
@@ -133,13 +146,11 @@ func (medium *Medium) Read(filePath string) (string, error) {
 	if err != nil {
 		return "", core.E("s3.Read", core.Concat("failed to get object: ", key), err)
 	}
-	defer out.Body.Close()
-
-	data, err := goio.ReadAll(out.Body)
+	data, err := readAllString(out.Body)
 	if err != nil {
 		return "", core.E("s3.Read", core.Concat("failed to read body: ", key), err)
 	}
-	return string(data), nil
+	return data, nil
 }
 
 // Example: _ = medium.Write("reports/daily.txt", "done")
@@ -393,7 +404,7 @@ func (medium *Medium) Stat(filePath string) (fs.FileInfo, error) {
 		modTime = *out.LastModified
 	}
 
-	name := path.Base(key)
+	name := core.PathBase(key)
 	return &fileInfo{
 		name:    name,
 		size:    size,
@@ -416,8 +427,7 @@ func (medium *Medium) Open(filePath string) (fs.File, error) {
 		return nil, core.E("s3.Open", core.Concat("failed to get object: ", key), err)
 	}
 
-	data, err := goio.ReadAll(out.Body)
-	out.Body.Close()
+	data, err := readAllString(out.Body)
 	if err != nil {
 		return nil, core.E("s3.Open", core.Concat("failed to read body: ", key), err)
 	}
@@ -432,8 +442,8 @@ func (medium *Medium) Open(filePath string) (fs.File, error) {
 	}
 
 	return &s3File{
-		name:    path.Base(key),
-		content: data,
+		name:    core.PathBase(key),
+		content: []byte(data),
 		size:    size,
 		modTime: modTime,
 	}, nil
@@ -464,8 +474,9 @@ func (medium *Medium) Append(filePath string) (goio.WriteCloser, error) {
 		Key:    aws.String(key),
 	})
 	if err == nil {
-		existing, _ = goio.ReadAll(out.Body)
-		out.Body.Close()
+		if content, readErr := readAllString(out.Body); readErr == nil {
+			existing = []byte(content)
+		}
 	}
 
 	return &s3WriteCloser{
@@ -630,7 +641,7 @@ func (writer *s3WriteCloser) Close() error {
 	_, err := writer.medium.client.PutObject(context.Background(), &awss3.PutObjectInput{
 		Bucket: aws.String(writer.medium.bucket),
 		Key:    aws.String(writer.key),
-		Body:   bytes.NewReader(writer.data),
+		Body:   core.NewReader(string(writer.data)),
 	})
 	if err != nil {
 		return core.E("s3.writeCloser.Close", "failed to upload on close", err)
