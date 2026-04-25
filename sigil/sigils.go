@@ -16,6 +16,7 @@ import (
 	core "dappco.re/go/core"
 	"golang.org/x/crypto/blake2b"
 	"golang.org/x/crypto/blake2s"
+	"golang.org/x/crypto/chacha20poly1305"
 	"golang.org/x/crypto/md4"
 	"golang.org/x/crypto/ripemd160"
 	"golang.org/x/crypto/sha3"
@@ -231,6 +232,8 @@ func NewSigil(sigilName string) (Sigil, error) {
 		return &Base64Sigil{}, nil
 	case "gzip":
 		return &GzipSigil{}, nil
+	case "chacha20poly1305":
+		return &ChaChaPolySigil{nonceSize: chacha20poly1305.NonceSize}, nil
 	case "json":
 		return &JSONSigil{Indent: false}, nil
 	case "json-indent":
