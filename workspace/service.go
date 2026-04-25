@@ -1,9 +1,8 @@
 package workspace
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
-	goio "io"
+	"hash"
+	goio "io" // Note: AX-6 intrinsic — io.ReadFull for HKDF key derivation; no core wrapper for ReadFull semantics.
 	"io/fs"
 	"sync" // Note: AX-6 — internal concurrency primitive; structural per RFC §5.1
 
@@ -31,6 +30,37 @@ const (
 	WorkspaceCreateAction = "workspace.create"
 	WorkspaceSwitchAction = "workspace.switch"
 )
+
+// newWorkspaceSHA256Hash adapts core.SHA256 for HKDF's hash.Hash API.
+func newWorkspaceSHA256Hash() hash.Hash {
+	return &workspaceSHA256Hash{}
+}
+
+type workspaceSHA256Hash struct {
+	data []byte
+}
+
+func (hash *workspaceSHA256Hash) Write(data []byte) (int, error) {
+	hash.data = append(hash.data, data...)
+	return len(data), nil
+}
+
+func (hash *workspaceSHA256Hash) Sum(prefix []byte) []byte {
+	sum := core.SHA256(hash.data)
+	return append(prefix, sum[:]...)
+}
+
+func (hash *workspaceSHA256Hash) Reset() {
+	hash.data = hash.data[:0]
+}
+
+func (hash *workspaceSHA256Hash) Size() int {
+	return 32
+}
+
+func (hash *workspaceSHA256Hash) BlockSize() int {
+	return 64
+}
 
 // Example: command := WorkspaceCommand{Action: WorkspaceCreateAction, Identifier: "alice", Password: "pass123"}
 type WorkspaceCommand struct {
@@ -119,8 +149,7 @@ func (service *Service) CreateWorkspace(identifier, passphrase string) (string, 
 		return "", core.E("workspace.CreateWorkspace", "key pair provider not available", fs.ErrInvalid)
 	}
 
-	hash := sha256.Sum256([]byte(identifier))
-	workspaceID := hex.EncodeToString(hash[:])
+	workspaceID := core.SHA256Hex([]byte(identifier))
 	workspaceDirectory, err := service.resolveWorkspaceDirectory("workspace.CreateWorkspace", workspaceID)
 	if err != nil {
 		return "", err
@@ -192,7 +221,7 @@ func (service *Service) workspaceCipherSigil(operation string) (*sigil.ChaChaPol
 	}
 	// Use HKDF (RFC 5869) for key derivation: it is purpose-bound, domain-separated,
 	// and more resistant to length-extension attacks than a bare SHA-256 hash.
-	hkdfReader := hkdf.New(sha256.New, []byte(rawKey), nil, []byte("workspace-cipher-key"))
+	hkdfReader := hkdf.New(newWorkspaceSHA256Hash, []byte(rawKey), nil, []byte("workspace-cipher-key"))
 	derived := make([]byte, 32)
 	if _, err := goio.ReadFull(hkdfReader, derived); err != nil {
 		return nil, core.E(operation, "failed to derive workspace key", err)
