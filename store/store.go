@@ -3,7 +3,7 @@ package store
 import (
 	"database/sql"
 	"io/fs"
-	"text/template"
+	"text/template" // Note: AX-6 intrinsic - structural for KeyValueStore.Render templating; core exposes no template primitive.
 
 	core "dappco.re/go/core"
 	_ "modernc.org/sqlite"
