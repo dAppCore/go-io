@@ -19,7 +19,7 @@ var (
 	InvalidKeyError = core.E("sigil.InvalidKeyError", "invalid key size, must be 32 bytes", nil)
 
 	// Example: errors.Is(err, sigil.InvalidNonceError)
-	InvalidNonceError = core.E("sigil.InvalidNonceError", "invalid nonce size, must be 12 or 24 bytes", nil)
+	InvalidNonceError = core.E("sigil.InvalidNonceError", "invalid nonce argument; use PreObfuscator or nil", nil)
 
 	// Example: errors.Is(err, sigil.CiphertextTooShortError)
 	CiphertextTooShortError = core.E("sigil.CiphertextTooShortError", "ciphertext too short", nil)
@@ -187,7 +187,6 @@ func (obfuscator *ShuffleMaskObfuscator) deriveMask(entropy []byte, length int) 
 // Example: )
 type ChaChaPolySigil struct {
 	key          []byte
-	nonce        []byte
 	nonceSize    int
 	obfuscator   PreObfuscator
 	randomReader goio.Reader
@@ -200,11 +199,10 @@ func (s *ChaChaPolySigil) Key() []byte {
 	return result
 }
 
-// Example: nonce := cipherSigil.Nonce()
+// Nonce returns nil. Encryption nonces are generated per message by In and
+// prepended to the ciphertext.
 func (s *ChaChaPolySigil) Nonce() []byte {
-	result := make([]byte, len(s.nonce))
-	copy(result, s.nonce)
-	return result
+	return nil
 }
 
 // Example: ob := cipherSigil.Obfuscator()
@@ -217,9 +215,16 @@ func (s *ChaChaPolySigil) SetObfuscator(obfuscator PreObfuscator) {
 	s.obfuscator = obfuscator
 }
 
-// Example: cipherSigil, _ := sigil.NewChaChaPolySigil([]byte("0123456789abcdef0123456789abcdef"), nil)
-// Example: ciphertext, _ := cipherSigil.In([]byte("payload"))
-// Example: plaintext, _ := cipherSigil.Out(ciphertext)
+// NewChaChaPolySigil creates a ChaCha20-Poly1305 sigil. The nonce argument is
+// retained for API compatibility; pass nil for the default pre-obfuscator or a
+// PreObfuscator for custom pre-obfuscation. Fixed []byte nonces are rejected:
+// ChaCha20-Poly1305 catastrophically fails under nonce reuse, leaking plaintext
+// relationships and enabling authenticated forgeries. In always generates a
+// fresh random nonce and prepends it to the ciphertext.
+//
+// WARNING: when using a custom PreObfuscator, nonce uniqueness remains the
+// caller's responsibility. The PreObfuscator must treat the supplied entropy as
+// a per-message nonce and must not introduce deterministic nonce reuse.
 func NewChaChaPolySigil(key []byte, nonce any) (*ChaChaPolySigil, error) {
 	if len(key) != 32 {
 		return nil, InvalidKeyError
@@ -238,16 +243,7 @@ func NewChaChaPolySigil(key []byte, nonce any) (*ChaChaPolySigil, error) {
 	case nil:
 		sigil.obfuscator = &XORObfuscator{}
 	case []byte:
-		if len(value) == 0 {
-			sigil.obfuscator = &XORObfuscator{}
-			return sigil, nil
-		}
-		if !validChaChaPolyNonceSize(len(value)) {
-			return nil, InvalidNonceError
-		}
-		sigil.nonce = make([]byte, len(value))
-		copy(sigil.nonce, value)
-		sigil.nonceSize = len(value)
+		return nil, core.E("sigil.NewChaChaPolySigil", "fixed-nonce []byte path removed; use PreObfuscator or nil", InvalidNonceError)
 	case PreObfuscator:
 		if value == nil {
 			sigil.obfuscator = &XORObfuscator{}
@@ -255,7 +251,7 @@ func NewChaChaPolySigil(key []byte, nonce any) (*ChaChaPolySigil, error) {
 		}
 		sigil.obfuscator = value
 	default:
-		return nil, InvalidNonceError
+		return nil, core.E("sigil.NewChaChaPolySigil", "nonce must be PreObfuscator or nil", InvalidNonceError)
 	}
 
 	return sigil, nil
@@ -274,21 +270,18 @@ func (s *ChaChaPolySigil) In(data []byte) ([]byte, error) {
 		return nil, core.E("sigil.ChaChaPolySigil.In", "create cipher", err)
 	}
 
-	nonce := s.Nonce()
-	if len(nonce) == 0 {
-		nonce = make([]byte, aead.NonceSize())
-		reader := s.randomReader
-		if reader == nil {
-			reader = rand.Reader
-		}
-		if _, err := goio.ReadFull(reader, nonce); err != nil {
-			return nil, core.E("sigil.ChaChaPolySigil.In", "read nonce", err)
-		}
+	nonce := make([]byte, aead.NonceSize())
+	reader := s.randomReader
+	if reader == nil {
+		reader = rand.Reader
+	}
+	if _, err := goio.ReadFull(reader, nonce); err != nil {
+		return nil, core.E("sigil.ChaChaPolySigil.In", "read nonce", err)
 	}
 
 	obfuscated := data
 	if s.obfuscator != nil {
-		obfuscated = s.obfuscator.Obfuscate(data, nonce)
+		obfuscated = s.obfuscator.Obfuscate(data, cloneBytes(nonce))
 	}
 
 	ciphertext := aead.Seal(nonce, nonce, obfuscated, nil)
@@ -326,7 +319,7 @@ func (s *ChaChaPolySigil) Out(data []byte) ([]byte, error) {
 
 	plaintext := obfuscated
 	if s.obfuscator != nil {
-		plaintext = s.obfuscator.Deobfuscate(obfuscated, nonce)
+		plaintext = s.obfuscator.Deobfuscate(obfuscated, cloneBytes(nonce))
 	}
 
 	if len(plaintext) == 0 {
@@ -351,14 +344,13 @@ func (s *ChaChaPolySigil) activeNonceSize() int {
 	if s.nonceSize != 0 {
 		return s.nonceSize
 	}
-	if len(s.nonce) != 0 {
-		return len(s.nonce)
-	}
 	return chacha20poly1305.NonceSizeX
 }
 
-func validChaChaPolyNonceSize(size int) bool {
-	return size == chacha20poly1305.NonceSize || size == chacha20poly1305.NonceSizeX
+func cloneBytes(data []byte) []byte {
+	result := make([]byte, len(data))
+	copy(result, data)
+	return result
 }
 
 // Example: nonce, _ := sigil.NonceFromCiphertext(ciphertext)
