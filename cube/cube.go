@@ -6,7 +6,6 @@ package cube
 
 import (
 	"archive/tar"
-	"bytes"
 	goio "io"
 	"io/fs"
 	"time"
@@ -161,11 +160,11 @@ func (medium *Medium) Append(path string) (goio.WriteCloser, error) {
 
 // Example: reader, _ := medium.ReadStream("secret.txt")
 func (medium *Medium) ReadStream(path string) (goio.ReadCloser, error) {
-	plaintext, err := medium.Read(path)
+	file, err := medium.Open(path)
 	if err != nil {
 		return nil, err
 	}
-	return goio.NopCloser(bytes.NewReader([]byte(plaintext))), nil
+	return file, nil
 }
 
 // Example: writer, _ := medium.WriteStream("secret.txt")
@@ -228,6 +227,17 @@ func (writer *cubeWriteCloser) Close() error {
 		mode = 0644
 	}
 	return writer.medium.WriteMode(writer.path, string(writer.data), mode)
+}
+
+// Note: AX-6 - core.NewBuffer is unavailable in the pinned core module; this is
+// the minimal intrinsic writer needed by archive/tar.
+type cubeArchiveBuffer struct {
+	data []byte
+}
+
+func (buffer *cubeArchiveBuffer) Write(data []byte) (int, error) {
+	buffer.data = append(buffer.data, data...)
+	return len(data), nil
 }
 
 // Example: _ = cube.Pack("app.cube", workspaceMedium, key)
@@ -334,7 +344,7 @@ func Open(cubePath string, key []byte) (coreio.Medium, error) {
 
 // archiveMediumToTar walks source and serialises all files into a tar archive.
 func archiveMediumToTar(source coreio.Medium) ([]byte, error) {
-	buffer := new(bytes.Buffer)
+	buffer := &cubeArchiveBuffer{}
 	tarWriter := tar.NewWriter(buffer)
 
 	if err := walkAndArchive(source, "", tarWriter); err != nil {
@@ -345,7 +355,7 @@ func archiveMediumToTar(source coreio.Medium) ([]byte, error) {
 	if err := tarWriter.Close(); err != nil {
 		return nil, core.E("cube.archive", "failed to close tar writer", err)
 	}
-	return buffer.Bytes(), nil
+	return buffer.data, nil
 }
 
 // walkAndArchive recursively walks the source and appends every file.
@@ -394,7 +404,7 @@ func walkAndArchive(source coreio.Medium, path string, tarWriter *tar.Writer) er
 
 // extractTarToMedium reads a tar archive and writes each entry to destination.
 func extractTarToMedium(archiveBytes []byte, destination coreio.Medium) error {
-	tarReader := tar.NewReader(bytes.NewReader(archiveBytes))
+	tarReader := tar.NewReader(&cubeFile{content: archiveBytes})
 	for {
 		header, err := tarReader.Next()
 		if err == goio.EOF {
