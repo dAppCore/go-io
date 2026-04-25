@@ -5,7 +5,7 @@ import (
 	"encoding/hex"
 	goio "io"
 	"io/fs"
-	"sync"
+	"sync" // Note: AX-6 — internal concurrency primitive; structural per RFC §5.1
 
 	core "dappco.re/go/core"
 	"golang.org/x/crypto/hkdf"

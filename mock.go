@@ -8,7 +8,7 @@ import (
 	goio "io"
 	"io/fs"
 	"slices"
-	"sync"
+	"sync" // Note: AX-6 — internal concurrency primitive; structural per RFC §5.1
 	"time"
 )
 

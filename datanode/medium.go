@@ -10,7 +10,7 @@ import (
 	"io/fs"
 	"path"
 	"slices"
-	"sync"
+	"sync" // Note: AX-6 — internal concurrency primitive; structural per RFC §5.1
 	"time"
 
 	core "dappco.re/go/core"
