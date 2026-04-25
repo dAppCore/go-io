@@ -3,10 +3,12 @@ module dappco.re/go/io
 go 1.26.0
 
 require (
+	dappco.re/go/api v0.8.0-alpha.1
 	dappco.re/go/core v0.8.0-alpha.1
 	forge.lthn.ai/Snider/Borg v0.3.1
 	github.com/aws/aws-sdk-go-v2 v1.41.4
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.97.1
+	github.com/gin-gonic/gin v1.12.0
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/crypto v0.50.0
 	modernc.org/sqlite v1.47.0
