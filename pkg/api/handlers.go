@@ -25,28 +25,27 @@ type rfc15Action struct {
 	Name      string
 	Medium    string
 	Operation string
-	Wired     bool
 }
 
 var rfc15Actions = []rfc15Action{
-	{Name: coreio.ActionLocalRead, Medium: "local", Operation: "read", Wired: true},
-	{Name: coreio.ActionLocalWrite, Medium: "local", Operation: "write", Wired: true},
-	{Name: coreio.ActionLocalList, Medium: "local", Operation: "list", Wired: true},
-	{Name: coreio.ActionLocalDelete, Medium: "local", Operation: "delete", Wired: true},
-	{Name: coreio.ActionMemoryRead, Medium: "memory", Operation: "read", Wired: true},
-	{Name: coreio.ActionMemoryWrite, Medium: "memory", Operation: "write", Wired: true},
-	{Name: "core.io.github.clone", Medium: "github", Operation: "clone"},
-	{Name: "core.io.github.read", Medium: "github", Operation: "read"},
-	{Name: "core.io.pwa.scrape", Medium: "pwa", Operation: "scrape"},
-	{Name: "core.io.sftp.read", Medium: "sftp", Operation: "read"},
-	{Name: "core.io.sftp.write", Medium: "sftp", Operation: "write"},
-	{Name: "core.io.s3.read", Medium: "s3", Operation: "read"},
-	{Name: "core.io.s3.write", Medium: "s3", Operation: "write"},
-	{Name: "core.io.cube.read", Medium: "cube", Operation: "read"},
-	{Name: "core.io.cube.write", Medium: "cube", Operation: "write"},
-	{Name: "core.io.cube.pack", Medium: "cube", Operation: "pack"},
-	{Name: "core.io.cube.unpack", Medium: "cube", Operation: "unpack"},
-	{Name: coreio.ActionCopy, Medium: "any", Operation: "copy", Wired: true},
+	{Name: coreio.ActionLocalRead, Medium: "local", Operation: "read"},
+	{Name: coreio.ActionLocalWrite, Medium: "local", Operation: "write"},
+	{Name: coreio.ActionLocalList, Medium: "local", Operation: "list"},
+	{Name: coreio.ActionLocalDelete, Medium: "local", Operation: "delete"},
+	{Name: coreio.ActionMemoryRead, Medium: "memory", Operation: "read"},
+	{Name: coreio.ActionMemoryWrite, Medium: "memory", Operation: "write"},
+	{Name: coreio.ActionGitHubClone, Medium: "github", Operation: "clone"},
+	{Name: coreio.ActionGitHubRead, Medium: "github", Operation: "read"},
+	{Name: coreio.ActionPWAScrape, Medium: "pwa", Operation: "scrape"},
+	{Name: coreio.ActionSFTPRead, Medium: "sftp", Operation: "read"},
+	{Name: coreio.ActionSFTPWrite, Medium: "sftp", Operation: "write"},
+	{Name: coreio.ActionS3Read, Medium: "s3", Operation: "read"},
+	{Name: coreio.ActionS3Write, Medium: "s3", Operation: "write"},
+	{Name: coreio.ActionCubeRead, Medium: "cube", Operation: "read"},
+	{Name: coreio.ActionCubeWrite, Medium: "cube", Operation: "write"},
+	{Name: coreio.ActionCubePack, Medium: "cube", Operation: "pack"},
+	{Name: coreio.ActionCubeUnpack, Medium: "cube", Operation: "unpack"},
+	{Name: coreio.ActionCopy, Medium: "any", Operation: "copy"},
 }
 
 var errUnsupportedMediumOperation = errors.New("unsupported medium operation")
@@ -163,11 +162,6 @@ func (p *IOProvider) dispatchAction(c *gin.Context) {
 	action, ok := findRFC15Action(actionName)
 	if !ok {
 		c.JSON(http.StatusNotFound, goapi.Fail("unknown_action", "RFC §15 action is not registered"))
-		return
-	}
-	if !action.Wired {
-		// TODO(#632): wire the remaining RFC §15 named actions into go-io actions.go.
-		notImplemented(c, fmt.Sprintf("%s is not wired", action.Name))
 		return
 	}
 	payload, ok := bindPayload(c)

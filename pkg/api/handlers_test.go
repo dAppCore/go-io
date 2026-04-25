@@ -4,6 +4,7 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -11,6 +12,7 @@ import (
 	"testing"
 
 	goapi "dappco.re/go/api"
+	core "dappco.re/go/core"
 	coreio "dappco.re/go/io"
 	"github.com/gin-gonic/gin"
 )
@@ -151,14 +153,24 @@ func TestActionDispatcher_Bad_UnknownAction(t *testing.T) {
 	assertAPIErrorCode(t, rec, "unknown_action")
 }
 
-func TestActionDispatcher_MissingAction_Returns501(t *testing.T) {
-	router := testRouter(NewProvider(nil))
+func TestActionDispatcher_Good_FormerMissingActionDelegates(t *testing.T) {
+	c := core.New()
+	provider := NewProvider(c)
+	c.Action(coreio.ActionS3Read, func(_ context.Context, opts core.Options) core.Result {
+		if opts.String("path") != "reports/daily.txt" {
+			return core.Result{}.New(core.E("test", "unexpected path", nil))
+		}
+		return core.Result{OK: true, Value: "delegated s3 read"}
+	})
+	router := testRouter(provider)
 
-	rec := postJSON(t, router, "/v1/io/core.io.github.clone", `{"owner":"lethean-io","repo":"core"}`)
-	if rec.Code != http.StatusNotImplemented {
-		t.Fatalf("expected 501, got %d: %s", rec.Code, rec.Body.String())
+	rec := postJSON(t, router, "/v1/io/core.io.s3.read", `{"path":"reports/daily.txt"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
-	assertAPIErrorCode(t, rec, "not_implemented")
+	if !strings.Contains(rec.Body.String(), "delegated s3 read") {
+		t.Fatalf("expected delegated response, got %s", rec.Body.String())
+	}
 }
 
 func testRouter(provider *IOProvider) *gin.Engine {
