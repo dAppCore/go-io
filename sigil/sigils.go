@@ -16,7 +16,6 @@ import (
 	core "dappco.re/go/core"
 	"golang.org/x/crypto/blake2b"
 	"golang.org/x/crypto/blake2s"
-	"golang.org/x/crypto/chacha20poly1305"
 	"golang.org/x/crypto/md4"
 	"golang.org/x/crypto/ripemd160"
 	"golang.org/x/crypto/sha3"
@@ -219,10 +218,18 @@ func (sigil *HashSigil) Out(data []byte) ([]byte, error) {
 	return data, nil
 }
 
+// NewSigil constructs sigils that do not require caller-provided construction
+// material. ChaCha20-Poly1305 requires key material at construction; use
+// NewChaChaPolySigil instead.
+//
 // Example: hexSigil, _ := sigil.NewSigil("hex")
 // Example: gzipSigil, _ := sigil.NewSigil("gzip")
 // Example: transformed, _ := sigil.Transmute([]byte("payload"), []sigil.Sigil{hexSigil, gzipSigil})
 func NewSigil(sigilName string) (Sigil, error) {
+	if sigilName == "chacha20poly1305" {
+		return nil, core.E("sigil.NewSigil", "chacha20poly1305 scheme requires key material; use NewChaChaPolySigil", fs.ErrInvalid)
+	}
+
 	switch sigilName {
 	case "reverse":
 		return &ReverseSigil{}, nil
@@ -232,8 +239,6 @@ func NewSigil(sigilName string) (Sigil, error) {
 		return &Base64Sigil{}, nil
 	case "gzip":
 		return &GzipSigil{}, nil
-	case "chacha20poly1305":
-		return &ChaChaPolySigil{nonceSize: chacha20poly1305.NonceSize}, nil
 	case "json":
 		return &JSONSigil{Indent: false}, nil
 	case "json-indent":
