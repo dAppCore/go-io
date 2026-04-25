@@ -14,7 +14,7 @@ import (
 )
 
 // Example: service, _ := workspace.New(workspace.Options{KeyPairProvider: keyPairProvider})
-type Workspace interface {
+type EncryptedWorkspace interface {
 	CreateWorkspace(identifier, passphrase string) (string, error)
 	SwitchWorkspace(workspaceID string) error
 	ReadWorkspaceFile(workspaceFilePath string) (string, error)
@@ -25,11 +25,6 @@ type Workspace interface {
 type KeyPairProvider interface {
 	CreateKeyPair(identifier, passphrase string) (string, error)
 }
-
-const (
-	WorkspaceCreateAction = "workspace.create"
-	WorkspaceSwitchAction = "workspace.switch"
-)
 
 // newWorkspaceSHA256Hash adapts core.SHA256 for HKDF's hash.Hash API.
 func newWorkspaceSHA256Hash() hash.Hash {
@@ -62,14 +57,6 @@ func (hash *workspaceSHA256Hash) BlockSize() int {
 	return 64
 }
 
-// Example: command := WorkspaceCommand{Action: WorkspaceCreateAction, Identifier: "alice", Password: "pass123"}
-type WorkspaceCommand struct {
-	Action      string
-	Identifier  string
-	Password    string
-	WorkspaceID string
-}
-
 // Example: service, _ := workspace.New(workspace.Options{
 // Example:     KeyPairProvider: keyPairProvider,
 // Example:     RootPath: "/srv/workspaces",
@@ -93,7 +80,7 @@ type Service struct {
 	stateLock         sync.RWMutex
 }
 
-var _ Workspace = (*Service)(nil)
+var _ EncryptedWorkspace = (*Service)(nil)
 
 // Example: service, _ := workspace.New(workspace.Options{
 // Example:     KeyPairProvider: keyPairProvider,
@@ -280,15 +267,23 @@ func (service *Service) WriteWorkspaceFile(workspaceFilePath, content string) er
 // Example: commandResult := service.HandleWorkspaceCommand(WorkspaceCommand{Action: WorkspaceCreateAction, Identifier: "alice", Password: "pass123"})
 func (service *Service) HandleWorkspaceCommand(command WorkspaceCommand) core.Result {
 	switch command.Action {
-	case WorkspaceCreateAction:
+	case WorkspaceCreateAction, legacyWorkspaceCreateAction:
 		passphrase := command.Password
-		workspaceID, err := service.CreateWorkspace(command.Identifier, passphrase)
+		identifier := command.Identifier
+		if identifier == "" {
+			identifier = command.Workspace
+		}
+		workspaceID, err := service.CreateWorkspace(identifier, passphrase)
 		if err != nil {
 			return core.Result{}.New(err)
 		}
 		return core.Result{Value: workspaceID, OK: true}
-	case WorkspaceSwitchAction:
-		if err := service.SwitchWorkspace(command.WorkspaceID); err != nil {
+	case WorkspaceSwitchAction, legacyWorkspaceSwitchAction:
+		workspaceID := command.WorkspaceID
+		if workspaceID == "" {
+			workspaceID = command.Workspace
+		}
+		if err := service.SwitchWorkspace(workspaceID); err != nil {
 			return core.Result{}.New(err)
 		}
 		return core.Result{OK: true}

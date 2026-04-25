@@ -19,14 +19,16 @@ func init() {
 	gin.SetMode(gin.TestMode)
 }
 
-func TestCreateWorkspace_Good_Returns501(t *testing.T) {
+func TestCreateWorkspace_Good_Delegates(t *testing.T) {
 	router := testRouter(NewProvider(nil))
 
-	rec := postJSON(t, router, "/v1/workspace", `{"identifier":"alice","password":"pass123"}`)
-	if rec.Code != http.StatusNotImplemented {
-		t.Fatalf("expected 501, got %d: %s", rec.Code, rec.Body.String())
+	rec := postJSON(t, router, "/v1/workspace", `{"workspace":"alice"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
-	assertAPIErrorCode(t, rec, "not_implemented")
+	if !strings.Contains(rec.Body.String(), `"success":true`) {
+		t.Fatalf("expected success response, got %s", rec.Body.String())
+	}
 }
 
 func TestCreateWorkspace_Bad_InvalidJSON(t *testing.T) {
@@ -39,14 +41,17 @@ func TestCreateWorkspace_Bad_InvalidJSON(t *testing.T) {
 	assertAPIErrorCode(t, rec, "invalid_request")
 }
 
-func TestSwitchWorkspace_Good_Returns501(t *testing.T) {
+func TestSwitchWorkspace_Good_Delegates(t *testing.T) {
 	router := testRouter(NewProvider(nil))
 
-	rec := postJSON(t, router, "/v1/workspace/ws-1/switch", `{}`)
-	if rec.Code != http.StatusNotImplemented {
-		t.Fatalf("expected 501, got %d: %s", rec.Code, rec.Body.String())
+	create := postJSON(t, router, "/v1/workspace", `{"workspace":"ws-1"}`)
+	if create.Code != http.StatusOK {
+		t.Fatalf("expected create 200, got %d: %s", create.Code, create.Body.String())
 	}
-	assertAPIErrorCode(t, rec, "not_implemented")
+	rec := postJSON(t, router, "/v1/workspace/ws-1/switch", `{}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
 }
 
 func TestSwitchWorkspace_Bad_EmptyID(t *testing.T) {
@@ -59,14 +64,24 @@ func TestSwitchWorkspace_Bad_EmptyID(t *testing.T) {
 	assertAPIErrorCode(t, rec, "invalid_request")
 }
 
-func TestHandleWorkspaceCommand_Good_Returns501(t *testing.T) {
+func TestHandleWorkspaceCommand_Good_Delegates(t *testing.T) {
 	router := testRouter(NewProvider(nil))
 
-	rec := postJSON(t, router, "/v1/workspace/ws-1/command", `{"action":"workspace.switch","workspaceID":"ws-1"}`)
-	if rec.Code != http.StatusNotImplemented {
-		t.Fatalf("expected 501, got %d: %s", rec.Code, rec.Body.String())
+	create := postJSON(t, router, "/v1/workspace", `{"workspace":"ws-1"}`)
+	if create.Code != http.StatusOK {
+		t.Fatalf("expected create 200, got %d: %s", create.Code, create.Body.String())
 	}
-	assertAPIErrorCode(t, rec, "not_implemented")
+	write := postJSON(t, router, "/v1/workspace/ws-1/command", `{"action":"write","path":"note.txt","content":"hello"}`)
+	if write.Code != http.StatusOK {
+		t.Fatalf("expected write 200, got %d: %s", write.Code, write.Body.String())
+	}
+	read := postJSON(t, router, "/v1/workspace/ws-1/command", `{"action":"read","path":"note.txt"}`)
+	if read.Code != http.StatusOK {
+		t.Fatalf("expected read 200, got %d: %s", read.Code, read.Body.String())
+	}
+	if !strings.Contains(read.Body.String(), "hello") {
+		t.Fatalf("expected response to contain read content, got %s", read.Body.String())
+	}
 }
 
 func TestHandleWorkspaceCommand_Bad_MissingAction(t *testing.T) {

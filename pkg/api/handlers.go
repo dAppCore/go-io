@@ -12,10 +12,12 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 
 	goapi "dappco.re/go/api"
 	core "dappco.re/go/core"
 	coreio "dappco.re/go/io"
+	workspacesvc "dappco.re/go/io/workspace"
 	"github.com/gin-gonic/gin"
 )
 
@@ -48,6 +50,8 @@ var rfc15Actions = []rfc15Action{
 }
 
 var errUnsupportedMediumOperation = errors.New("unsupported medium operation")
+
+var apiWorkspaceServices sync.Map
 
 type mediumRequest struct {
 	Root      string
@@ -95,17 +99,21 @@ func (p *IOProvider) createWorkspace(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if strings.TrimSpace(stringValue(payload, "identifier")) == "" {
-		c.JSON(http.StatusBadRequest, goapi.Fail("invalid_request", "identifier is required"))
-		return
-	}
-	if stringValue(payload, "password", "passphrase") == "" {
-		c.JSON(http.StatusBadRequest, goapi.Fail("invalid_request", "password is required"))
+	workspaceName := workspaceNameFromPayload(payload)
+	if workspaceName == "" {
+		c.JSON(http.StatusBadRequest, goapi.Fail("invalid_request", "workspace is required"))
 		return
 	}
 
-	// TODO(#631): delegate to workspace.Service.CreateWorkspace once Workspace is wired in actions.go.
-	notImplemented(c, "workspace CreateWorkspace is not wired")
+	service, ok := p.resolveWorkspaceService(c)
+	if !ok {
+		return
+	}
+	result := service.HandleWorkspaceCommand(workspacesvc.WorkspaceCommand{
+		Action:    workspacesvc.WorkspaceCreateAction,
+		Workspace: workspaceName,
+	})
+	writeWorkspaceResult(c, workspacesvc.WorkspaceCreateAction, result)
 }
 
 func (p *IOProvider) switchWorkspace(c *gin.Context) {
@@ -115,8 +123,15 @@ func (p *IOProvider) switchWorkspace(c *gin.Context) {
 		return
 	}
 
-	// TODO(#631): delegate to workspace.Service.SwitchWorkspace once Workspace is wired in actions.go.
-	notImplemented(c, "workspace SwitchWorkspace is not wired")
+	service, ok := p.resolveWorkspaceService(c)
+	if !ok {
+		return
+	}
+	result := service.HandleWorkspaceCommand(workspacesvc.WorkspaceCommand{
+		Action:    workspacesvc.WorkspaceSwitchAction,
+		Workspace: workspaceID,
+	})
+	writeWorkspaceResult(c, workspacesvc.WorkspaceSwitchAction, result)
 }
 
 func (p *IOProvider) handleWorkspaceCommand(c *gin.Context) {
@@ -134,8 +149,13 @@ func (p *IOProvider) handleWorkspaceCommand(c *gin.Context) {
 		return
 	}
 
-	// TODO(#631): delegate to workspace.Service.HandleWorkspaceCommand once Workspace is wired in actions.go.
-	notImplemented(c, "workspace HandleWorkspaceCommand is not wired")
+	service, ok := p.resolveWorkspaceService(c)
+	if !ok {
+		return
+	}
+	command := workspaceCommandFromPayload(workspaceID, payload)
+	result := service.HandleWorkspaceCommand(command)
+	writeWorkspaceResult(c, command.Action, result)
 }
 
 func (p *IOProvider) dispatchAction(c *gin.Context) {
@@ -234,6 +254,71 @@ func (p *IOProvider) resolveMedium(c *gin.Context, mediumType string, req medium
 		notImplemented(c, fmt.Sprintf("%s medium is not configured", mediumType))
 		return nil, false
 	}
+}
+
+func (p *IOProvider) resolveWorkspaceService(c *gin.Context) (*workspacesvc.Workspace, bool) {
+	if p == nil {
+		c.JSON(http.StatusServiceUnavailable, goapi.Fail("service_unavailable", "workspace service is not configured"))
+		return nil, false
+	}
+	if service, ok := apiWorkspaceServices.Load(p); ok {
+		workspaceService, ok := service.(*workspacesvc.Workspace)
+		if ok {
+			return workspaceService, true
+		}
+	}
+
+	medium := p.memory
+	if medium == nil {
+		medium = coreio.NewMemoryMedium()
+	}
+	workspaceService, err := workspacesvc.NewWorkspace(medium, "workspaces")
+	if err != nil {
+		c.JSON(http.StatusServiceUnavailable, goapi.Fail("service_unavailable", err.Error()))
+		return nil, false
+	}
+	actual, _ := apiWorkspaceServices.LoadOrStore(p, workspaceService)
+	return actual.(*workspacesvc.Workspace), true
+}
+
+func workspaceCommandFromPayload(pathWorkspace string, payload map[string]any) workspacesvc.WorkspaceCommand {
+	workspaceName := workspaceNameFromPayload(payload)
+	if workspaceName == "" {
+		workspaceName = pathWorkspace
+	}
+	return workspacesvc.WorkspaceCommand{
+		Action:    strings.TrimSpace(stringValue(payload, "action")),
+		Workspace: workspaceName,
+		Path:      stringValue(payload, "path"),
+		Content:   stringValue(payload, "content"),
+	}
+}
+
+func workspaceNameFromPayload(payload map[string]any) string {
+	return strings.TrimSpace(stringValue(payload, "workspace", "name", "identifier", "workspaceID", "workspace_id"))
+}
+
+func writeWorkspaceResult(c *gin.Context, action string, result core.Result) {
+	if !result.OK {
+		c.JSON(http.StatusInternalServerError, goapi.Fail("workspace_failed", resultErrorMessage(result)))
+		return
+	}
+
+	response := mediumResponse{
+		OK:     true,
+		Action: action,
+		Value:  result.Value,
+	}
+	switch value := result.Value.(type) {
+	case coreio.Medium:
+		response.Value = nil
+	case string:
+		response.Content = value
+	case []fs.DirEntry:
+		response.Value = nil
+		response.Entries = dirEntryDTOs(value)
+	}
+	c.JSON(http.StatusOK, goapi.OK(response))
 }
 
 func dispatchMediumOperation(ctx context.Context, medium coreio.Medium, op string, req mediumRequest) (mediumResponse, error) {
