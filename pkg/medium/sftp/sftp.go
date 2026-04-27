@@ -15,6 +15,19 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+const (
+	opNew       = "sftp.New"
+	opRead      = "sftp.Read"
+	opWriteMode = "sftp.WriteMode"
+	opRename    = "sftp.Rename"
+	opCreate    = "sftp.Create"
+	opAppend    = "sftp.Append"
+	opOpen      = "sftp.Open"
+
+	errOpenFailed         = "open failed: "
+	errCreateParentFailed = "create parent failed: "
+)
+
 // Medium is an SFTP-backed implementation of coreio.Medium.
 type Medium struct {
 	client      *pkgsftp.Client
@@ -52,7 +65,7 @@ func New(options Options) (*Medium, error) {
 	if options.SSHClient != nil {
 		client, err := pkgsftp.NewClient(options.SSHClient)
 		if err != nil {
-			return nil, core.E("sftp.New", "failed to create SFTP client", err)
+			return nil, core.E(opNew, "failed to create SFTP client", err)
 		}
 		return &Medium{client: client, sshClient: options.SSHClient, root: root, ownsClient: true}, nil
 	}
@@ -62,18 +75,18 @@ func New(options Options) (*Medium, error) {
 		return nil, err
 	}
 	if options.Address == "" {
-		return nil, core.E("sftp.New", "address is required", fs.ErrInvalid)
+		return nil, core.E(opNew, "address is required", fs.ErrInvalid)
 	}
 
 	sshClient, err := ssh.Dial("tcp", options.Address, config)
 	if err != nil {
-		return nil, core.E("sftp.New", "failed to dial SSH server", err)
+		return nil, core.E(opNew, "failed to dial SSH server", err)
 	}
 
 	client, err := pkgsftp.NewClient(sshClient)
 	if err != nil {
 		sshClient.Close()
-		return nil, core.E("sftp.New", "failed to create SFTP client", err)
+		return nil, core.E(opNew, "failed to create SFTP client", err)
 	}
 
 	return &Medium{
@@ -90,10 +103,10 @@ func sshConfig(options Options) (*ssh.ClientConfig, error) {
 		return options.Config, nil
 	}
 	if options.User == "" {
-		return nil, core.E("sftp.New", "user is required", fs.ErrInvalid)
+		return nil, core.E(opNew, "user is required", fs.ErrInvalid)
 	}
 	if options.HostKeyCallback == nil {
-		return nil, core.E("sftp.New", "host key callback is required", fs.ErrInvalid)
+		return nil, core.E(opNew, "host key callback is required", fs.ErrInvalid)
 	}
 
 	var auth []ssh.AuthMethod
@@ -103,12 +116,12 @@ func sshConfig(options Options) (*ssh.ClientConfig, error) {
 	if len(options.PrivateKey) > 0 {
 		signer, err := ssh.ParsePrivateKey(options.PrivateKey)
 		if err != nil {
-			return nil, core.E("sftp.New", "failed to parse private key", err)
+			return nil, core.E(opNew, "failed to parse private key", err)
 		}
 		auth = append(auth, ssh.PublicKeys(signer))
 	}
 	if len(auth) == 0 {
-		return nil, core.E("sftp.New", "password or private key is required", fs.ErrInvalid)
+		return nil, core.E(opNew, "password or private key is required", fs.ErrInvalid)
 	}
 
 	return &ssh.ClientConfig{
@@ -176,19 +189,19 @@ func (medium *Medium) Close() error {
 
 // Read reads a remote file into a string.
 func (medium *Medium) Read(filePath string) (string, error) {
-	remotePath, err := medium.requiredRemotePath("sftp.Read", filePath)
+	remotePath, err := medium.requiredRemotePath(opRead, filePath)
 	if err != nil {
 		return "", err
 	}
 	file, err := medium.client.Open(remotePath)
 	if err != nil {
-		return "", core.E("sftp.Read", core.Concat("open failed: ", remotePath), err)
+		return "", core.E(opRead, core.Concat(errOpenFailed, remotePath), err)
 	}
 	defer file.Close()
 
 	data, err := goio.ReadAll(file)
 	if err != nil {
-		return "", core.E("sftp.Read", core.Concat("read failed: ", remotePath), err)
+		return "", core.E(opRead, core.Concat("read failed: ", remotePath), err)
 	}
 	return string(data), nil
 }
@@ -201,28 +214,28 @@ func (medium *Medium) Write(filePath, content string) error {
 // WriteMode writes a remote file and applies POSIX permissions when supported
 // by the SFTP server.
 func (medium *Medium) WriteMode(filePath, content string, mode fs.FileMode) error {
-	remotePath, err := medium.requiredRemotePath("sftp.WriteMode", filePath)
+	remotePath, err := medium.requiredRemotePath(opWriteMode, filePath)
 	if err != nil {
 		return err
 	}
 	if err := medium.ensureParent(remotePath); err != nil {
-		return core.E("sftp.WriteMode", core.Concat("create parent failed: ", remotePath), err)
+		return core.E(opWriteMode, core.Concat(errCreateParentFailed, remotePath), err)
 	}
 
 	file, err := medium.client.OpenFile(remotePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC)
 	if err != nil {
-		return core.E("sftp.WriteMode", core.Concat("open failed: ", remotePath), err)
+		return core.E(opWriteMode, core.Concat(errOpenFailed, remotePath), err)
 	}
 	if _, err := file.Write([]byte(content)); err != nil {
 		file.Close()
-		return core.E("sftp.WriteMode", core.Concat("write failed: ", remotePath), err)
+		return core.E(opWriteMode, core.Concat("write failed: ", remotePath), err)
 	}
 	if closeErr := file.Close(); closeErr != nil {
-		return core.E("sftp.WriteMode", core.Concat("close failed: ", remotePath), closeErr)
+		return core.E(opWriteMode, core.Concat("close failed: ", remotePath), closeErr)
 	}
 	if mode != 0 {
 		if err := medium.client.Chmod(remotePath, os.FileMode(mode)); err != nil {
-			return core.E("sftp.WriteMode", core.Concat("chmod failed: ", remotePath), err)
+			return core.E(opWriteMode, core.Concat("chmod failed: ", remotePath), err)
 		}
 	}
 	return nil
@@ -275,19 +288,19 @@ func (medium *Medium) DeleteAll(filePath string) error {
 
 // Rename renames a remote path.
 func (medium *Medium) Rename(oldPath, newPath string) error {
-	oldRemotePath, err := medium.requiredRemotePath("sftp.Rename", oldPath)
+	oldRemotePath, err := medium.requiredRemotePath(opRename, oldPath)
 	if err != nil {
 		return err
 	}
-	newRemotePath, err := medium.requiredRemotePath("sftp.Rename", newPath)
+	newRemotePath, err := medium.requiredRemotePath(opRename, newPath)
 	if err != nil {
 		return err
 	}
 	if err := medium.ensureParent(newRemotePath); err != nil {
-		return core.E("sftp.Rename", core.Concat("create parent failed: ", newRemotePath), err)
+		return core.E(opRename, core.Concat(errCreateParentFailed, newRemotePath), err)
 	}
 	if err := medium.client.Rename(oldRemotePath, newRemotePath); err != nil {
-		return core.E("sftp.Rename", core.Concat("rename failed: ", oldRemotePath), err)
+		return core.E(opRename, core.Concat("rename failed: ", oldRemotePath), err)
 	}
 	return nil
 }
@@ -325,45 +338,45 @@ func (medium *Medium) Stat(filePath string) (fs.FileInfo, error) {
 
 // Open opens a remote file for reading.
 func (medium *Medium) Open(filePath string) (fs.File, error) {
-	remotePath, err := medium.requiredRemotePath("sftp.Open", filePath)
+	remotePath, err := medium.requiredRemotePath(opOpen, filePath)
 	if err != nil {
 		return nil, err
 	}
 	file, err := medium.client.Open(remotePath)
 	if err != nil {
-		return nil, core.E("sftp.Open", core.Concat("open failed: ", remotePath), err)
+		return nil, core.E(opOpen, core.Concat(errOpenFailed, remotePath), err)
 	}
 	return file, nil
 }
 
 // Create opens a remote file for replacement.
 func (medium *Medium) Create(filePath string) (goio.WriteCloser, error) {
-	remotePath, err := medium.requiredRemotePath("sftp.Create", filePath)
+	remotePath, err := medium.requiredRemotePath(opCreate, filePath)
 	if err != nil {
 		return nil, err
 	}
 	if err := medium.ensureParent(remotePath); err != nil {
-		return nil, core.E("sftp.Create", core.Concat("create parent failed: ", remotePath), err)
+		return nil, core.E(opCreate, core.Concat(errCreateParentFailed, remotePath), err)
 	}
 	file, err := medium.client.OpenFile(remotePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC)
 	if err != nil {
-		return nil, core.E("sftp.Create", core.Concat("open failed: ", remotePath), err)
+		return nil, core.E(opCreate, core.Concat(errOpenFailed, remotePath), err)
 	}
 	return file, nil
 }
 
 // Append opens a remote file for appending, creating it when missing.
 func (medium *Medium) Append(filePath string) (goio.WriteCloser, error) {
-	remotePath, err := medium.requiredRemotePath("sftp.Append", filePath)
+	remotePath, err := medium.requiredRemotePath(opAppend, filePath)
 	if err != nil {
 		return nil, err
 	}
 	if err := medium.ensureParent(remotePath); err != nil {
-		return nil, core.E("sftp.Append", core.Concat("create parent failed: ", remotePath), err)
+		return nil, core.E(opAppend, core.Concat(errCreateParentFailed, remotePath), err)
 	}
 	file, err := medium.client.OpenFile(remotePath, os.O_WRONLY|os.O_CREATE|os.O_APPEND)
 	if err != nil {
-		return nil, core.E("sftp.Append", core.Concat("open failed: ", remotePath), err)
+		return nil, core.E(opAppend, core.Concat(errOpenFailed, remotePath), err)
 	}
 	return file, nil
 }

@@ -6,29 +6,45 @@ package api
 import (
 	"net/http"
 
-	goapi "dappco.re/go/api"
-	coreprovider "dappco.re/go/api/pkg/provider"
 	core "dappco.re/go/core"
 	coreio "dappco.re/go/io"
+	"dappco.re/go/io/cube"
 	"github.com/gin-gonic/gin"
 )
+
+// ParameterDescription describes a single HTTP route parameter.
+type ParameterDescription struct {
+	Name     string
+	In       string
+	Required bool
+	Schema   map[string]any
+}
+
+// RouteDescription describes an HTTP route exposed by IOProvider.
+type RouteDescription struct {
+	Method      string
+	Path        string
+	Summary     string
+	Description string
+	Tags        []string
+	StatusCode  int
+	Parameters  []ParameterDescription
+	RequestBody map[string]any
+	Response    map[string]any
+}
 
 // IOProvider wraps go-io's library-only surface as HTTP routes.
 type IOProvider struct {
 	core   *core.Core
+	local  coreio.Medium
 	memory coreio.Medium
 }
 
-var (
-	_ coreprovider.Provider    = (*IOProvider)(nil)
-	_ coreprovider.Describable = (*IOProvider)(nil)
-)
-
 // NewProvider creates an IO provider backed by a Core action registry.
 //
-// Pass nil or no Core to create a private registry with the seven currently
-// wired go-io actions registered. The variadic form keeps the provider easy to
-// mount from core/api while still allowing tests and callers to inject a Core.
+// Pass nil or no Core to create a private registry with go-io and cube actions
+// registered. The variadic form keeps the provider easy to mount from core/api
+// while still allowing tests and callers to inject a Core.
 func NewProvider(cores ...*core.Core) *IOProvider {
 	var c *core.Core
 	if len(cores) > 0 {
@@ -38,8 +54,10 @@ func NewProvider(cores ...*core.Core) *IOProvider {
 		c = core.New()
 	}
 	coreio.RegisterActions(c)
+	cube.RegisterActions(c)
 	return &IOProvider{
 		core:   c,
+		local:  configuredLocalMedium(),
 		memory: coreio.NewMemoryMedium(),
 	}
 }
@@ -71,50 +89,52 @@ func (p *IOProvider) RegisterRoutes(rg *gin.RouterGroup) {
 }
 
 // Describe implements api.DescribableGroup.
-func (p *IOProvider) Describe() []goapi.RouteDescription {
+func (p *IOProvider) Describe() []RouteDescription {
 	actionNames := make([]any, 0, len(rfc15Actions))
 	for _, action := range rfc15Actions {
 		actionNames = append(actionNames, action.Name)
 	}
 
-	return []goapi.RouteDescription{
+	return []RouteDescription{
 		{
 			Method:      http.MethodPost,
 			Path:        "/workspace",
 			Summary:     "Create workspace",
-			Description: "RFC §5 workspace creation route. Returns 501 until ticket #631 wires the Workspace service into actions.go.",
+			Description: "RFC §5 workspace creation route.",
 			Tags:        []string{"io", "workspace"},
-			StatusCode:  http.StatusNotImplemented,
+			StatusCode:  http.StatusOK,
 			RequestBody: map[string]any{
 				"type":     "object",
-				"required": []string{"identifier", "password"},
+				"required": []string{"workspace"},
 				"properties": map[string]any{
-					"identifier": map[string]any{"type": "string"},
-					"password":   map[string]any{"type": "string"},
+					"workspace":   map[string]any{"type": "string"},
+					"name":        map[string]any{"type": "string"},
+					"identifier":  map[string]any{"type": "string"},
+					"workspaceID": map[string]any{"type": "string"},
 				},
 			},
-			Response: errorResponseSchema(),
+			Response: map[string]any{"type": "object"},
 		},
 		{
 			Method:      http.MethodPost,
 			Path:        "/workspace/:id/switch",
 			Summary:     "Switch workspace",
-			Description: "RFC §5 workspace switch route. Returns 501 until ticket #631 wires the Workspace service into actions.go.",
+			Description: "RFC §5 workspace switch route.",
 			Tags:        []string{"io", "workspace"},
-			StatusCode:  http.StatusNotImplemented,
-			Parameters: []goapi.ParameterDescription{
+			StatusCode:  http.StatusOK,
+			Parameters: []ParameterDescription{
 				{Name: "id", In: "path", Required: true, Schema: map[string]any{"type": "string"}},
 			},
-			Response: errorResponseSchema(),
+			Response: map[string]any{"type": "object"},
 		},
 		{
 			Method:      http.MethodPost,
 			Path:        "/workspace/:id/command",
 			Summary:     "Handle workspace command",
-			Description: "RFC §5 workspace command route. Returns 501 until ticket #631 wires the Workspace service into actions.go.",
+			Description: "RFC §5 workspace command route.",
 			Tags:        []string{"io", "workspace"},
-			StatusCode:  http.StatusNotImplemented,
-			Parameters: []goapi.ParameterDescription{
+			StatusCode:  http.StatusOK,
+			Parameters: []ParameterDescription{
 				{Name: "id", In: "path", Required: true, Schema: map[string]any{"type": "string"}},
 			},
 			RequestBody: map[string]any{
@@ -122,12 +142,15 @@ func (p *IOProvider) Describe() []goapi.RouteDescription {
 				"required": []string{"action"},
 				"properties": map[string]any{
 					"action":      map[string]any{"type": "string"},
+					"workspace":   map[string]any{"type": "string"},
+					"name":        map[string]any{"type": "string"},
 					"identifier":  map[string]any{"type": "string"},
-					"password":    map[string]any{"type": "string"},
 					"workspaceID": map[string]any{"type": "string"},
+					"path":        map[string]any{"type": "string"},
+					"content":     map[string]any{"type": "string"},
 				},
 			},
-			Response: errorResponseSchema(),
+			Response: map[string]any{"type": "object"},
 		},
 		{
 			Method:      http.MethodPost,
@@ -136,14 +159,13 @@ func (p *IOProvider) Describe() []goapi.RouteDescription {
 			Description: "Dispatches HTTP requests to configured go-io Medium primitives.",
 			Tags:        []string{"io", "medium"},
 			StatusCode:  http.StatusOK,
-			Parameters: []goapi.ParameterDescription{
+			Parameters: []ParameterDescription{
 				{Name: "type", In: "path", Required: true, Schema: map[string]any{"type": "string"}},
 				{Name: "op", In: "path", Required: true, Schema: map[string]any{"type": "string"}},
 			},
 			RequestBody: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
-					"root":      map[string]any{"type": "string"},
 					"path":      map[string]any{"type": "string"},
 					"oldPath":   map[string]any{"type": "string"},
 					"newPath":   map[string]any{"type": "string"},
@@ -158,10 +180,10 @@ func (p *IOProvider) Describe() []goapi.RouteDescription {
 			Method:      http.MethodPost,
 			Path:        "/io/:action",
 			Summary:     "Dispatch RFC §15 IO action",
-			Description: "Dispatches the seven currently wired go-io actions and returns 501 for the eleven RFC §15 actions tracked by ticket #632.",
+			Description: "Dispatches registered go-io RFC §15 actions.",
 			Tags:        []string{"io", "actions"},
 			StatusCode:  http.StatusOK,
-			Parameters: []goapi.ParameterDescription{
+			Parameters: []ParameterDescription{
 				{
 					Name:     "action",
 					In:       "path",
@@ -176,6 +198,18 @@ func (p *IOProvider) Describe() []goapi.RouteDescription {
 			Response:    map[string]any{"type": "object"},
 		},
 	}
+}
+
+func configuredLocalMedium() coreio.Medium {
+	root := core.Env("CORE_IO_LOCAL_ROOT")
+	if root == "" {
+		return nil
+	}
+	medium, err := coreio.NewSandboxed(root)
+	if err != nil {
+		return nil
+	}
+	return medium
 }
 
 func errorResponseSchema() map[string]any {

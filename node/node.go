@@ -12,6 +12,7 @@ import (
 
 	core "dappco.re/go/core"
 	coreio "dappco.re/go/io"
+	"dappco.re/go/io/internal/fsutil"
 )
 
 // Example: nodeTree := node.New()
@@ -344,21 +345,9 @@ func (node *Node) ReadDir(name string) ([]fs.DirEntry, error) {
 		}
 	}
 
-	sortDirEntriesByName(entries)
+	fsutil.SortDirEntriesByName(entries)
 
 	return entries, nil
-}
-
-func sortDirEntriesByName(entries []fs.DirEntry) {
-	for i := 1; i < len(entries); i++ {
-		entry := entries[i]
-		j := i - 1
-		for j >= 0 && entries[j].Name() > entry.Name() {
-			entries[j+1] = entries[j]
-			j--
-		}
-		entries[j+1] = entry
-	}
 }
 
 // Example: content, _ := nodeTree.Read("config/app.yaml")

@@ -345,9 +345,9 @@ func (file *keyValueFile) Close() error { return nil }
 
 type keyValueWriteCloser struct {
 	keyValueStore *KeyValueStore
-	group string
-	key   string
-	data  []byte
+	group         string
+	key           string
+	data          []byte
 }
 
 func (writer *keyValueWriteCloser) Write(data []byte) (int, error) {

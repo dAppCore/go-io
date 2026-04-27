@@ -190,6 +190,9 @@ func TestCryptoSigil_NewChaChaPolySigil_FixedNonceBytes_Bad(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			_, err := NewChaChaPolySigil(key, nonce)
 			assert.ErrorIs(t, err, InvalidNonceError)
+			if err == nil {
+				t.Fatal("expected invalid nonce error")
+			}
 			assert.Contains(t, err.Error(), "fixed-nonce []byte path removed; use PreObfuscator or nil")
 		})
 	}
@@ -201,6 +204,9 @@ func TestCryptoSigil_NewChaChaPolySigil_StringNonce_Bad(t *testing.T) {
 
 	_, err := NewChaChaPolySigil(key, "fixed nonce")
 	assert.ErrorIs(t, err, InvalidNonceError)
+	if err == nil {
+		t.Fatal("expected invalid nonce error")
+	}
 	assert.Contains(t, err.Error(), "nonce must be PreObfuscator or nil")
 }
 

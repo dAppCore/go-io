@@ -8,13 +8,23 @@ import (
 	"archive/tar" // AX-6-exception: tar archive transport has no core equivalent.
 	goio "io"     // AX-6-exception: io interface types have no core equivalent; io.EOF preserves stream semantics.
 	"io/fs"       // AX-6-exception: fs interface types have no core equivalent.
+	"path"        // AX-6-exception: tar entry names use slash-separated paths.
 	"time"        // AX-6-exception: filesystem metadata timestamps have no core equivalent.
 
 	core "dappco.re/go/core"
 	coreio "dappco.re/go/io"
-	"dappco.re/go/io/local"
 	"dappco.re/go/io/node"
 	"dappco.re/go/io/sigil"
+)
+
+const (
+	opCubeNew       = "cube.New"
+	opCubeOpen      = "cube.Open"
+	opCubePack      = "cube.Pack"
+	opCubeUnpack    = "cube.Unpack"
+	opCubeArchive   = "cube.archive"
+	opCubeExtract   = "cube.extract"
+	errCreateCipher = "failed to create cipher"
 )
 
 // Example: medium, _ := cube.New(cube.Options{Inner: inner, Key: key})
@@ -38,11 +48,11 @@ type Options struct {
 // Example: plaintext, _ := medium.Read("secret.txt")
 func New(options Options) (*Medium, error) {
 	if options.Inner == nil {
-		return nil, core.E("cube.New", "inner medium is required", fs.ErrInvalid)
+		return nil, core.E(opCubeNew, "inner medium is required", fs.ErrInvalid)
 	}
 	cipherSigil, err := sigil.NewChaChaPolySigil(options.Key, nil)
 	if err != nil {
-		return nil, core.E("cube.New", "failed to create cipher sigil", err)
+		return nil, core.E(opCubeNew, "failed to create cipher sigil", err)
 	}
 	return &Medium{
 		inner: options.Inner,
@@ -126,7 +136,7 @@ func (medium *Medium) Open(path string) (fs.File, error) {
 	}
 	plaintext, err := sigil.Untransmute([]byte(ciphertext), []sigil.Sigil{medium.sigil})
 	if err != nil {
-		return nil, core.E("cube.Open", core.Concat("failed to decrypt: ", path), err)
+		return nil, core.E(opCubeOpen, core.Concat("failed to decrypt: ", path), err)
 	}
 	info, err := medium.inner.Stat(path)
 	if err != nil {
@@ -246,31 +256,31 @@ func (buffer *cubeArchiveBuffer) Write(data []byte) (int, error) {
 // the archive, and writes the ciphertext to outputPath on the local filesystem.
 func Pack(outputPath string, source coreio.Medium, key []byte) error {
 	if source == nil {
-		return core.E("cube.Pack", "source medium is required", fs.ErrInvalid)
+		return core.E(opCubePack, "source medium is required", fs.ErrInvalid)
 	}
 	if outputPath == "" {
-		return core.E("cube.Pack", "output path is required", fs.ErrInvalid)
+		return core.E(opCubePack, "output path is required", fs.ErrInvalid)
 	}
 
 	archiveBytes, err := archiveMediumToTar(source)
 	if err != nil {
-		return core.E("cube.Pack", "failed to build archive", err)
+		return core.E(opCubePack, "failed to build archive", err)
 	}
 
 	cipherSigil, err := sigil.NewChaChaPolySigil(key, nil)
 	if err != nil {
-		return core.E("cube.Pack", "failed to create cipher", err)
+		return core.E(opCubePack, errCreateCipher, err)
 	}
 	ciphertext, err := sigil.Transmute(archiveBytes, []sigil.Sigil{cipherSigil})
 	if err != nil {
-		return core.E("cube.Pack", "failed to encrypt archive", err)
+		return core.E(opCubePack, "failed to encrypt archive", err)
 	}
 
-	localMedium, err := local.New("/")
+	localMedium, relativePath, err := sandboxedLocalForPath(opCubePack, outputPath)
 	if err != nil {
-		return core.E("cube.Pack", "failed to access local filesystem", err)
+		return err
 	}
-	return localMedium.WriteMode(outputPath, string(ciphertext), 0600)
+	return localMedium.WriteMode(relativePath, string(ciphertext), 0600)
 }
 
 // Example: _ = cube.Unpack("app.cube", destinationMedium, key)
@@ -279,28 +289,28 @@ func Pack(outputPath string, source coreio.Medium, key []byte) error {
 // tar contents, and writes every entry to the destination Medium.
 func Unpack(cubePath string, destination coreio.Medium, key []byte) error {
 	if destination == nil {
-		return core.E("cube.Unpack", "destination medium is required", fs.ErrInvalid)
+		return core.E(opCubeUnpack, "destination medium is required", fs.ErrInvalid)
 	}
 	if cubePath == "" {
-		return core.E("cube.Unpack", "cube path is required", fs.ErrInvalid)
+		return core.E(opCubeUnpack, "cube path is required", fs.ErrInvalid)
 	}
 
-	localMedium, err := local.New("/")
+	localMedium, relativePath, err := sandboxedLocalForPath(opCubeUnpack, cubePath)
 	if err != nil {
-		return core.E("cube.Unpack", "failed to access local filesystem", err)
+		return err
 	}
-	ciphertext, err := localMedium.Read(cubePath)
+	ciphertext, err := localMedium.Read(relativePath)
 	if err != nil {
-		return core.E("cube.Unpack", core.Concat("failed to read cube: ", cubePath), err)
+		return core.E(opCubeUnpack, core.Concat("failed to read cube: ", cubePath), err)
 	}
 
 	cipherSigil, err := sigil.NewChaChaPolySigil(key, nil)
 	if err != nil {
-		return core.E("cube.Unpack", "failed to create cipher", err)
+		return core.E(opCubeUnpack, errCreateCipher, err)
 	}
 	archiveBytes, err := sigil.Untransmute([]byte(ciphertext), []sigil.Sigil{cipherSigil})
 	if err != nil {
-		return core.E("cube.Unpack", "failed to decrypt archive", err)
+		return core.E(opCubeUnpack, "failed to decrypt archive", err)
 	}
 
 	return extractTarToMedium(archiveBytes, destination)
@@ -314,32 +324,55 @@ func Unpack(cubePath string, destination coreio.Medium, key []byte) error {
 // to the .cube file — use Pack again to persist updates.
 func Open(cubePath string, key []byte) (coreio.Medium, error) {
 	if cubePath == "" {
-		return nil, core.E("cube.Open", "cube path is required", fs.ErrInvalid)
+		return nil, core.E(opCubeOpen, "cube path is required", fs.ErrInvalid)
 	}
 
-	localMedium, err := local.New("/")
+	localMedium, relativePath, err := sandboxedLocalForPath(opCubeOpen, cubePath)
 	if err != nil {
-		return nil, core.E("cube.Open", "failed to access local filesystem", err)
+		return nil, err
 	}
-	ciphertext, err := localMedium.Read(cubePath)
+	ciphertext, err := localMedium.Read(relativePath)
 	if err != nil {
-		return nil, core.E("cube.Open", core.Concat("failed to read cube: ", cubePath), err)
+		return nil, core.E(opCubeOpen, core.Concat("failed to read cube: ", cubePath), err)
 	}
 
 	cipherSigil, err := sigil.NewChaChaPolySigil(key, nil)
 	if err != nil {
-		return nil, core.E("cube.Open", "failed to create cipher", err)
+		return nil, core.E(opCubeOpen, errCreateCipher, err)
 	}
 	archiveBytes, err := sigil.Untransmute([]byte(ciphertext), []sigil.Sigil{cipherSigil})
 	if err != nil {
-		return nil, core.E("cube.Open", "failed to decrypt archive", err)
+		return nil, core.E(opCubeOpen, "failed to decrypt archive", err)
 	}
 
 	nodeTree, err := node.FromTar(archiveBytes)
 	if err != nil {
-		return nil, core.E("cube.Open", "failed to load archive", err)
+		return nil, core.E(opCubeOpen, "failed to load archive", err)
 	}
 	return nodeTree, nil
+}
+
+func sandboxedLocalForPath(operation, filePath string) (coreio.Medium, string, error) {
+	if filePath == "" {
+		return nil, "", core.E(operation, "path is required", fs.ErrInvalid)
+	}
+	if !core.PathIsAbs(filePath) {
+		medium, err := coreio.NewSandboxed(".")
+		if err != nil {
+			return nil, "", core.E(operation, "failed to access local filesystem", err)
+		}
+		return medium, filePath, nil
+	}
+	root := core.PathDir(filePath)
+	relativePath := core.PathBase(filePath)
+	if root == "/" || relativePath == "" || relativePath == "." || relativePath == "/" {
+		return nil, "", core.E(operation, core.Concat("invalid local path: ", filePath), fs.ErrInvalid)
+	}
+	medium, err := coreio.NewSandboxed(root)
+	if err != nil {
+		return nil, "", core.E(operation, "failed to access local filesystem", err)
+	}
+	return medium, relativePath, nil
 }
 
 // archiveMediumToTar walks source and serialises all files into a tar archive.
@@ -353,7 +386,7 @@ func archiveMediumToTar(source coreio.Medium) ([]byte, error) {
 	}
 
 	if err := tarWriter.Close(); err != nil {
-		return nil, core.E("cube.archive", "failed to close tar writer", err)
+		return nil, core.E(opCubeArchive, "failed to close tar writer", err)
 	}
 	return buffer.data, nil
 }
@@ -362,44 +395,56 @@ func archiveMediumToTar(source coreio.Medium) ([]byte, error) {
 func walkAndArchive(source coreio.Medium, path string, tarWriter *tar.Writer) error {
 	entries, err := source.List(path)
 	if err != nil {
-		return nil // nothing to archive at this path
+		return core.E(opCubeArchive, core.Concat("failed to list: ", path), err)
 	}
 	for _, entry := range entries {
-		childPath := entry.Name()
-		if path != "" {
-			childPath = core.Concat(path, "/", entry.Name())
-		}
+		childPath := archiveChildPath(path, entry.Name())
 		if entry.IsDir() {
 			if err := walkAndArchive(source, childPath, tarWriter); err != nil {
 				return err
 			}
 			continue
 		}
-		content, err := source.Read(childPath)
-		if err != nil {
-			return core.E("cube.archive", core.Concat("failed to read: ", childPath), err)
-		}
-		info, err := source.Stat(childPath)
-		modTime := time.Now()
-		mode := fs.FileMode(0600)
-		if err == nil {
-			modTime = info.ModTime()
-			mode = info.Mode()
-		}
-		header := &tar.Header{
-			Name:    childPath,
-			Mode:    int64(mode.Perm()),
-			Size:    int64(len(content)),
-			ModTime: modTime,
-		}
-		if err := tarWriter.WriteHeader(header); err != nil {
-			return core.E("cube.archive", core.Concat("failed to write header: ", childPath), err)
-		}
-		if _, err := tarWriter.Write([]byte(content)); err != nil {
-			return core.E("cube.archive", core.Concat("failed to write content: ", childPath), err)
+		if err := writeTarFileEntry(source, childPath, tarWriter); err != nil {
+			return err
 		}
 	}
 	return nil
+}
+
+func archiveChildPath(parent, name string) string {
+	if parent == "" {
+		return name
+	}
+	return core.Concat(parent, "/", name)
+}
+
+func writeTarFileEntry(source coreio.Medium, filePath string, tarWriter *tar.Writer) error {
+	content, err := source.Read(filePath)
+	if err != nil {
+		return core.E(opCubeArchive, core.Concat("failed to read: ", filePath), err)
+	}
+	mode, modTime := archiveEntryMetadata(source, filePath)
+	header := &tar.Header{
+		Name:    filePath,
+		Mode:    int64(mode.Perm()),
+		Size:    int64(len(content)),
+		ModTime: modTime,
+	}
+	if err := tarWriter.WriteHeader(header); err != nil {
+		return core.E(opCubeArchive, core.Concat("failed to write header: ", filePath), err)
+	}
+	if _, err := tarWriter.Write([]byte(content)); err != nil {
+		return core.E(opCubeArchive, core.Concat("failed to write content: ", filePath), err)
+	}
+	return nil
+}
+
+func archiveEntryMetadata(source coreio.Medium, filePath string) (fs.FileMode, time.Time) {
+	if info, err := source.Stat(filePath); err == nil {
+		return info.Mode(), info.ModTime()
+	}
+	return 0600, time.Now()
 }
 
 // extractTarToMedium reads a tar archive and writes each entry to destination.
@@ -408,32 +453,80 @@ func extractTarToMedium(archiveBytes []byte, destination coreio.Medium) error {
 	for {
 		header, err := tarReader.Next()
 		if err == goio.EOF {
-			break
+			return nil
 		}
 		if err != nil {
-			return core.E("cube.extract", "failed to read tar entry", err)
+			return core.E(opCubeExtract, "failed to read tar entry", err)
 		}
 		if header.Typeflag != tar.TypeReg {
 			continue
 		}
-		contentResult := core.ReadAll(tarReader)
-		if !contentResult.OK {
-			if err, ok := contentResult.Value.(error); ok {
-				return core.E("cube.extract", core.Concat("failed to read entry: ", header.Name), err)
-			}
-			return core.E("cube.extract", core.Concat("failed to read entry: ", header.Name), fs.ErrInvalid)
-		}
-		name := core.TrimPrefix(header.Name, "/")
-		if name == "" || core.HasSuffix(name, "/") {
-			continue
-		}
-		mode := fs.FileMode(header.Mode)
-		if mode == 0 {
-			mode = 0644
-		}
-		if err := destination.WriteMode(name, contentResult.Value.(string), mode); err != nil {
-			return core.E("cube.extract", core.Concat("failed to write entry: ", name), err)
+		if err := extractTarFileEntry(tarReader, header, destination); err != nil {
+			return err
 		}
 	}
+}
+
+func extractTarFileEntry(tarReader *tar.Reader, header *tar.Header, destination coreio.Medium) error {
+	content, err := readTarEntryContent(tarReader, header.Name)
+	if err != nil {
+		return err
+	}
+	name, ok, err := validatedTarEntryName(header.Name)
+	if err != nil || !ok {
+		return err
+	}
+	mode := fs.FileMode(header.Mode)
+	if mode == 0 {
+		mode = 0644
+	}
+	if err := destination.WriteMode(name, content, mode); err != nil {
+		return core.E(opCubeExtract, core.Concat("failed to write entry: ", name), err)
+	}
 	return nil
+}
+
+func readTarEntryContent(tarReader *tar.Reader, name string) (string, error) {
+	contentResult := core.ReadAll(tarReader)
+	if contentResult.OK {
+		content, ok := contentResult.Value.(string)
+		if !ok {
+			return "", core.E(opCubeExtract, core.Concat("failed to read entry: ", name), fs.ErrInvalid)
+		}
+		return content, nil
+	}
+	if err, ok := contentResult.Value.(error); ok {
+		return "", core.E(opCubeExtract, core.Concat("failed to read entry: ", name), err)
+	}
+	return "", core.E(opCubeExtract, core.Concat("failed to read entry: ", name), fs.ErrInvalid)
+}
+
+func validatedTarEntryName(rawName string) (string, bool, error) {
+	if rawName == "" {
+		return "", false, nil
+	}
+	if path.IsAbs(rawName) || core.Contains(rawName, "\\") {
+		return "", false, core.E(opCubeExtract, core.Concat("invalid tar entry path: ", rawName), fs.ErrInvalid)
+	}
+	name := core.TrimPrefix(rawName, "/")
+	if name == "" || core.HasSuffix(name, "/") {
+		return "", false, nil
+	}
+	if hasParentPathSegment(name) {
+		return "", false, core.E(opCubeExtract, core.Concat("invalid tar entry path: ", name), fs.ErrInvalid)
+	}
+	clean := path.Clean(name)
+	if clean == "." || clean == "" || clean == ".." || core.HasPrefix(clean, "../") {
+		return "", false, core.E(opCubeExtract, core.Concat("invalid tar entry path: ", name), fs.ErrInvalid)
+	}
+	return clean, true, nil
+}
+
+func hasParentPathSegment(name string) bool {
+	for _, part := range core.Split(name, "/") {
+		if part == ".." {
+			return true
+		}
+	}
+	return false
 }

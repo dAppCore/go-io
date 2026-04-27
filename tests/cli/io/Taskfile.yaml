@@ -29,7 +29,7 @@ tasks:
           echo "Skipping integration tests: S3 endpoint not set"
           exit 0
         fi
-        go test -count=1 ./... -run Integration -tags integration
+        go test -count=1 -tags integration ./... -run Integration
 
   default:
     deps:

@@ -69,7 +69,9 @@ func deleteObjectsError(prefix string, errs []types.Error) error {
 	return core.E("s3.DeleteAll", core.Concat("partial delete failed under ", prefix, ": ", core.Join("; ", details...)), nil)
 }
 
-func readAllString(reader any) (string, error) {
+func readAllString(reader goio.ReadCloser) (string, error) {
+	defer reader.Close()
+
 	result := core.ReadAll(reader)
 	if !result.OK {
 		if err, ok := result.Value.(error); ok {
@@ -474,9 +476,11 @@ func (medium *Medium) Append(filePath string) (goio.WriteCloser, error) {
 		Key:    aws.String(key),
 	})
 	if err == nil {
-		if content, readErr := readAllString(out.Body); readErr == nil {
-			existing = []byte(content)
+		content, readErr := readAllString(out.Body)
+		if readErr != nil {
+			return nil, core.E("s3.Append", core.Concat("failed to read existing object: ", key), readErr)
 		}
+		existing = []byte(content)
 	}
 
 	return &s3WriteCloser{

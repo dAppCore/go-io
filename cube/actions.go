@@ -28,6 +28,14 @@ const (
 	ActionUnpack = "core.io.cube.unpack"
 )
 
+const (
+	opReadAction   = "cube.readAction"
+	opWriteAction  = "cube.writeAction"
+	opPackAction   = "cube.packAction"
+	opUnpackAction = "cube.unpackAction"
+	errKeyType     = "key must be []byte"
+)
+
 // Example: cube.RegisterActions(c)
 //
 // RegisterActions installs the cube actions listed in the go-io RFC §15 on the
@@ -48,13 +56,21 @@ func RegisterActions(c *core.Core) {
 // Example:     core.Option{Key: "path",  Value: "secret.txt"},
 // Example: )
 func readAction(_ context.Context, opts core.Options) core.Result {
+	if medium, ok := opts.Get("medium").Value.(coreio.Medium); ok && medium != nil {
+		content, err := medium.Read(opts.String("path"))
+		if err != nil {
+			return core.Result{}.New(err)
+		}
+		return core.Result{Value: content, OK: true}
+	}
+
 	inner, ok := opts.Get("inner").Value.(coreio.Medium)
 	if !ok {
-		return core.Result{}.New(core.E("cube.readAction", "inner medium is required", fs.ErrInvalid))
+		return core.Result{}.New(core.E(opReadAction, "inner medium is required", fs.ErrInvalid))
 	}
-	key, ok := opts.Get("key").Value.([]byte)
-	if !ok {
-		return core.Result{}.New(core.E("cube.readAction", "key must be []byte", fs.ErrInvalid))
+	key, err := keyFromOptions(opts, opReadAction)
+	if err != nil {
+		return core.Result{}.New(err)
 	}
 	medium, err := New(Options{Inner: inner, Key: key})
 	if err != nil {
@@ -74,13 +90,20 @@ func readAction(_ context.Context, opts core.Options) core.Result {
 // Example:     core.Option{Key: "content", Value: "classified"},
 // Example: )
 func writeAction(_ context.Context, opts core.Options) core.Result {
+	if medium, ok := opts.Get("medium").Value.(coreio.Medium); ok && medium != nil {
+		if err := medium.Write(opts.String("path"), opts.String("content")); err != nil {
+			return core.Result{}.New(err)
+		}
+		return core.Result{OK: true}
+	}
+
 	inner, ok := opts.Get("inner").Value.(coreio.Medium)
 	if !ok {
-		return core.Result{}.New(core.E("cube.writeAction", "inner medium is required", fs.ErrInvalid))
+		return core.Result{}.New(core.E(opWriteAction, "inner medium is required", fs.ErrInvalid))
 	}
-	key, ok := opts.Get("key").Value.([]byte)
-	if !ok {
-		return core.Result{}.New(core.E("cube.writeAction", "key must be []byte", fs.ErrInvalid))
+	key, err := keyFromOptions(opts, opWriteAction)
+	if err != nil {
+		return core.Result{}.New(err)
 	}
 	medium, err := New(Options{Inner: inner, Key: key})
 	if err != nil {
@@ -100,11 +123,11 @@ func writeAction(_ context.Context, opts core.Options) core.Result {
 func packAction(_ context.Context, opts core.Options) core.Result {
 	source, ok := opts.Get("source").Value.(coreio.Medium)
 	if !ok {
-		return core.Result{}.New(core.E("cube.packAction", "source medium is required", fs.ErrInvalid))
+		return core.Result{}.New(core.E(opPackAction, "source medium is required", fs.ErrInvalid))
 	}
-	key, ok := opts.Get("key").Value.([]byte)
-	if !ok {
-		return core.Result{}.New(core.E("cube.packAction", "key must be []byte", fs.ErrInvalid))
+	key, err := keyFromOptions(opts, opPackAction)
+	if err != nil {
+		return core.Result{}.New(err)
 	}
 	output := opts.String("output")
 	if err := Pack(output, source, key); err != nil {
@@ -121,15 +144,23 @@ func packAction(_ context.Context, opts core.Options) core.Result {
 func unpackAction(_ context.Context, opts core.Options) core.Result {
 	destination, ok := opts.Get("destination").Value.(coreio.Medium)
 	if !ok {
-		return core.Result{}.New(core.E("cube.unpackAction", "destination medium is required", fs.ErrInvalid))
+		return core.Result{}.New(core.E(opUnpackAction, "destination medium is required", fs.ErrInvalid))
 	}
-	key, ok := opts.Get("key").Value.([]byte)
-	if !ok {
-		return core.Result{}.New(core.E("cube.unpackAction", "key must be []byte", fs.ErrInvalid))
+	key, err := keyFromOptions(opts, opUnpackAction)
+	if err != nil {
+		return core.Result{}.New(err)
 	}
 	cubePath := opts.String("cube")
 	if err := Unpack(cubePath, destination, key); err != nil {
 		return core.Result{}.New(err)
 	}
 	return core.Result{OK: true}
+}
+
+func keyFromOptions(opts core.Options, operation string) ([]byte, error) {
+	key, ok := opts.Get("key").Value.([]byte)
+	if !ok {
+		return nil, core.E(operation, errKeyType, fs.ErrInvalid)
+	}
+	return key, nil
 }

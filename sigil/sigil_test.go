@@ -293,6 +293,9 @@ func TestSigil_NewSigil_KeylessScheme_Good(t *testing.T) {
 func TestSigil_NewSigil_ChaChaPoly1305RequiresKey_Bad(t *testing.T) {
 	_, err := NewSigil("chacha20poly1305")
 	assert.Error(t, err)
+	if err == nil {
+		t.Fatal("expected key material error")
+	}
 	assert.Contains(t, err.Error(), "scheme requires key material; use NewChaChaPolySigil")
 }
 

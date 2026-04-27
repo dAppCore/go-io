@@ -11,7 +11,6 @@ import (
 	"strings"
 	"testing"
 
-	goapi "dappco.re/go/api"
 	core "dappco.re/go/core"
 	coreio "dappco.re/go/io"
 	"github.com/gin-gonic/gin"
@@ -190,7 +189,7 @@ func postJSON(t *testing.T, router http.Handler, path string, body string) *http
 
 func assertAPIErrorCode(t *testing.T, rec *httptest.ResponseRecorder, code string) {
 	t.Helper()
-	var resp goapi.Response[any]
+	var resp apiResponse
 	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("decode response: %v; body=%s", err, rec.Body.String())
 	}

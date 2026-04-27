@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	coreio "dappco.re/go/io"
-	"dappco.re/go/io/local"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -248,7 +247,7 @@ func TestCube_PassthroughOperations_Ugly(t *testing.T) {
 
 func TestCube_Pack_Good(t *testing.T) {
 	tempDir := t.TempDir()
-	sandbox, err := local.New(tempDir)
+	sandbox, err := coreio.NewSandboxed(tempDir)
 	require.NoError(t, err)
 	outputPath := tempDir + "/app.cube"
 

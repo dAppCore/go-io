@@ -20,9 +20,23 @@ import (
 	coreio "dappco.re/go/io"
 )
 
+const (
+	defaultHTTPTimeout = 30 * time.Second
+
+	opNew        = "webdav.New"
+	opRead       = "webdav.Read"
+	opWriteMode  = "webdav.WriteMode"
+	opEnsureDir  = "webdav.EnsureDir"
+	opDelete     = "webdav.Delete"
+	opDeleteAll  = "webdav.DeleteAll"
+	opRename     = "webdav.Rename"
+	opPropfind   = "webdav.propfind"
+	opReadStream = "webdav.ReadStream"
+)
+
 const propfindBody = `<?xml version="1.0" encoding="utf-8"?>
-<propfind xmlns="DAV:">
-  <prop>
+	<propfind xmlns="DAV:">
+	  <prop>
     <displayname/>
     <getcontentlength/>
     <getlastmodified/>
@@ -53,20 +67,20 @@ type Options struct {
 // New creates a WebDAV Medium.
 func New(options Options) (*Medium, error) {
 	if options.BaseURL == "" {
-		return nil, core.E("webdav.New", "base URL is required", fs.ErrInvalid)
+		return nil, core.E(opNew, "base URL is required", fs.ErrInvalid)
 	}
 
 	baseURL, err := url.Parse(options.BaseURL)
 	if err != nil {
-		return nil, core.E("webdav.New", "base URL is invalid", err)
+		return nil, core.E(opNew, "base URL is invalid", err)
 	}
 	if baseURL.Scheme == "" || baseURL.Host == "" {
-		return nil, core.E("webdav.New", "base URL must include scheme and host", fs.ErrInvalid)
+		return nil, core.E(opNew, "base URL must include scheme and host", fs.ErrInvalid)
 	}
 
 	client := options.Client
 	if client == nil {
-		client = http.DefaultClient
+		client = &http.Client{Timeout: defaultHTTPTimeout}
 	}
 
 	return &Medium{
@@ -161,7 +175,7 @@ func statusOK(statusCode int, allowed ...int) bool {
 }
 
 func (medium *Medium) putBytes(filePath string, data []byte) error {
-	resource, err := medium.requiredResourceURL("webdav.WriteMode", filePath)
+	resource, err := medium.requiredResourceURL(opWriteMode, filePath)
 	if err != nil {
 		return err
 	}
@@ -171,11 +185,11 @@ func (medium *Medium) putBytes(filePath string, data []byte) error {
 
 	response, err := medium.do(http.MethodPut, filePath, bytes.NewReader(data))
 	if err != nil {
-		return core.E("webdav.WriteMode", core.Concat("PUT failed: ", resource), err)
+		return core.E(opWriteMode, core.Concat("PUT failed: ", resource), err)
 	}
 	defer response.Body.Close()
 	if !statusOK(response.StatusCode, http.StatusOK, http.StatusCreated, http.StatusNoContent) {
-		return statusError("webdav.WriteMode", resource, response.StatusCode)
+		return statusError(opWriteMode, resource, response.StatusCode)
 	}
 	return nil
 }
@@ -191,21 +205,21 @@ func (medium *Medium) ensureParent(filePath string) error {
 
 // Read reads a WebDAV resource into a string.
 func (medium *Medium) Read(filePath string) (string, error) {
-	resource, err := medium.requiredResourceURL("webdav.Read", filePath)
+	resource, err := medium.requiredResourceURL(opRead, filePath)
 	if err != nil {
 		return "", err
 	}
 	response, err := medium.do(http.MethodGet, filePath, nil)
 	if err != nil {
-		return "", core.E("webdav.Read", core.Concat("GET failed: ", resource), err)
+		return "", core.E(opRead, core.Concat("GET failed: ", resource), err)
 	}
 	defer response.Body.Close()
 	if !statusOK(response.StatusCode, http.StatusOK) {
-		return "", statusError("webdav.Read", resource, response.StatusCode)
+		return "", statusError(opRead, resource, response.StatusCode)
 	}
 	data, err := goio.ReadAll(response.Body)
 	if err != nil {
-		return "", core.E("webdav.Read", core.Concat("read body failed: ", resource), err)
+		return "", core.E(opRead, core.Concat("read body failed: ", resource), err)
 	}
 	return string(data), nil
 }
@@ -246,7 +260,7 @@ func (medium *Medium) mkcol(filePath string) error {
 	resource := medium.resourceURL(filePath)
 	response, err := medium.do("MKCOL", filePath, nil)
 	if err != nil {
-		return core.E("webdav.EnsureDir", core.Concat("MKCOL failed: ", resource), err)
+		return core.E(opEnsureDir, core.Concat("MKCOL failed: ", resource), err)
 	}
 	defer response.Body.Close()
 	switch response.StatusCode {
@@ -256,9 +270,9 @@ func (medium *Medium) mkcol(filePath string) error {
 		if medium.IsDir(filePath) {
 			return nil
 		}
-		return statusError("webdav.EnsureDir", resource, response.StatusCode)
+		return statusError(opEnsureDir, resource, response.StatusCode)
 	default:
-		return statusError("webdav.EnsureDir", resource, response.StatusCode)
+		return statusError(opEnsureDir, resource, response.StatusCode)
 	}
 }
 
@@ -273,7 +287,7 @@ func (medium *Medium) IsFile(filePath string) bool {
 
 // Delete removes a file or empty collection.
 func (medium *Medium) Delete(filePath string) error {
-	resource, err := medium.requiredResourceURL("webdav.Delete", filePath)
+	resource, err := medium.requiredResourceURL(opDelete, filePath)
 	if err != nil {
 		return err
 	}
@@ -287,45 +301,45 @@ func (medium *Medium) Delete(filePath string) error {
 			return err
 		}
 		if len(entries) > 0 {
-			return core.E("webdav.Delete", core.Concat("collection not empty: ", resource), fs.ErrExist)
+			return core.E(opDelete, core.Concat("collection not empty: ", resource), fs.ErrExist)
 		}
 	}
 
 	response, err := medium.do(http.MethodDelete, filePath, nil)
 	if err != nil {
-		return core.E("webdav.Delete", core.Concat("DELETE failed: ", resource), err)
+		return core.E(opDelete, core.Concat("DELETE failed: ", resource), err)
 	}
 	defer response.Body.Close()
 	if !statusOK(response.StatusCode, http.StatusOK, http.StatusAccepted, http.StatusNoContent) {
-		return statusError("webdav.Delete", resource, response.StatusCode)
+		return statusError(opDelete, resource, response.StatusCode)
 	}
 	return nil
 }
 
 // DeleteAll removes a file or collection tree.
 func (medium *Medium) DeleteAll(filePath string) error {
-	resource, err := medium.requiredResourceURL("webdav.DeleteAll", filePath)
+	resource, err := medium.requiredResourceURL(opDeleteAll, filePath)
 	if err != nil {
 		return err
 	}
 	response, err := medium.do(http.MethodDelete, filePath, nil)
 	if err != nil {
-		return core.E("webdav.DeleteAll", core.Concat("DELETE failed: ", resource), err)
+		return core.E(opDeleteAll, core.Concat("DELETE failed: ", resource), err)
 	}
 	defer response.Body.Close()
 	if !statusOK(response.StatusCode, http.StatusOK, http.StatusAccepted, http.StatusNoContent) {
-		return statusError("webdav.DeleteAll", resource, response.StatusCode)
+		return statusError(opDeleteAll, resource, response.StatusCode)
 	}
 	return nil
 }
 
 // Rename moves a WebDAV resource to a new path.
 func (medium *Medium) Rename(oldPath, newPath string) error {
-	source, err := medium.requiredResourceURL("webdav.Rename", oldPath)
+	source, err := medium.requiredResourceURL(opRename, oldPath)
 	if err != nil {
 		return err
 	}
-	destination, err := medium.requiredResourceURL("webdav.Rename", newPath)
+	destination, err := medium.requiredResourceURL(opRename, newPath)
 	if err != nil {
 		return err
 	}
@@ -335,18 +349,18 @@ func (medium *Medium) Rename(oldPath, newPath string) error {
 
 	request, err := medium.newRequest("MOVE", oldPath, nil)
 	if err != nil {
-		return core.E("webdav.Rename", "failed to build MOVE request", err)
+		return core.E(opRename, "failed to build MOVE request", err)
 	}
 	request.Header.Set("Destination", destination)
 	request.Header.Set("Overwrite", "T")
 
 	response, err := medium.client.Do(request)
 	if err != nil {
-		return core.E("webdav.Rename", core.Concat("MOVE failed: ", source), err)
+		return core.E(opRename, core.Concat("MOVE failed: ", source), err)
 	}
 	defer response.Body.Close()
 	if !statusOK(response.StatusCode, http.StatusCreated, http.StatusNoContent) {
-		return statusError("webdav.Rename", source, response.StatusCode)
+		return statusError(opRename, source, response.StatusCode)
 	}
 	return nil
 }
@@ -393,23 +407,23 @@ func (medium *Medium) propfind(filePath, depth string) ([]davResponse, string, e
 	resource := medium.resourceURL(filePath)
 	request, err := medium.newRequest("PROPFIND", filePath, strings.NewReader(propfindBody))
 	if err != nil {
-		return nil, "", core.E("webdav.propfind", "failed to build PROPFIND request", err)
+		return nil, "", core.E(opPropfind, "failed to build PROPFIND request", err)
 	}
 	request.Header.Set("Depth", depth)
 	request.Header.Set("Content-Type", "application/xml; charset=utf-8")
 
 	response, err := medium.client.Do(request)
 	if err != nil {
-		return nil, "", core.E("webdav.propfind", core.Concat("PROPFIND failed: ", resource), err)
+		return nil, "", core.E(opPropfind, core.Concat("PROPFIND failed: ", resource), err)
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusMultiStatus {
-		return nil, "", statusError("webdav.propfind", resource, response.StatusCode)
+		return nil, "", statusError(opPropfind, resource, response.StatusCode)
 	}
 
 	var multistatus davMultiStatus
 	if err := xml.NewDecoder(response.Body).Decode(&multistatus); err != nil {
-		return nil, "", core.E("webdav.propfind", core.Concat("decode failed: ", resource), err)
+		return nil, "", core.E(opPropfind, core.Concat("decode failed: ", resource), err)
 	}
 	return multistatus.Responses, hrefToPath(resource), nil
 }
@@ -463,17 +477,17 @@ func (medium *Medium) Append(filePath string) (goio.WriteCloser, error) {
 
 // ReadStream opens a WebDAV resource as an io.ReadCloser.
 func (medium *Medium) ReadStream(filePath string) (goio.ReadCloser, error) {
-	resource, err := medium.requiredResourceURL("webdav.ReadStream", filePath)
+	resource, err := medium.requiredResourceURL(opReadStream, filePath)
 	if err != nil {
 		return nil, err
 	}
 	response, err := medium.do(http.MethodGet, filePath, nil)
 	if err != nil {
-		return nil, core.E("webdav.ReadStream", core.Concat("GET failed: ", resource), err)
+		return nil, core.E(opReadStream, core.Concat("GET failed: ", resource), err)
 	}
 	if !statusOK(response.StatusCode, http.StatusOK) {
 		response.Body.Close()
-		return nil, statusError("webdav.ReadStream", resource, response.StatusCode)
+		return nil, statusError(opReadStream, resource, response.StatusCode)
 	}
 	return response.Body, nil
 }

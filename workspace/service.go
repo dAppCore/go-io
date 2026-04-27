@@ -1,6 +1,8 @@
 package workspace
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"hash"
 	goio "io" // Note: AX-6 intrinsic — io.ReadFull for HKDF key derivation; no core wrapper for ReadFull semantics.
 	"io/fs"
@@ -31,6 +33,15 @@ func newWorkspaceSHA256Hash() hash.Hash {
 	return &workspaceSHA256Hash{}
 }
 
+func workspaceSHA256(data []byte) [32]byte {
+	return sha256.Sum256(data)
+}
+
+func workspaceSHA256Hex(data []byte) string {
+	sum := workspaceSHA256(data)
+	return hex.EncodeToString(sum[:])
+}
+
 type workspaceSHA256Hash struct {
 	data []byte
 }
@@ -41,7 +52,7 @@ func (hash *workspaceSHA256Hash) Write(data []byte) (int, error) {
 }
 
 func (hash *workspaceSHA256Hash) Sum(prefix []byte) []byte {
-	sum := core.SHA256(hash.data)
+	sum := workspaceSHA256(hash.data)
 	return append(prefix, sum[:]...)
 }
 
@@ -136,7 +147,7 @@ func (service *Service) CreateWorkspace(identifier, passphrase string) (string, 
 		return "", core.E("workspace.CreateWorkspace", "key pair provider not available", fs.ErrInvalid)
 	}
 
-	workspaceID := core.SHA256Hex([]byte(identifier))
+	workspaceID := workspaceSHA256Hex([]byte(identifier))
 	workspaceDirectory, err := service.resolveWorkspaceDirectory("workspace.CreateWorkspace", workspaceID)
 	if err != nil {
 		return "", err
@@ -268,20 +279,19 @@ func (service *Service) WriteWorkspaceFile(workspaceFilePath, content string) er
 func (service *Service) HandleWorkspaceCommand(command WorkspaceCommand) core.Result {
 	switch command.Action {
 	case WorkspaceCreateAction, legacyWorkspaceCreateAction:
-		passphrase := command.Password
-		identifier := command.Identifier
+		identifier := command.workspaceName()
 		if identifier == "" {
-			identifier = command.Workspace
+			return core.Result{}.New(core.E("workspace.HandleWorkspaceCommand", "workspace identifier is required", fs.ErrInvalid))
 		}
-		workspaceID, err := service.CreateWorkspace(identifier, passphrase)
+		workspaceID, err := service.CreateWorkspace(identifier, command.Password)
 		if err != nil {
 			return core.Result{}.New(err)
 		}
 		return core.Result{Value: workspaceID, OK: true}
 	case WorkspaceSwitchAction, legacyWorkspaceSwitchAction:
-		workspaceID := command.WorkspaceID
+		workspaceID := command.workspaceName()
 		if workspaceID == "" {
-			workspaceID = command.Workspace
+			return core.Result{}.New(core.E("workspace.HandleWorkspaceCommand", "workspace id is required", fs.ErrInvalid))
 		}
 		if err := service.SwitchWorkspace(workspaceID); err != nil {
 			return core.Result{}.New(err)

@@ -14,7 +14,6 @@ import (
 	"strings"
 	"sync"
 
-	goapi "dappco.re/go/api"
 	core "dappco.re/go/core"
 	coreio "dappco.re/go/io"
 	workspacesvc "dappco.re/go/io/workspace"
@@ -77,6 +76,25 @@ type mediumResponse struct {
 	Meta    map[string]any `json:"meta,omitempty"`
 }
 
+type apiError struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
+type apiResponse struct {
+	Success bool      `json:"success"`
+	Data    any       `json:"data,omitempty"`
+	Error   *apiError `json:"error,omitempty"`
+}
+
+func apiOK(data any) apiResponse {
+	return apiResponse{Success: true, Data: data}
+}
+
+func apiFail(code, message string) apiResponse {
+	return apiResponse{Success: false, Error: &apiError{Code: code, Message: message}}
+}
+
 type dirEntryDTO struct {
 	Name  string `json:"name"`
 	IsDir bool   `json:"isDir"`
@@ -100,7 +118,7 @@ func (p *IOProvider) createWorkspace(c *gin.Context) {
 	}
 	workspaceName := workspaceNameFromPayload(payload)
 	if workspaceName == "" {
-		c.JSON(http.StatusBadRequest, goapi.Fail("invalid_request", "workspace is required"))
+		c.JSON(http.StatusBadRequest, apiFail("invalid_request", "workspace is required"))
 		return
 	}
 
@@ -118,7 +136,7 @@ func (p *IOProvider) createWorkspace(c *gin.Context) {
 func (p *IOProvider) switchWorkspace(c *gin.Context) {
 	workspaceID := strings.TrimSpace(c.Param("id"))
 	if workspaceID == "" {
-		c.JSON(http.StatusBadRequest, goapi.Fail("invalid_request", "workspace id is required"))
+		c.JSON(http.StatusBadRequest, apiFail("invalid_request", "workspace id is required"))
 		return
 	}
 
@@ -136,7 +154,7 @@ func (p *IOProvider) switchWorkspace(c *gin.Context) {
 func (p *IOProvider) handleWorkspaceCommand(c *gin.Context) {
 	workspaceID := strings.TrimSpace(c.Param("id"))
 	if workspaceID == "" {
-		c.JSON(http.StatusBadRequest, goapi.Fail("invalid_request", "workspace id is required"))
+		c.JSON(http.StatusBadRequest, apiFail("invalid_request", "workspace id is required"))
 		return
 	}
 	payload, ok := bindPayload(c)
@@ -144,7 +162,7 @@ func (p *IOProvider) handleWorkspaceCommand(c *gin.Context) {
 		return
 	}
 	if strings.TrimSpace(stringValue(payload, "action")) == "" {
-		c.JSON(http.StatusBadRequest, goapi.Fail("invalid_request", "action is required"))
+		c.JSON(http.StatusBadRequest, apiFail("invalid_request", "action is required"))
 		return
 	}
 
@@ -161,7 +179,7 @@ func (p *IOProvider) dispatchAction(c *gin.Context) {
 	actionName := strings.TrimSpace(c.Param("action"))
 	action, ok := findRFC15Action(actionName)
 	if !ok {
-		c.JSON(http.StatusNotFound, goapi.Fail("unknown_action", "RFC §15 action is not registered"))
+		c.JSON(http.StatusNotFound, apiFail("unknown_action", "RFC §15 action is not registered"))
 		return
 	}
 	payload, ok := bindPayload(c)
@@ -169,27 +187,27 @@ func (p *IOProvider) dispatchAction(c *gin.Context) {
 		return
 	}
 	if p == nil || p.core == nil {
-		c.JSON(http.StatusServiceUnavailable, goapi.Fail("service_unavailable", "core action registry is not configured"))
+		c.JSON(http.StatusServiceUnavailable, apiFail("service_unavailable", "core action registry is not configured"))
 		return
 	}
 
 	result := p.core.Action(action.Name).Run(c.Request.Context(), optionsFromPayload(payload))
 	if !result.OK {
-		c.JSON(http.StatusInternalServerError, goapi.Fail("action_failed", resultErrorMessage(result)))
+		c.JSON(http.StatusInternalServerError, apiFail("action_failed", resultErrorMessage(result)))
 		return
 	}
-	c.JSON(http.StatusOK, goapi.OK(mediumResponse{OK: true, Action: action.Name, Value: result.Value}))
+	c.JSON(http.StatusOK, apiOK(mediumResponse{OK: true, Action: action.Name, Value: result.Value}))
 }
 
 func (p *IOProvider) dispatchMedium(c *gin.Context) {
 	mediumType := strings.TrimSpace(c.Param("type"))
 	op := strings.TrimSpace(c.Param("op"))
 	if mediumType == "" {
-		c.JSON(http.StatusBadRequest, goapi.Fail("invalid_request", "medium type is required"))
+		c.JSON(http.StatusBadRequest, apiFail("invalid_request", "medium type is required"))
 		return
 	}
 	if op == "" {
-		c.JSON(http.StatusBadRequest, goapi.Fail("invalid_request", "medium operation is required"))
+		c.JSON(http.StatusBadRequest, apiFail("invalid_request", "medium operation is required"))
 		return
 	}
 
@@ -209,50 +227,40 @@ func (p *IOProvider) dispatchMedium(c *gin.Context) {
 			notImplemented(c, err.Error())
 			return
 		}
-		c.JSON(http.StatusInternalServerError, goapi.Fail("medium_failed", err.Error()))
+		c.JSON(http.StatusInternalServerError, apiFail("medium_failed", err.Error()))
 		return
 	}
 	resp.Medium = mediumType
 	resp.Op = op
-	c.JSON(http.StatusOK, goapi.OK(resp))
+	c.JSON(http.StatusOK, apiOK(resp))
 }
 
 func (p *IOProvider) resolveMedium(c *gin.Context, mediumType string, req mediumRequest) (coreio.Medium, bool) {
 	switch strings.ToLower(mediumType) {
 	case "memory":
 		if p == nil || p.memory == nil {
-			c.JSON(http.StatusServiceUnavailable, goapi.Fail("service_unavailable", "memory medium is not configured"))
+			c.JSON(http.StatusServiceUnavailable, apiFail("service_unavailable", "memory medium is not configured"))
 			return nil, false
 		}
 		return p.memory, true
 	case "local":
-		if strings.TrimSpace(req.Root) == "" {
-			c.JSON(http.StatusBadRequest, goapi.Fail("invalid_request", "root is required for local medium"))
+		if p == nil || p.local == nil {
+			c.JSON(http.StatusServiceUnavailable, apiFail("service_unavailable", "local medium is not configured"))
 			return nil, false
 		}
-		medium, err := coreio.NewSandboxed(req.Root)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, goapi.Fail("invalid_request", err.Error()))
-			return nil, false
-		}
-		return medium, true
-	case "github", "pwa":
-		// TODO(#633): delegate once GitHub and PWA Medium backends are wired for HTTP construction.
-		notImplemented(c, fmt.Sprintf("%s medium is not wired", mediumType))
-		return nil, false
-	case "sftp", "webdav":
-		// TODO(#634): delegate once SFTP and WebDAV Medium backends are wired for HTTP construction.
-		notImplemented(c, fmt.Sprintf("%s medium is not wired", mediumType))
+		return p.local, true
+	case "github", "pwa", "sftp", "webdav":
+		unconfiguredMedium(c, mediumType)
 		return nil, false
 	default:
-		notImplemented(c, fmt.Sprintf("%s medium is not configured", mediumType))
+		unconfiguredMedium(c, mediumType)
 		return nil, false
 	}
 }
 
 func (p *IOProvider) resolveWorkspaceService(c *gin.Context) (*workspacesvc.Workspace, bool) {
 	if p == nil {
-		c.JSON(http.StatusServiceUnavailable, goapi.Fail("service_unavailable", "workspace service is not configured"))
+		c.JSON(http.StatusServiceUnavailable, apiFail("service_unavailable", "workspace service is not configured"))
 		return nil, false
 	}
 	if service, ok := apiWorkspaceServices.Load(p); ok {
@@ -268,7 +276,7 @@ func (p *IOProvider) resolveWorkspaceService(c *gin.Context) (*workspacesvc.Work
 	}
 	workspaceService, err := workspacesvc.NewWorkspace(medium, "workspaces")
 	if err != nil {
-		c.JSON(http.StatusServiceUnavailable, goapi.Fail("service_unavailable", err.Error()))
+		c.JSON(http.StatusServiceUnavailable, apiFail("service_unavailable", err.Error()))
 		return nil, false
 	}
 	actual, _ := apiWorkspaceServices.LoadOrStore(p, workspaceService)
@@ -294,7 +302,7 @@ func workspaceNameFromPayload(payload map[string]any) string {
 
 func writeWorkspaceResult(c *gin.Context, action string, result core.Result) {
 	if !result.OK {
-		c.JSON(http.StatusInternalServerError, goapi.Fail("workspace_failed", resultErrorMessage(result)))
+		c.JSON(http.StatusInternalServerError, apiFail("workspace_failed", resultErrorMessage(result)))
 		return
 	}
 
@@ -312,131 +320,185 @@ func writeWorkspaceResult(c *gin.Context, action string, result core.Result) {
 		response.Value = nil
 		response.Entries = dirEntryDTOs(value)
 	}
-	c.JSON(http.StatusOK, goapi.OK(response))
+	c.JSON(http.StatusOK, apiOK(response))
+}
+
+type mediumOperationHandler func(context.Context, coreio.Medium, mediumRequest) (mediumResponse, error)
+
+var mediumOperationHandlers = map[string]mediumOperationHandler{
+	"read":        readMediumOperation,
+	"write":       writeMediumOperation,
+	"writemode":   writeModeMediumOperation,
+	"ensuredir":   ensureDirMediumOperation,
+	"mkdir":       ensureDirMediumOperation,
+	"isfile":      isFileMediumOperation,
+	"delete":      deleteMediumOperation,
+	"deleteall":   deleteAllMediumOperation,
+	"rename":      renameMediumOperation,
+	"list":        listMediumOperation,
+	"stat":        statMediumOperation,
+	"open":        openMediumOperation,
+	"create":      createMediumOperation,
+	"append":      appendMediumOperation,
+	"readstream":  readStreamMediumOperation,
+	"writestream": writeStreamMediumOperation,
+	"exists":      existsMediumOperation,
+	"isdir":       isDirMediumOperation,
 }
 
 func dispatchMediumOperation(ctx context.Context, medium coreio.Medium, op string, req mediumRequest) (mediumResponse, error) {
-	_ = ctx
-	switch strings.ToLower(op) {
-	case "read":
-		content, err := medium.Read(req.Path)
-		if err != nil {
-			return mediumResponse{}, err
-		}
-		return mediumResponse{OK: true, Content: content}, nil
-	case "write":
-		if err := medium.Write(req.Path, req.Content); err != nil {
-			return mediumResponse{}, err
-		}
-		return mediumResponse{OK: true}, nil
-	case "writemode":
-		mode, err := fileModeValue(req.Mode, 0644)
-		if err != nil {
-			return mediumResponse{}, err
-		}
-		if err := medium.WriteMode(req.Path, req.Content, mode); err != nil {
-			return mediumResponse{}, err
-		}
-		return mediumResponse{OK: true}, nil
-	case "ensuredir", "mkdir":
-		if err := medium.EnsureDir(req.Path); err != nil {
-			return mediumResponse{}, err
-		}
-		return mediumResponse{OK: true}, nil
-	case "isfile":
-		ok := medium.IsFile(req.Path)
-		return mediumResponse{OK: true, IsFile: &ok}, nil
-	case "delete":
-		var err error
-		if req.Recursive {
-			err = medium.DeleteAll(req.Path)
-		} else {
-			err = medium.Delete(req.Path)
-		}
-		if err != nil {
-			return mediumResponse{}, err
-		}
-		return mediumResponse{OK: true}, nil
-	case "deleteall":
-		if err := medium.DeleteAll(req.Path); err != nil {
-			return mediumResponse{}, err
-		}
-		return mediumResponse{OK: true}, nil
-	case "rename":
-		if err := medium.Rename(req.OldPath, req.NewPath); err != nil {
-			return mediumResponse{}, err
-		}
-		return mediumResponse{OK: true}, nil
-	case "list":
-		entries, err := medium.List(req.Path)
-		if err != nil {
-			return mediumResponse{}, err
-		}
-		return mediumResponse{OK: true, Entries: dirEntryDTOs(entries)}, nil
-	case "stat":
-		info, err := medium.Stat(req.Path)
-		if err != nil {
-			return mediumResponse{}, err
-		}
-		return mediumResponse{OK: true, Info: fileInfoDTOFromInfo(info)}, nil
-	case "open":
-		file, err := medium.Open(req.Path)
-		if err != nil {
-			return mediumResponse{}, err
-		}
-		defer file.Close()
-		content, err := goio.ReadAll(file)
-		if err != nil {
-			return mediumResponse{}, err
-		}
-		return mediumResponse{OK: true, Content: string(content)}, nil
-	case "create":
-		writer, err := medium.Create(req.Path)
-		if err != nil {
-			return mediumResponse{}, err
-		}
-		if err := writeAndClose(writer, req.Content); err != nil {
-			return mediumResponse{}, err
-		}
-		return mediumResponse{OK: true}, nil
-	case "append":
-		writer, err := medium.Append(req.Path)
-		if err != nil {
-			return mediumResponse{}, err
-		}
-		if err := writeAndClose(writer, req.Content); err != nil {
-			return mediumResponse{}, err
-		}
-		return mediumResponse{OK: true}, nil
-	case "readstream":
-		reader, err := medium.ReadStream(req.Path)
-		if err != nil {
-			return mediumResponse{}, err
-		}
-		defer reader.Close()
-		content, err := goio.ReadAll(reader)
-		if err != nil {
-			return mediumResponse{}, err
-		}
-		return mediumResponse{OK: true, Content: string(content)}, nil
-	case "writestream":
-		writer, err := medium.WriteStream(req.Path)
-		if err != nil {
-			return mediumResponse{}, err
-		}
-		if err := writeAndClose(writer, req.Content); err != nil {
-			return mediumResponse{}, err
-		}
-		return mediumResponse{OK: true}, nil
-	case "exists":
-		ok := medium.Exists(req.Path)
-		return mediumResponse{OK: true, Exists: &ok}, nil
-	case "isdir":
-		ok := medium.IsDir(req.Path)
-		return mediumResponse{OK: true, IsDir: &ok}, nil
-	default:
+	handler, ok := mediumOperationHandlers[strings.ToLower(op)]
+	if !ok {
 		return mediumResponse{}, fmt.Errorf("%w: %s", errUnsupportedMediumOperation, op)
 	}
+	return handler(ctx, medium, req)
+}
+
+func readMediumOperation(_ context.Context, medium coreio.Medium, req mediumRequest) (mediumResponse, error) {
+	content, err := medium.Read(req.Path)
+	if err != nil {
+		return mediumResponse{}, err
+	}
+	return mediumResponse{OK: true, Content: content}, nil
+}
+
+func writeMediumOperation(_ context.Context, medium coreio.Medium, req mediumRequest) (mediumResponse, error) {
+	if err := medium.Write(req.Path, req.Content); err != nil {
+		return mediumResponse{}, err
+	}
+	return mediumResponse{OK: true}, nil
+}
+
+func writeModeMediumOperation(_ context.Context, medium coreio.Medium, req mediumRequest) (mediumResponse, error) {
+	mode, err := fileModeValue(req.Mode, 0644)
+	if err != nil {
+		return mediumResponse{}, err
+	}
+	if err := medium.WriteMode(req.Path, req.Content, mode); err != nil {
+		return mediumResponse{}, err
+	}
+	return mediumResponse{OK: true}, nil
+}
+
+func ensureDirMediumOperation(_ context.Context, medium coreio.Medium, req mediumRequest) (mediumResponse, error) {
+	if err := medium.EnsureDir(req.Path); err != nil {
+		return mediumResponse{}, err
+	}
+	return mediumResponse{OK: true}, nil
+}
+
+func isFileMediumOperation(_ context.Context, medium coreio.Medium, req mediumRequest) (mediumResponse, error) {
+	ok := medium.IsFile(req.Path)
+	return mediumResponse{OK: true, IsFile: &ok}, nil
+}
+
+func deleteMediumOperation(ctx context.Context, medium coreio.Medium, req mediumRequest) (mediumResponse, error) {
+	if req.Recursive {
+		return deleteAllMediumOperation(ctx, medium, req)
+	}
+	if err := medium.Delete(req.Path); err != nil {
+		return mediumResponse{}, err
+	}
+	return mediumResponse{OK: true}, nil
+}
+
+func deleteAllMediumOperation(_ context.Context, medium coreio.Medium, req mediumRequest) (mediumResponse, error) {
+	if err := medium.DeleteAll(req.Path); err != nil {
+		return mediumResponse{}, err
+	}
+	return mediumResponse{OK: true}, nil
+}
+
+func renameMediumOperation(_ context.Context, medium coreio.Medium, req mediumRequest) (mediumResponse, error) {
+	if err := medium.Rename(req.OldPath, req.NewPath); err != nil {
+		return mediumResponse{}, err
+	}
+	return mediumResponse{OK: true}, nil
+}
+
+func listMediumOperation(_ context.Context, medium coreio.Medium, req mediumRequest) (mediumResponse, error) {
+	entries, err := medium.List(req.Path)
+	if err != nil {
+		return mediumResponse{}, err
+	}
+	return mediumResponse{OK: true, Entries: dirEntryDTOs(entries)}, nil
+}
+
+func statMediumOperation(_ context.Context, medium coreio.Medium, req mediumRequest) (mediumResponse, error) {
+	info, err := medium.Stat(req.Path)
+	if err != nil {
+		return mediumResponse{}, err
+	}
+	return mediumResponse{OK: true, Info: fileInfoDTOFromInfo(info)}, nil
+}
+
+func openMediumOperation(_ context.Context, medium coreio.Medium, req mediumRequest) (mediumResponse, error) {
+	file, err := medium.Open(req.Path)
+	if err != nil {
+		return mediumResponse{}, err
+	}
+	defer file.Close()
+	return readAllContent(file)
+}
+
+func createMediumOperation(_ context.Context, medium coreio.Medium, req mediumRequest) (mediumResponse, error) {
+	writer, err := medium.Create(req.Path)
+	if err != nil {
+		return mediumResponse{}, err
+	}
+	if err := writeAndClose(writer, req.Content); err != nil {
+		return mediumResponse{}, err
+	}
+	return mediumResponse{OK: true}, nil
+}
+
+func appendMediumOperation(_ context.Context, medium coreio.Medium, req mediumRequest) (mediumResponse, error) {
+	writer, err := medium.Append(req.Path)
+	if err != nil {
+		return mediumResponse{}, err
+	}
+	if err := writeAndClose(writer, req.Content); err != nil {
+		return mediumResponse{}, err
+	}
+	return mediumResponse{OK: true}, nil
+}
+
+func readStreamMediumOperation(_ context.Context, medium coreio.Medium, req mediumRequest) (mediumResponse, error) {
+	reader, err := medium.ReadStream(req.Path)
+	if err != nil {
+		return mediumResponse{}, err
+	}
+	defer reader.Close()
+	return readAllContent(reader)
+}
+
+func writeStreamMediumOperation(_ context.Context, medium coreio.Medium, req mediumRequest) (mediumResponse, error) {
+	writer, err := medium.WriteStream(req.Path)
+	if err != nil {
+		return mediumResponse{}, err
+	}
+	if err := writeAndClose(writer, req.Content); err != nil {
+		return mediumResponse{}, err
+	}
+	return mediumResponse{OK: true}, nil
+}
+
+func existsMediumOperation(_ context.Context, medium coreio.Medium, req mediumRequest) (mediumResponse, error) {
+	ok := medium.Exists(req.Path)
+	return mediumResponse{OK: true, Exists: &ok}, nil
+}
+
+func isDirMediumOperation(_ context.Context, medium coreio.Medium, req mediumRequest) (mediumResponse, error) {
+	ok := medium.IsDir(req.Path)
+	return mediumResponse{OK: true, IsDir: &ok}, nil
+}
+
+func readAllContent(reader goio.Reader) (mediumResponse, error) {
+	content, err := goio.ReadAll(reader)
+	if err != nil {
+		return mediumResponse{}, err
+	}
+	return mediumResponse{OK: true, Content: string(content)}, nil
 }
 
 func bindPayload(c *gin.Context) (map[string]any, bool) {
@@ -447,7 +509,7 @@ func bindPayload(c *gin.Context) (map[string]any, bool) {
 	decoder := json.NewDecoder(c.Request.Body)
 	decoder.UseNumber()
 	if err := decoder.Decode(&payload); err != nil {
-		c.JSON(http.StatusBadRequest, goapi.Fail("invalid_request", err.Error()))
+		c.JSON(http.StatusBadRequest, apiFail("invalid_request", err.Error()))
 		return nil, false
 	}
 	return payload, true
@@ -483,7 +545,11 @@ func findRFC15Action(name string) (rfc15Action, bool) {
 }
 
 func notImplemented(c *gin.Context, message string) {
-	c.JSON(http.StatusNotImplemented, goapi.Fail("not_implemented", message))
+	c.JSON(http.StatusNotImplemented, apiFail("not_implemented", message))
+}
+
+func unconfiguredMedium(c *gin.Context, mediumType string) {
+	notImplemented(c, fmt.Sprintf("%s medium is not configured", mediumType))
 }
 
 func resultErrorMessage(result core.Result) string {

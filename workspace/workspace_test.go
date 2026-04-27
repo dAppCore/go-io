@@ -35,11 +35,11 @@ func TestWorkspace_NewWorkspace_Bad_InvalidBase(t *testing.T) {
 	assert.Nil(t, workspaceService)
 }
 
-func TestWorkspace_NewWorkspace_Ugly_NilMediumDefaults(t *testing.T) {
+func TestWorkspace_NewWorkspace_Ugly_NilMediumRejected(t *testing.T) {
 	workspaceService, err := NewWorkspace(nil, "")
 
-	require.NoError(t, err)
-	assert.NotNil(t, workspaceService)
+	require.Error(t, err)
+	assert.Nil(t, workspaceService)
 }
 
 func TestWorkspace_CreateWorkspace_Good(t *testing.T) {

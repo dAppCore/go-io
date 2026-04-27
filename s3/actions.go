@@ -41,7 +41,7 @@ func RegisterActions(c *core.Core) {
 // Example: )
 func readAction(_ context.Context, opts core.Options) core.Result {
 	medium, ok := opts.Get("medium").Value.(*Medium)
-	if !ok {
+	if !ok || medium == nil {
 		return core.Result{}.New(core.E("s3.readAction", "medium is required", fs.ErrInvalid))
 	}
 	content, err := medium.Read(opts.String("path"))
@@ -58,7 +58,7 @@ func readAction(_ context.Context, opts core.Options) core.Result {
 // Example: )
 func writeAction(_ context.Context, opts core.Options) core.Result {
 	medium, ok := opts.Get("medium").Value.(*Medium)
-	if !ok {
+	if !ok || medium == nil {
 		return core.Result{}.New(core.E("s3.writeAction", "medium is required", fs.ErrInvalid))
 	}
 	if err := medium.Write(opts.String("path"), opts.String("content")); err != nil {

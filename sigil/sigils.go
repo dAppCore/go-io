@@ -19,6 +19,11 @@ import (
 	"golang.org/x/crypto/sha3"
 )
 
+const (
+	opGzipOut          = "sigil.GzipSigil.Out"
+	errReadGzipPayload = "read gzip payload"
+)
+
 // Example: reverseSigil, _ := sigil.NewSigil("reverse")
 type ReverseSigil struct{}
 
@@ -138,14 +143,15 @@ func (sigil *GzipSigil) Out(data []byte) ([]byte, error) {
 	}
 	gzipReader, err := gzip.NewReader(core.NewReader(string(data)))
 	if err != nil {
-		return nil, core.E("sigil.GzipSigil.Out", "open gzip reader", err)
+		return nil, core.E(opGzipOut, "open gzip reader", err)
 	}
+	defer gzipReader.Close()
 	out := core.ReadAll(gzipReader)
 	if !out.OK {
 		if err, ok := out.Value.(error); ok {
-			return nil, core.E("sigil.GzipSigil.Out", "read gzip payload", err)
+			return nil, core.E(opGzipOut, errReadGzipPayload, err)
 		}
-		return nil, core.E("sigil.GzipSigil.Out", "read gzip payload", fs.ErrInvalid)
+		return nil, core.E(opGzipOut, errReadGzipPayload, fs.ErrInvalid)
 	}
 	return []byte(out.Value.(string)), nil
 }

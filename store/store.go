@@ -2,6 +2,7 @@ package store
 
 import (
 	"database/sql"
+	"errors"
 	"io/fs"
 	"text/template" // Note: AX-6 intrinsic - structural for KeyValueStore.Render templating; core exposes no template primitive.
 
@@ -13,7 +14,7 @@ import (
 // Callers test for it with errors.Is. It is defined with errors.New so that
 // identity comparison works correctly across package boundaries.
 // Example: _, err := keyValueStore.Get("app", "theme"); errors.Is(err, store.NotFoundError)
-var NotFoundError = core.E("store", "key not found", nil)
+var NotFoundError = errors.New("store: key not found")
 
 // Example: keyValueStore, _ := store.New(store.Options{Path: ":memory:"})
 type KeyValueStore struct {

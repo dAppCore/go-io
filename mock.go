@@ -7,6 +7,7 @@ import (
 	"cmp"
 	goio "io"
 	"io/fs"
+	pathpkg "path"
 	"slices"
 	"sync" // Note: AX-6 — internal concurrency primitive; structural per RFC §5.1
 	"time"
@@ -90,19 +91,38 @@ func (m *MockMedium) IsFile(path string) bool {
 func (m *MockMedium) Delete(path string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	delete(m.Files, path)
-	return nil
+	if _, ok := m.Files[path]; ok {
+		delete(m.Files, path)
+		delete(m.meta, path)
+		return nil
+	}
+	if _, ok := m.dirs[path]; ok {
+		delete(m.dirs, path)
+		return nil
+	}
+	return fs.ErrNotExist
 }
 
 func (m *MockMedium) DeleteAll(path string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	found := false
 	for k := range m.Files {
-		if k == path || len(k) > len(path) && k[:len(path)+1] == path+"/" {
+		if pathMatchesPrefix(k, path) {
 			delete(m.Files, k)
+			delete(m.meta, k)
+			found = true
 		}
 	}
-	delete(m.dirs, path)
+	for d := range m.dirs {
+		if pathMatchesPrefix(d, path) {
+			delete(m.dirs, d)
+			found = true
+		}
+	}
+	if !found {
+		return fs.ErrNotExist
+	}
 	return nil
 }
 
@@ -115,46 +135,87 @@ func (m *MockMedium) Rename(oldPath, newPath string) error {
 	}
 	m.Files[newPath] = f
 	delete(m.Files, oldPath)
+	if metadata, ok := m.meta[oldPath]; ok {
+		m.meta[newPath] = metadata
+		delete(m.meta, oldPath)
+	}
 	return nil
 }
 
 func (m *MockMedium) List(path string) ([]fs.DirEntry, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	prefix := path + "/"
-	if path == "" || path == "." {
-		prefix = ""
-	}
+	prefix := mockListPrefix(path)
 	seen := make(map[string]bool)
+	entries := make([]fs.DirEntry, 0)
+	entries = append(entries, m.fileEntries(prefix, seen)...)
+	entries = append(entries, m.dirEntries(prefix, seen)...)
+	slices.SortFunc(entries, func(a, b fs.DirEntry) int { return cmp.Compare(a.Name(), b.Name()) })
+	return entries, nil
+}
+
+func pathMatchesPrefix(candidate, prefix string) bool {
+	return candidate == prefix || len(candidate) > len(prefix) && candidate[:len(prefix)+1] == prefix+"/"
+}
+
+func mockListPrefix(filePath string) string {
+	if filePath == "" || filePath == "." {
+		return ""
+	}
+	return filePath + "/"
+}
+
+func (m *MockMedium) fileEntries(prefix string, seen map[string]bool) []fs.DirEntry {
 	var entries []fs.DirEntry
 	for k, content := range m.Files {
 		if len(k) <= len(prefix) || k[:len(prefix)] != prefix {
 			continue
 		}
 		rest := k[len(prefix):]
-		slash := -1
-		for i, c := range rest {
-			if c == '/' {
-				slash = i
-				break
-			}
+		if dirName, ok := firstPathComponent(rest); ok {
+			entries = appendMockDirectoryEntry(entries, seen, dirName)
+			continue
 		}
-		if slash >= 0 {
-			dirName := rest[:slash]
-			if !seen[dirName] {
-				seen[dirName] = true
-				entries = append(entries, NewDirEntry(dirName, true, 0755, NewFileInfo(dirName, 0, 0755, time.Now(), true)))
-			}
-		} else {
-			if !seen[rest] {
-				seen[rest] = true
-				mt := m.meta[k]
-				entries = append(entries, NewDirEntry(rest, false, mt.mode, NewFileInfo(rest, int64(len(content)), mt.mode, mt.modTime, false)))
-			}
+		if !seen[rest] {
+			seen[rest] = true
+			mt := m.meta[k]
+			entries = append(entries, NewDirEntry(rest, false, mt.mode, NewFileInfo(rest, int64(len(content)), mt.mode, mt.modTime, false)))
 		}
 	}
-	slices.SortFunc(entries, func(a, b fs.DirEntry) int { return cmp.Compare(a.Name(), b.Name()) })
-	return entries, nil
+	return entries
+}
+
+func (m *MockMedium) dirEntries(prefix string, seen map[string]bool) []fs.DirEntry {
+	var entries []fs.DirEntry
+	for d := range m.dirs {
+		if len(d) <= len(prefix) || d[:len(prefix)] != prefix {
+			continue
+		}
+		rest := d[len(prefix):]
+		if dirName, ok := firstPathComponent(rest); ok {
+			entries = appendMockDirectoryEntry(entries, seen, dirName)
+			continue
+		}
+		entries = appendMockDirectoryEntry(entries, seen, rest)
+	}
+	return entries
+}
+
+func firstPathComponent(rest string) (string, bool) {
+	for i, c := range rest {
+		if c == '/' {
+			return rest[:i], true
+		}
+	}
+	return "", false
+}
+
+func appendMockDirectoryEntry(entries []fs.DirEntry, seen map[string]bool, name string) []fs.DirEntry {
+	if name == "" || seen[name] {
+		return entries
+	}
+	seen[name] = true
+	return append(entries, NewDirEntry(name, true, 0755, NewFileInfo(name, 0, 0755, time.Now(), true)))
 }
 
 func (m *MockMedium) Stat(path string) (fs.FileInfo, error) {
@@ -162,10 +223,10 @@ func (m *MockMedium) Stat(path string) (fs.FileInfo, error) {
 	defer m.mu.RUnlock()
 	if content, ok := m.Files[path]; ok {
 		mt := m.meta[path]
-		return NewFileInfo(path, int64(len(content)), mt.mode, mt.modTime, false), nil
+		return NewFileInfo(pathpkg.Base(path), int64(len(content)), mt.mode, mt.modTime, false), nil
 	}
 	if m.dirs[path] {
-		return NewFileInfo(path, 0, 0755, time.Now(), true), nil
+		return NewFileInfo(pathpkg.Base(path), 0, 0755, time.Now(), true), nil
 	}
 	return nil, fs.ErrNotExist
 }
@@ -178,7 +239,7 @@ func (m *MockMedium) Open(path string) (fs.File, error) {
 		return nil, fs.ErrNotExist
 	}
 	mt := m.meta[path]
-	return &MockFile{Reader: bytes.NewReader([]byte(content)), info: NewFileInfo(path, int64(len(content)), mt.mode, mt.modTime, false)}, nil
+	return &MockFile{Reader: bytes.NewReader([]byte(content)), info: NewFileInfo(pathpkg.Base(path), int64(len(content)), mt.mode, mt.modTime, false)}, nil
 }
 
 func (m *MockMedium) Create(path string) (goio.WriteCloser, error) {

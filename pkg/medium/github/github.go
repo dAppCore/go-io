@@ -9,9 +9,7 @@ import (
 	"io/fs"
 	"net/http"
 	"net/url"
-	"os"
 	"path"
-	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -24,6 +22,15 @@ import (
 
 // ErrReadOnly is returned by all mutating operations on a GitHub Medium.
 var ErrReadOnly = errors.New("github medium is read-only")
+
+const (
+	opNew  = "github.New"
+	opRead = "github.Read"
+	opList = "github.List"
+	opStat = "github.Stat"
+
+	errNotFound = "not found: "
+)
 
 // Medium is a GitHub REST API-backed implementation of coreio.Medium.
 type Medium struct {
@@ -52,11 +59,11 @@ type Options struct {
 func New(options Options) (*Medium, error) {
 	owner := strings.TrimSpace(options.Owner)
 	if owner == "" {
-		return nil, core.E("github.New", "owner is required", fs.ErrInvalid)
+		return nil, core.E(opNew, "owner is required", fs.ErrInvalid)
 	}
 	repo := strings.TrimSpace(options.Repo)
 	if repo == "" {
-		return nil, core.E("github.New", "repo is required", fs.ErrInvalid)
+		return nil, core.E(opNew, "repo is required", fs.ErrInvalid)
 	}
 
 	client := options.Client
@@ -73,7 +80,7 @@ func New(options Options) (*Medium, error) {
 	}
 	if options.BaseURL != "" {
 		if err := setClientBaseURL(client, options.BaseURL); err != nil {
-			return nil, core.E("github.New", "base URL is invalid", err)
+			return nil, core.E(opNew, "base URL is invalid", err)
 		}
 	}
 
@@ -91,21 +98,43 @@ func New(options Options) (*Medium, error) {
 }
 
 func tokenFromEnvironment(tokenFile string) string {
-	if token := strings.TrimSpace(os.Getenv("GITHUB_TOKEN")); token != "" {
+	if token := strings.TrimSpace(core.Env("GITHUB_TOKEN")); token != "" {
 		return token
 	}
 	if tokenFile == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
+		home := strings.TrimSpace(core.Env("HOME"))
+		if home == "" {
+			home = strings.TrimSpace(core.Env("DIR_HOME"))
+		}
+		if home == "" {
 			return ""
 		}
-		tokenFile = filepath.Join(home, ".config", "lthn", "github-token")
+		tokenFile = core.Path(home, ".config", "lthn", "github-token")
 	}
-	data, err := os.ReadFile(tokenFile)
+
+	medium, relativePath, err := tokenFileMedium(tokenFile)
 	if err != nil {
 		return ""
 	}
-	return strings.TrimSpace(string(data))
+	data, err := medium.Read(relativePath)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(data)
+}
+
+func tokenFileMedium(tokenFile string) (coreio.Medium, string, error) {
+	if core.PathIsAbs(tokenFile) {
+		root := core.PathDir(tokenFile)
+		relativePath := core.PathBase(tokenFile)
+		if root == "" || root == "." || relativePath == "" || relativePath == "." || relativePath == "/" {
+			return nil, "", fs.ErrInvalid
+		}
+		medium, err := coreio.NewSandboxed(root)
+		return medium, relativePath, err
+	}
+	medium, err := coreio.NewSandboxed(".")
+	return medium, tokenFile, err
 }
 
 func oauthClient(client *http.Client, token string) *http.Client {
@@ -188,7 +217,7 @@ func wrapGitHubError(operation, filePath string, err error) error {
 	if errors.As(err, &responseError) && responseError.Response != nil {
 		switch responseError.Response.StatusCode {
 		case http.StatusNotFound:
-			return core.E(operation, core.Concat("not found: ", filePath), fs.ErrNotExist)
+			return core.E(operation, core.Concat(errNotFound, filePath), fs.ErrNotExist)
 		case http.StatusUnauthorized, http.StatusForbidden:
 			return core.E(operation, core.Concat("permission denied: ", filePath), fs.ErrPermission)
 		case http.StatusUnprocessableEntity:
@@ -221,23 +250,23 @@ func dirInfoForPath(filePath string) coreio.FileInfo {
 
 // Read reads a repository file into a string.
 func (medium *Medium) Read(filePath string) (string, error) {
-	clean, err := requiredPath("github.Read", filePath)
+	clean, err := requiredPath(opRead, filePath)
 	if err != nil {
 		return "", err
 	}
-	fileContent, directoryContent, err := medium.getContents("github.Read", clean)
+	fileContent, directoryContent, err := medium.getContents(opRead, clean)
 	if err != nil {
 		return "", err
 	}
 	if directoryContent != nil || fileContent.GetType() == "dir" {
-		return "", core.E("github.Read", core.Concat("path is a directory: ", clean), fs.ErrInvalid)
+		return "", core.E(opRead, core.Concat("path is a directory: ", clean), fs.ErrInvalid)
 	}
 	if fileContent == nil {
-		return "", core.E("github.Read", core.Concat("not found: ", clean), fs.ErrNotExist)
+		return "", core.E(opRead, core.Concat(errNotFound, clean), fs.ErrNotExist)
 	}
 	content, err := fileContent.GetContent()
 	if err != nil {
-		return "", core.E("github.Read", core.Concat("decode content failed: ", clean), err)
+		return "", core.E(opRead, core.Concat("decode content failed: ", clean), err)
 	}
 	return content, nil
 }
@@ -296,18 +325,18 @@ func (medium *Medium) List(filePath string) ([]fs.DirEntry, error) {
 }
 
 func (medium *Medium) listRecursive(filePath string) ([]fs.DirEntry, error) {
-	fileContent, directoryContent, err := medium.getContents("github.List", filePath)
+	fileContent, directoryContent, err := medium.getContents(opList, filePath)
 	if err != nil {
 		return nil, err
 	}
 	if fileContent == nil && directoryContent == nil {
-		return nil, core.E("github.List", core.Concat("not found: ", filePath), fs.ErrNotExist)
+		return nil, core.E(opList, core.Concat(errNotFound, filePath), fs.ErrNotExist)
 	}
 	if fileContent != nil && fileContent.GetType() != "dir" {
-		return nil, core.E("github.List", core.Concat("path is not a directory: ", filePath), fs.ErrInvalid)
+		return nil, core.E(opList, core.Concat("path is not a directory: ", filePath), fs.ErrInvalid)
 	}
 	if directoryContent == nil {
-		return nil, core.E("github.List", core.Concat("path is not a directory: ", filePath), fs.ErrInvalid)
+		return nil, core.E(opList, core.Concat("path is not a directory: ", filePath), fs.ErrInvalid)
 	}
 
 	var entries []fs.DirEntry
@@ -331,16 +360,16 @@ func (medium *Medium) listRecursive(filePath string) ([]fs.DirEntry, error) {
 
 // Stat returns metadata for a repository path.
 func (medium *Medium) Stat(filePath string) (fs.FileInfo, error) {
-	clean, err := requiredPath("github.Stat", filePath)
+	clean, err := requiredPath(opStat, filePath)
 	if err != nil {
 		return nil, err
 	}
-	fileContent, directoryContent, err := medium.getContents("github.Stat", clean)
+	fileContent, directoryContent, err := medium.getContents(opStat, clean)
 	if err != nil {
 		return nil, err
 	}
 	if fileContent == nil && directoryContent == nil {
-		return nil, core.E("github.Stat", core.Concat("not found: ", clean), fs.ErrNotExist)
+		return nil, core.E(opStat, core.Concat(errNotFound, clean), fs.ErrNotExist)
 	}
 	if directoryContent != nil || fileContent.GetType() == "dir" {
 		return dirInfoForPath(clean), nil

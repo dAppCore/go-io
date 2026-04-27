@@ -5,7 +5,6 @@ package api
 import (
 	"testing"
 
-	coreprovider "dappco.re/go/api/pkg/provider"
 	core "dappco.re/go/core"
 	coreio "dappco.re/go/io"
 )
@@ -13,9 +12,6 @@ import (
 func TestNewProvider_Good(t *testing.T) {
 	c := core.New()
 	provider := NewProvider(c)
-
-	var _ coreprovider.Provider = provider
-	var _ coreprovider.Describable = provider
 
 	if provider.Name() != "io" {
 		t.Fatalf("expected provider name io, got %q", provider.Name())

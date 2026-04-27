@@ -6,6 +6,7 @@ import (
 	"time"    // AX-6-exception: filesystem metadata timestamps have no core equivalent.
 
 	core "dappco.re/go/core"
+	"dappco.re/go/io/internal/fsutil"
 	"dappco.re/go/io/local"
 )
 
@@ -653,21 +654,9 @@ func (medium *MemoryMedium) List(path string) ([]fs.DirEntry, error) {
 		}
 	}
 
-	sortDirEntriesByName(entries)
+	fsutil.SortDirEntriesByName(entries)
 
 	return entries, nil
-}
-
-func sortDirEntriesByName(entries []fs.DirEntry) {
-	for i := 1; i < len(entries); i++ {
-		entry := entries[i]
-		j := i - 1
-		for j >= 0 && entries[j].Name() > entry.Name() {
-			entries[j+1] = entries[j]
-			j--
-		}
-		entries[j+1] = entry
-	}
 }
 
 // Example: info, _ := io.NewMemoryMedium().Stat("notes.txt")

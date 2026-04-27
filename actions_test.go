@@ -37,7 +37,6 @@ func TestActions_RegisterActions_Good(t *testing.T) {
 		coreio.ActionGitHubClone, coreio.ActionGitHubRead, coreio.ActionPWAScrape,
 		coreio.ActionSFTPRead, coreio.ActionSFTPWrite,
 		coreio.ActionS3Read, coreio.ActionS3Write,
-		coreio.ActionCubeRead, coreio.ActionCubeWrite, coreio.ActionCubePack, coreio.ActionCubeUnpack,
 		coreio.ActionCopy,
 	} {
 		assert.True(t, c.Action(name).Exists(), name)
@@ -147,11 +146,11 @@ func TestActions_LocalList_Ugly(t *testing.T) {
 	c := core.New()
 	coreio.RegisterActions(c)
 
-	// Empty root defaults to "/" — the list operation itself should still succeed.
+	// Missing root must fail instead of falling back to host root.
 	result := c.Action(coreio.ActionLocalList).Run(context.Background(), core.NewOptions(
 		core.Option{Key: "path", Value: tempDir},
 	))
-	assert.True(t, result.OK)
+	assert.False(t, result.OK)
 }
 
 func TestActions_LocalDelete_Good(t *testing.T) {
@@ -392,6 +391,7 @@ func TestActions_CubeReadWritePackUnpack_Good(t *testing.T) {
 	tempDir := t.TempDir()
 	c := core.New()
 	coreio.RegisterActions(c)
+	cube.RegisterActions(c)
 
 	inner := coreio.NewMemoryMedium()
 	cubeMedium, err := cube.New(cube.Options{Inner: inner, Key: actionTestCubeKey})
@@ -454,6 +454,7 @@ func TestActions_CubeReadWritePackUnpack_Good(t *testing.T) {
 func TestActions_CubeReadWritePackUnpack_Ugly(t *testing.T) {
 	c := core.New()
 	coreio.RegisterActions(c)
+	cube.RegisterActions(c)
 
 	readResult := c.Action(coreio.ActionCubeRead).Run(context.Background(), core.NewOptions(
 		core.Option{Key: "inner", Value: coreio.Medium(coreio.NewMemoryMedium())},

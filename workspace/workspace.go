@@ -11,6 +11,14 @@ import (
 	coreio "dappco.re/go/io"
 )
 
+const (
+	opNewWorkspace    = "workspace.NewWorkspace"
+	opCreateWorkspace = "workspace.CreateWorkspace"
+	opSwitchWorkspace = "workspace.SwitchWorkspace"
+
+	errWorkspaceServiceNotConfigured = "workspace service is not configured"
+)
+
 // Workspace is the RFC §5 medium-backed workspace service.
 type Workspace struct {
 	medium  coreio.Medium
@@ -22,18 +30,15 @@ type Workspace struct {
 // NewWorkspace creates a workspace service backed by medium under baseSubpath.
 func NewWorkspace(medium coreio.Medium, baseSubpath string) (*Workspace, error) {
 	if medium == nil {
-		medium = coreio.Local
+		return nil, core.E(opNewWorkspace, "storage medium is required", fs.ErrInvalid)
 	}
-	if medium == nil {
-		return nil, core.E("workspace.NewWorkspace", "storage medium is required", fs.ErrInvalid)
-	}
-	base, err := cleanMediumSubpath("workspace.NewWorkspace", baseSubpath, true)
+	base, err := cleanMediumSubpath(opNewWorkspace, baseSubpath, true)
 	if err != nil {
 		return nil, err
 	}
 	if base != "" {
 		if err := medium.EnsureDir(base); err != nil {
-			return nil, core.E("workspace.NewWorkspace", "failed to ensure base workspace directory", err)
+			return nil, core.E(opNewWorkspace, "failed to ensure base workspace directory", err)
 		}
 	}
 	return &Workspace{
@@ -45,23 +50,23 @@ func NewWorkspace(medium coreio.Medium, baseSubpath string) (*Workspace, error) 
 // CreateWorkspace creates a named workspace directory and returns a medium scoped to it.
 func (workspace *Workspace) CreateWorkspace(name string) (coreio.Medium, error) {
 	if workspace == nil {
-		return nil, core.E("workspace.CreateWorkspace", "workspace service is not configured", fs.ErrInvalid)
+		return nil, core.E(opCreateWorkspace, errWorkspaceServiceNotConfigured, fs.ErrInvalid)
 	}
 	workspace.mu.Lock()
 	defer workspace.mu.Unlock()
 
-	workspacePath, err := workspace.workspacePath("workspace.CreateWorkspace", name)
+	workspacePath, err := workspace.workspacePath(opCreateWorkspace, name)
 	if err != nil {
 		return nil, err
 	}
 	if workspace.medium.IsDir(workspacePath) {
-		return nil, core.E("workspace.CreateWorkspace", core.Concat("workspace already exists: ", name), fs.ErrExist)
+		return nil, core.E(opCreateWorkspace, core.Concat("workspace already exists: ", name), fs.ErrExist)
 	}
 	if workspace.medium.Exists(workspacePath) {
-		return nil, core.E("workspace.CreateWorkspace", core.Concat("workspace path is not a directory: ", name), fs.ErrExist)
+		return nil, core.E(opCreateWorkspace, core.Concat("workspace path is not a directory: ", name), fs.ErrExist)
 	}
 	if err := workspace.medium.EnsureDir(workspacePath); err != nil {
-		return nil, core.E("workspace.CreateWorkspace", "failed to create workspace directory", err)
+		return nil, core.E(opCreateWorkspace, "failed to create workspace directory", err)
 	}
 	return workspace.scopedMedium(workspacePath), nil
 }
@@ -69,17 +74,17 @@ func (workspace *Workspace) CreateWorkspace(name string) (coreio.Medium, error) 
 // SwitchWorkspace records the named workspace as the current workspace.
 func (workspace *Workspace) SwitchWorkspace(name string) error {
 	if workspace == nil {
-		return core.E("workspace.SwitchWorkspace", "workspace service is not configured", fs.ErrInvalid)
+		return core.E(opSwitchWorkspace, errWorkspaceServiceNotConfigured, fs.ErrInvalid)
 	}
 	workspace.mu.Lock()
 	defer workspace.mu.Unlock()
 
-	workspaceName, workspacePath, err := workspace.workspaceNameAndPath("workspace.SwitchWorkspace", name)
+	workspaceName, workspacePath, err := workspace.workspaceNameAndPath(opSwitchWorkspace, name)
 	if err != nil {
 		return err
 	}
 	if !workspace.medium.IsDir(workspacePath) {
-		return core.E("workspace.SwitchWorkspace", core.Concat("workspace not found: ", workspaceName), fs.ErrNotExist)
+		return core.E(opSwitchWorkspace, core.Concat("workspace not found: ", workspaceName), fs.ErrNotExist)
 	}
 	workspace.current = workspaceName
 	return nil
@@ -98,7 +103,7 @@ func (workspace *Workspace) CurrentWorkspace() string {
 // ReadWorkspaceFile reads a file from the named workspace.
 func (workspace *Workspace) ReadWorkspaceFile(name, filePath string) (string, error) {
 	if workspace == nil {
-		return "", core.E("workspace.ReadWorkspaceFile", "workspace service is not configured", fs.ErrInvalid)
+		return "", core.E("workspace.ReadWorkspaceFile", errWorkspaceServiceNotConfigured, fs.ErrInvalid)
 	}
 	workspace.mu.RLock()
 	defer workspace.mu.RUnlock()
@@ -113,7 +118,7 @@ func (workspace *Workspace) ReadWorkspaceFile(name, filePath string) (string, er
 // WriteWorkspaceFile writes a file into the named workspace.
 func (workspace *Workspace) WriteWorkspaceFile(name, filePath, content string) error {
 	if workspace == nil {
-		return core.E("workspace.WriteWorkspaceFile", "workspace service is not configured", fs.ErrInvalid)
+		return core.E("workspace.WriteWorkspaceFile", errWorkspaceServiceNotConfigured, fs.ErrInvalid)
 	}
 	workspace.mu.Lock()
 	defer workspace.mu.Unlock()
@@ -128,7 +133,7 @@ func (workspace *Workspace) WriteWorkspaceFile(name, filePath, content string) e
 // ListWorkspaceFiles lists entries under a workspace-relative directory.
 func (workspace *Workspace) ListWorkspaceFiles(name, directoryPath string) ([]fs.DirEntry, error) {
 	if workspace == nil {
-		return nil, core.E("workspace.ListWorkspaceFiles", "workspace service is not configured", fs.ErrInvalid)
+		return nil, core.E("workspace.ListWorkspaceFiles", errWorkspaceServiceNotConfigured, fs.ErrInvalid)
 	}
 	workspace.mu.RLock()
 	defer workspace.mu.RUnlock()
@@ -198,7 +203,7 @@ func (workspace *Workspace) workspacePath(operation, name string) (string, error
 
 func (workspace *Workspace) workspaceNameAndPath(operation, name string) (string, string, error) {
 	if workspace == nil || workspace.medium == nil {
-		return "", "", core.E(operation, "workspace service is not configured", fs.ErrInvalid)
+		return "", "", core.E(operation, errWorkspaceServiceNotConfigured, fs.ErrInvalid)
 	}
 	workspaceName, err := cleanWorkspaceName(operation, name)
 	if err != nil {
