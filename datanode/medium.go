@@ -10,11 +10,11 @@ import (
 	"io/fs"
 	"path"
 	"slices"
-	"sync"
+	"sync" // Note: AX-6 — internal concurrency primitive; structural per RFC §5.1
 	"time"
 
 	core "dappco.re/go/core"
-	coreio "dappco.re/go/core/io"
+	coreio "dappco.re/go/io"
 	borgdatanode "forge.lthn.ai/Snider/Borg/pkg/datanode"
 )
 

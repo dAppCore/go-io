@@ -411,8 +411,8 @@ func lstat(path string) (*syscall.Stat_t, error) {
 	return info, nil
 }
 
-func isSymlink(mode uint32) bool {
-	return mode&syscall.S_IFMT == syscall.S_IFLNK
+func isSymlink(mode uint16) bool {
+	return uint32(mode)&syscall.S_IFMT == syscall.S_IFLNK
 }
 
 func readlink(path string) (string, error) {

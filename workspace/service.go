@@ -2,19 +2,21 @@ package workspace
 
 import (
 	"crypto/sha256"
-	goio "io"
+	"encoding/hex"
+	"hash"
+	goio "io" // Note: AX-6 intrinsic — io.ReadFull for HKDF key derivation; no core wrapper for ReadFull semantics.
 	"io/fs"
-	"sync"
+	"sync" // Note: AX-6 — internal concurrency primitive; structural per RFC §5.1
 
 	core "dappco.re/go/core"
 	"golang.org/x/crypto/hkdf"
 
-	"dappco.re/go/core/io"
-	"dappco.re/go/core/io/sigil"
+	"dappco.re/go/io"
+	"dappco.re/go/io/sigil"
 )
 
 // Example: service, _ := workspace.New(workspace.Options{KeyPairProvider: keyPairProvider})
-type Workspace interface {
+type EncryptedWorkspace interface {
 	CreateWorkspace(identifier, passphrase string) (string, error)
 	SwitchWorkspace(workspaceID string) error
 	ReadWorkspaceFile(workspaceFilePath string) (string, error)
@@ -26,17 +28,44 @@ type KeyPairProvider interface {
 	CreateKeyPair(identifier, passphrase string) (string, error)
 }
 
-const (
-	WorkspaceCreateAction = "workspace.create"
-	WorkspaceSwitchAction = "workspace.switch"
-)
+// newWorkspaceSHA256Hash adapts core.SHA256 for HKDF's hash.Hash API.
+func newWorkspaceSHA256Hash() hash.Hash {
+	return &workspaceSHA256Hash{}
+}
 
-// Example: command := WorkspaceCommand{Action: WorkspaceCreateAction, Identifier: "alice", Password: "pass123"}
-type WorkspaceCommand struct {
-	Action      string
-	Identifier  string
-	Password    string
-	WorkspaceID string
+func workspaceSHA256(data []byte) [32]byte {
+	return sha256.Sum256(data)
+}
+
+func workspaceSHA256Hex(data []byte) string {
+	sum := workspaceSHA256(data)
+	return hex.EncodeToString(sum[:])
+}
+
+type workspaceSHA256Hash struct {
+	data []byte
+}
+
+func (hash *workspaceSHA256Hash) Write(data []byte) (int, error) {
+	hash.data = append(hash.data, data...)
+	return len(data), nil
+}
+
+func (hash *workspaceSHA256Hash) Sum(prefix []byte) []byte {
+	sum := workspaceSHA256(hash.data)
+	return append(prefix, sum[:]...)
+}
+
+func (hash *workspaceSHA256Hash) Reset() {
+	hash.data = hash.data[:0]
+}
+
+func (hash *workspaceSHA256Hash) Size() int {
+	return 32
+}
+
+func (hash *workspaceSHA256Hash) BlockSize() int {
+	return 64
 }
 
 // Example: service, _ := workspace.New(workspace.Options{
@@ -62,7 +91,7 @@ type Service struct {
 	stateLock         sync.RWMutex
 }
 
-var _ Workspace = (*Service)(nil)
+var _ EncryptedWorkspace = (*Service)(nil)
 
 // Example: service, _ := workspace.New(workspace.Options{
 // Example:     KeyPairProvider: keyPairProvider,
@@ -118,8 +147,7 @@ func (service *Service) CreateWorkspace(identifier, passphrase string) (string, 
 		return "", core.E("workspace.CreateWorkspace", "key pair provider not available", fs.ErrInvalid)
 	}
 
-	hash := sha256.Sum256([]byte(identifier))
-	workspaceID := hex.EncodeToString(hash[:])
+	workspaceID := workspaceSHA256Hex([]byte(identifier))
 	workspaceDirectory, err := service.resolveWorkspaceDirectory("workspace.CreateWorkspace", workspaceID)
 	if err != nil {
 		return "", err
@@ -191,7 +219,7 @@ func (service *Service) workspaceCipherSigil(operation string) (*sigil.ChaChaPol
 	}
 	// Use HKDF (RFC 5869) for key derivation: it is purpose-bound, domain-separated,
 	// and more resistant to length-extension attacks than a bare SHA-256 hash.
-	hkdfReader := hkdf.New(sha256.New, []byte(rawKey), nil, []byte("workspace-cipher-key"))
+	hkdfReader := hkdf.New(newWorkspaceSHA256Hash, []byte(rawKey), nil, []byte("workspace-cipher-key"))
 	derived := make([]byte, 32)
 	if _, err := goio.ReadFull(hkdfReader, derived); err != nil {
 		return nil, core.E(operation, "failed to derive workspace key", err)
@@ -250,15 +278,22 @@ func (service *Service) WriteWorkspaceFile(workspaceFilePath, content string) er
 // Example: commandResult := service.HandleWorkspaceCommand(WorkspaceCommand{Action: WorkspaceCreateAction, Identifier: "alice", Password: "pass123"})
 func (service *Service) HandleWorkspaceCommand(command WorkspaceCommand) core.Result {
 	switch command.Action {
-	case WorkspaceCreateAction:
-		passphrase := command.Password
-		workspaceID, err := service.CreateWorkspace(command.Identifier, passphrase)
+	case WorkspaceCreateAction, legacyWorkspaceCreateAction:
+		identifier := command.workspaceName()
+		if identifier == "" {
+			return core.Result{}.New(core.E("workspace.HandleWorkspaceCommand", "workspace identifier is required", fs.ErrInvalid))
+		}
+		workspaceID, err := service.CreateWorkspace(identifier, command.Password)
 		if err != nil {
 			return core.Result{}.New(err)
 		}
 		return core.Result{Value: workspaceID, OK: true}
-	case WorkspaceSwitchAction:
-		if err := service.SwitchWorkspace(command.WorkspaceID); err != nil {
+	case WorkspaceSwitchAction, legacyWorkspaceSwitchAction:
+		workspaceID := command.workspaceName()
+		if workspaceID == "" {
+			return core.Result{}.New(core.E("workspace.HandleWorkspaceCommand", "workspace id is required", fs.ErrInvalid))
+		}
+		if err := service.SwitchWorkspace(workspaceID); err != nil {
 			return core.Result{}.New(err)
 		}
 		return core.Result{OK: true}

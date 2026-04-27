@@ -6,7 +6,7 @@ import (
 	goio "io"
 	"io/fs"
 	"sort"
-	"sync"
+	"sync" // Note: AX-6 — internal concurrency primitive; structural per RFC §5.1
 	"testing"
 	"time"
 

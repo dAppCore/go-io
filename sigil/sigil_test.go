@@ -284,6 +284,21 @@ func TestSigil_NewSigil_Bad(t *testing.T) {
 	assert.Contains(t, err.Error(), "unknown sigil name")
 }
 
+func TestSigil_NewSigil_KeylessScheme_Good(t *testing.T) {
+	sigilValue, err := NewSigil("hex")
+	require.NoError(t, err)
+	assert.NotNil(t, sigilValue)
+}
+
+func TestSigil_NewSigil_ChaChaPoly1305RequiresKey_Bad(t *testing.T) {
+	_, err := NewSigil("chacha20poly1305")
+	assert.Error(t, err)
+	if err == nil {
+		t.Fatal("expected key material error")
+	}
+	assert.Contains(t, err.Error(), "scheme requires key material; use NewChaChaPolySigil")
+}
+
 func TestSigil_NewSigil_EmptyName_Bad(t *testing.T) {
 	_, err := NewSigil("")
 	assert.Error(t, err)

@@ -3,15 +3,13 @@
 package sqlite
 
 import (
-	"bytes"
 	"database/sql"
-	goio "io"
-	"io/fs"
-	"path"
-	"time"
+	goio "io" // AX-6-exception: io interface types have no core equivalent; io.EOF preserves stream semantics.
+	"io/fs"   // AX-6-exception: fs interface types have no core equivalent.
+	"time"    // AX-6-exception: filesystem metadata timestamps have no core equivalent.
 
 	core "dappco.re/go/core"
-	coreio "dappco.re/go/core/io"
+	coreio "dappco.re/go/io"
 
 	_ "modernc.org/sqlite"
 )
@@ -108,7 +106,7 @@ func (medium *Medium) Close() error {
 }
 
 func normaliseEntryPath(filePath string) string {
-	clean := path.Clean("/" + filePath)
+	clean := core.CleanPath("/"+filePath, "/")
 	if clean == "/" {
 		return ""
 	}
@@ -452,7 +450,7 @@ func (medium *Medium) Stat(filePath string) (fs.FileInfo, error) {
 		return nil, core.E("sqlite.Stat", core.Concat("query failed: ", key), err)
 	}
 
-	name := path.Base(key)
+	name := core.PathBase(key)
 	return &fileInfo{
 		name:    name,
 		size:    int64(len(content)),
@@ -487,7 +485,7 @@ func (medium *Medium) Open(filePath string) (fs.File, error) {
 	}
 
 	return &sqliteFile{
-		name:    path.Base(key),
+		name:    core.PathBase(key),
 		content: content,
 		mode:    fs.FileMode(mode),
 		modTime: mtime,
@@ -550,7 +548,10 @@ func (medium *Medium) ReadStream(filePath string) (goio.ReadCloser, error) {
 		return nil, core.E("sqlite.ReadStream", core.Concat("path is a directory: ", key), fs.ErrInvalid)
 	}
 
-	return goio.NopCloser(bytes.NewReader(content)), nil
+	return &sqliteFile{
+		name:    core.PathBase(key),
+		content: content,
+	}, nil
 }
 
 // Example: writer, _ := medium.WriteStream("logs/app.log")

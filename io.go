@@ -1,16 +1,13 @@
 package io
 
 import (
-	"bytes"
-	"cmp"
-	goio "io"
-	"io/fs"
-	"path"
-	"slices"
-	"time"
+	goio "io" // AX-6-exception: io interface types have no core equivalent; io.EOF preserves stream semantics.
+	"io/fs"   // AX-6-exception: fs interface types have no core equivalent.
+	"time"    // AX-6-exception: filesystem metadata timestamps have no core equivalent.
 
 	core "dappco.re/go/core"
-	"dappco.re/go/core/io/local"
+	"dappco.re/go/io/internal/fsutil"
+	"dappco.re/go/io/local"
 )
 
 // Example: medium, _ := io.NewSandboxed("/srv/app")
@@ -222,10 +219,10 @@ func NewMemoryMedium() *MemoryMedium {
 }
 
 func (medium *MemoryMedium) ensureAncestorDirectories(filePath string) {
-	parentPath := path.Dir(filePath)
+	parentPath := core.PathDir(filePath)
 	for parentPath != "." && parentPath != "" {
 		medium.directories[parentPath] = true
-		nextParentPath := path.Dir(parentPath)
+		nextParentPath := core.PathDir(parentPath)
 		if nextParentPath == parentPath {
 			break
 		}
@@ -277,12 +274,12 @@ func (medium *MemoryMedium) Write(path, content string) error {
 // Example: _ = io.NewMemoryMedium().WriteMode("keys/private.key", "secret", 0600)
 func (medium *MemoryMedium) WriteMode(filePath, content string, mode fs.FileMode) error {
 	// Verify no ancestor directory component is stored as a file.
-	ancestor := path.Dir(filePath)
+	ancestor := core.PathDir(filePath)
 	for ancestor != "." && ancestor != "" {
 		if _, ok := medium.fileContents[ancestor]; ok {
 			return core.E("io.MemoryMedium.WriteMode", core.Concat("ancestor path is a file: ", ancestor), fs.ErrExist)
 		}
-		next := path.Dir(ancestor)
+		next := core.PathDir(ancestor)
 		if next == ancestor {
 			break
 		}
@@ -609,8 +606,8 @@ func (medium *MemoryMedium) List(path string) ([]fs.DirEntry, error) {
 		}
 		rest := core.TrimPrefix(filePath, prefix)
 		if rest == "" || core.Contains(rest, "/") {
-			if idx := bytes.IndexByte([]byte(rest), '/'); idx != -1 {
-				dirName := rest[:idx]
+			if parts := core.SplitN(rest, "/", 2); len(parts) == 2 {
+				dirName := parts[0]
 				if !seen[dirName] {
 					seen[dirName] = true
 					entries = append(entries, NewDirEntry(
@@ -643,8 +640,8 @@ func (medium *MemoryMedium) List(path string) ([]fs.DirEntry, error) {
 		if rest == "" {
 			continue
 		}
-		if idx := bytes.IndexByte([]byte(rest), '/'); idx != -1 {
-			rest = rest[:idx]
+		if parts := core.SplitN(rest, "/", 2); len(parts) == 2 {
+			rest = parts[0]
 		}
 		if !seen[rest] {
 			seen[rest] = true
@@ -657,9 +654,7 @@ func (medium *MemoryMedium) List(path string) ([]fs.DirEntry, error) {
 		}
 	}
 
-	slices.SortFunc(entries, func(a, b fs.DirEntry) int {
-		return cmp.Compare(a.Name(), b.Name())
-	})
+	fsutil.SortDirEntriesByName(entries)
 
 	return entries, nil
 }

@@ -177,6 +177,39 @@ func TestCryptoSigil_NewChaChaPolySigil_EmptyKey_Bad(t *testing.T) {
 	assert.ErrorIs(t, err, InvalidKeyError)
 }
 
+func TestCryptoSigil_NewChaChaPolySigil_FixedNonceBytes_Bad(t *testing.T) {
+	key := make([]byte, 32)
+	_, _ = rand.Read(key)
+
+	cases := map[string][]byte{
+		"non-empty": []byte("0123456789abcdef01234567"),
+		"empty":     []byte{},
+		"typed nil": nil,
+	}
+	for name, nonce := range cases {
+		t.Run(name, func(t *testing.T) {
+			_, err := NewChaChaPolySigil(key, nonce)
+			assert.ErrorIs(t, err, InvalidNonceError)
+			if err == nil {
+				t.Fatal("expected invalid nonce error")
+			}
+			assert.Contains(t, err.Error(), "fixed-nonce []byte path removed; use PreObfuscator or nil")
+		})
+	}
+}
+
+func TestCryptoSigil_NewChaChaPolySigil_StringNonce_Bad(t *testing.T) {
+	key := make([]byte, 32)
+	_, _ = rand.Read(key)
+
+	_, err := NewChaChaPolySigil(key, "fixed nonce")
+	assert.ErrorIs(t, err, InvalidNonceError)
+	if err == nil {
+		t.Fatal("expected invalid nonce error")
+	}
+	assert.Contains(t, err.Error(), "nonce must be PreObfuscator or nil")
+}
+
 func TestCryptoSigil_NewChaChaPolySigil_CustomObfuscator_Good(t *testing.T) {
 	key := make([]byte, 32)
 	_, _ = rand.Read(key)
@@ -273,11 +306,17 @@ func TestCryptoSigil_ChaChaPolySigil_DifferentCiphertextsPerCall_Good(t *testing
 
 	cipherSigil, err := NewChaChaPolySigil(key, nil)
 	require.NoError(t, err)
+	cipherSigil.randomReader = &limitReader{
+		data: append(bytes.Repeat([]byte{0x01}, 24), bytes.Repeat([]byte{0x02}, 24)...),
+	}
 
 	plaintext := []byte("same input")
-	ct1, _ := cipherSigil.In(plaintext)
-	ct2, _ := cipherSigil.In(plaintext)
+	ct1, err := cipherSigil.In(plaintext)
+	require.NoError(t, err)
+	ct2, err := cipherSigil.In(plaintext)
+	require.NoError(t, err)
 
+	assert.NotEqual(t, ct1[:24], ct2[:24])
 	assert.NotEqual(t, ct1, ct2)
 }
 

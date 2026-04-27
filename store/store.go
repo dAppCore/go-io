@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"io/fs"
-	"text/template"
+	"text/template" // Note: AX-6 intrinsic - structural for KeyValueStore.Render templating; core exposes no template primitive.
 
 	core "dappco.re/go/core"
 	_ "modernc.org/sqlite"
@@ -14,7 +14,7 @@ import (
 // Callers test for it with errors.Is. It is defined with errors.New so that
 // identity comparison works correctly across package boundaries.
 // Example: _, err := keyValueStore.Get("app", "theme"); errors.Is(err, store.NotFoundError)
-var NotFoundError = errors.New("key not found")
+var NotFoundError = errors.New("store: key not found")
 
 // Example: keyValueStore, _ := store.New(store.Options{Path: ":memory:"})
 type KeyValueStore struct {

@@ -8,7 +8,7 @@ import (
 	"time"
 
 	core "dappco.re/go/core"
-	coreio "dappco.re/go/core/io"
+	coreio "dappco.re/go/io"
 )
 
 // ErrNotDirectory is returned by List when the path resolves to a key rather than a group.
@@ -345,9 +345,9 @@ func (file *keyValueFile) Close() error { return nil }
 
 type keyValueWriteCloser struct {
 	keyValueStore *KeyValueStore
-	group string
-	key   string
-	data  []byte
+	group         string
+	key           string
+	data          []byte
 }
 
 func (writer *keyValueWriteCloser) Write(data []byte) (int, error) {
