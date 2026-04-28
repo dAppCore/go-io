@@ -29,3 +29,5 @@ steps:
       sonar_url: https://sonar.lthn.sh
       sonar_project_key: core_go-io
       sonar_project_name: core/go-io
+
+# trigger pipeline retry — webhook allowlist landed
