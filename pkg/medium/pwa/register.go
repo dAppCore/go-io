@@ -3,7 +3,7 @@ package pwa
 import (
 	"context"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 )
 
 const (
@@ -55,9 +55,9 @@ func mediumFromOptions(opts core.Options) *Medium {
 func readAction(_ context.Context, opts core.Options) core.Result {
 	content, err := mediumFromOptions(opts).Read(opts.String("path"))
 	if err != nil {
-		return core.Result{}.New(err)
+		return core.Fail(err)
 	}
-	return core.Result{Value: content, OK: true}
+	return core.Ok(content)
 }
 
 func scrapeAction(_ context.Context, opts core.Options) core.Result {
@@ -67,22 +67,22 @@ func scrapeAction(_ context.Context, opts core.Options) core.Result {
 	}
 	content, err := mediumFromOptions(opts).Read(target)
 	if err != nil {
-		return core.Result{}.New(err)
+		return core.Fail(err)
 	}
-	return core.Result{Value: content, OK: true}
+	return core.Ok(content)
 }
 
 func listAction(_ context.Context, opts core.Options) core.Result {
 	entries, err := mediumFromOptions(opts).List(opts.String("path"))
 	if err != nil {
-		return core.Result{}.New(err)
+		return core.Fail(err)
 	}
-	return core.Result{Value: entries, OK: true}
+	return core.Ok(entries)
 }
 
 func writeAction(_ context.Context, opts core.Options) core.Result {
 	if err := mediumFromOptions(opts).Write(opts.String("path"), opts.String("content")); err != nil {
-		return core.Result{}.New(err)
+		return core.Fail(err)
 	}
-	return core.Result{OK: true}
+	return core.Ok(nil)
 }

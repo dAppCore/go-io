@@ -7,15 +7,12 @@ import (
 	"io/fs"
 	"sort"
 	"sync" // Note: AX-6 — internal concurrency primitive; structural per RFC §5.1
-	"testing"
 	"time"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awss3 "github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 type testS3Client struct {
@@ -217,159 +214,159 @@ func (client *testS3Client) CopyObject(operationContext context.Context, params 
 	return &awss3.CopyObjectOutput{}, nil
 }
 
-func newS3Medium(t *testing.T) (*Medium, *testS3Client) {
+func newS3Medium(t *core.T) (*Medium, *testS3Client) {
 	t.Helper()
 	testS3Client := newTestS3Client()
 	s3Medium, err := New(Options{Bucket: "test-bucket", Client: testS3Client})
-	require.NoError(t, err)
+	core.RequireNoError(t, err)
 	return s3Medium, testS3Client
 }
 
-func TestS3_New_Good(t *testing.T) {
+func TestS3_New_Good(t *core.T) {
 	testS3Client := newTestS3Client()
 	s3Medium, err := New(Options{Bucket: "my-bucket", Client: testS3Client})
-	require.NoError(t, err)
-	assert.Equal(t, "my-bucket", s3Medium.bucket)
-	assert.Equal(t, "", s3Medium.prefix)
+	core.RequireNoError(t, err)
+	core.AssertEqual(t, "my-bucket", s3Medium.bucket)
+	core.AssertEqual(t, "", s3Medium.prefix)
 }
 
-func TestS3_New_NoBucket_Bad(t *testing.T) {
+func TestS3_New_NoBucket_Bad(t *core.T) {
 	_, err := New(Options{Client: newTestS3Client()})
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "bucket name is required")
+	core.AssertError(t, err)
+	core.AssertContains(t, err.Error(), "bucket name is required")
 }
 
-func TestS3_New_NoClient_Bad(t *testing.T) {
+func TestS3_New_NoClient_Bad(t *core.T) {
 	_, err := New(Options{Bucket: "bucket"})
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "client is required")
+	core.AssertError(t, err)
+	core.AssertContains(t, err.Error(), "client is required")
 }
 
-func TestS3_New_Options_Good(t *testing.T) {
+func TestS3_New_Options_Good(t *core.T) {
 	testS3Client := newTestS3Client()
 	s3Medium, err := New(Options{Bucket: "bucket", Client: testS3Client, Prefix: "data/"})
-	require.NoError(t, err)
-	assert.Equal(t, "data/", s3Medium.prefix)
+	core.RequireNoError(t, err)
+	core.AssertEqual(t, "data/", s3Medium.prefix)
 
 	prefixedS3Medium, err := New(Options{Bucket: "bucket", Client: testS3Client, Prefix: "data"})
-	require.NoError(t, err)
-	assert.Equal(t, "data/", prefixedS3Medium.prefix)
+	core.RequireNoError(t, err)
+	core.AssertEqual(t, "data/", prefixedS3Medium.prefix)
 }
 
-func TestS3_ReadWrite_Good(t *testing.T) {
+func TestS3_ReadWrite_Good(t *core.T) {
 	s3Medium, _ := newS3Medium(t)
 
 	err := s3Medium.Write("hello.txt", "world")
-	require.NoError(t, err)
+	core.RequireNoError(t, err)
 
 	content, err := s3Medium.Read("hello.txt")
-	require.NoError(t, err)
-	assert.Equal(t, "world", content)
+	core.RequireNoError(t, err)
+	core.AssertEqual(t, "world", content)
 }
 
-func TestS3_ReadWrite_NotFound_Bad(t *testing.T) {
+func TestS3_ReadWrite_NotFound_Bad(t *core.T) {
 	s3Medium, _ := newS3Medium(t)
 
 	_, err := s3Medium.Read("nonexistent.txt")
-	assert.Error(t, err)
+	core.AssertError(t, err)
 }
 
-func TestS3_ReadWrite_EmptyPath_Bad(t *testing.T) {
+func TestS3_ReadWrite_EmptyPath_Bad(t *core.T) {
 	s3Medium, _ := newS3Medium(t)
 
 	_, err := s3Medium.Read("")
-	assert.Error(t, err)
+	core.AssertError(t, err)
 
 	err = s3Medium.Write("", "content")
-	assert.Error(t, err)
+	core.AssertError(t, err)
 }
 
-func TestS3_ReadWrite_Prefix_Good(t *testing.T) {
+func TestS3_ReadWrite_Prefix_Good(t *core.T) {
 	testS3Client := newTestS3Client()
 	s3Medium, err := New(Options{Bucket: "bucket", Client: testS3Client, Prefix: "pfx"})
-	require.NoError(t, err)
+	core.RequireNoError(t, err)
 
 	err = s3Medium.Write("file.txt", "data")
-	require.NoError(t, err)
+	core.RequireNoError(t, err)
 
 	_, ok := testS3Client.objects["pfx/file.txt"]
-	assert.True(t, ok, "object should be stored with prefix")
+	core.AssertTrue(t, ok, "object should be stored with prefix")
 
 	content, err := s3Medium.Read("file.txt")
-	require.NoError(t, err)
-	assert.Equal(t, "data", content)
+	core.RequireNoError(t, err)
+	core.AssertEqual(t, "data", content)
 }
 
-func TestS3_EnsureDir_Good(t *testing.T) {
+func TestS3_EnsureDir_Good(t *core.T) {
 	medium, _ := newS3Medium(t)
 	err := medium.EnsureDir("any/path")
-	assert.NoError(t, err)
+	core.AssertNoError(t, err)
 }
 
-func TestS3_IsFile_Good(t *testing.T) {
+func TestS3_IsFile_Good(t *core.T) {
 	s3Medium, _ := newS3Medium(t)
 
 	err := s3Medium.Write("file.txt", "content")
-	require.NoError(t, err)
+	core.RequireNoError(t, err)
 
-	assert.True(t, s3Medium.IsFile("file.txt"))
-	assert.False(t, s3Medium.IsFile("nonexistent.txt"))
-	assert.False(t, s3Medium.IsFile(""))
+	core.AssertTrue(t, s3Medium.IsFile("file.txt"))
+	core.AssertFalse(t, s3Medium.IsFile("nonexistent.txt"))
+	core.AssertFalse(t, s3Medium.IsFile(""))
 }
 
-func TestS3_Delete_Good(t *testing.T) {
+func TestS3_Delete_Good(t *core.T) {
 	s3Medium, _ := newS3Medium(t)
 
 	err := s3Medium.Write("to-delete.txt", "content")
-	require.NoError(t, err)
-	assert.True(t, s3Medium.Exists("to-delete.txt"))
+	core.RequireNoError(t, err)
+	core.AssertTrue(t, s3Medium.Exists("to-delete.txt"))
 
 	err = s3Medium.Delete("to-delete.txt")
-	require.NoError(t, err)
-	assert.False(t, s3Medium.IsFile("to-delete.txt"))
+	core.RequireNoError(t, err)
+	core.AssertFalse(t, s3Medium.IsFile("to-delete.txt"))
 }
 
-func TestS3_Delete_EmptyPath_Bad(t *testing.T) {
+func TestS3_Delete_EmptyPath_Bad(t *core.T) {
 	s3Medium, _ := newS3Medium(t)
 	err := s3Medium.Delete("")
-	assert.Error(t, err)
+	core.AssertError(t, err)
 }
 
-func TestS3_DeleteAll_Good(t *testing.T) {
+func TestS3_DeleteAll_Good(t *core.T) {
 	s3Medium, _ := newS3Medium(t)
 
-	require.NoError(t, s3Medium.Write("dir/file1.txt", "a"))
-	require.NoError(t, s3Medium.Write("dir/sub/file2.txt", "b"))
-	require.NoError(t, s3Medium.Write("other.txt", "c"))
+	core.RequireNoError(t, s3Medium.Write("dir/file1.txt", "a"))
+	core.RequireNoError(t, s3Medium.Write("dir/sub/file2.txt", "b"))
+	core.RequireNoError(t, s3Medium.Write("other.txt", "c"))
 
 	err := s3Medium.DeleteAll("dir")
-	require.NoError(t, err)
+	core.RequireNoError(t, err)
 
-	assert.False(t, s3Medium.IsFile("dir/file1.txt"))
-	assert.False(t, s3Medium.IsFile("dir/sub/file2.txt"))
-	assert.True(t, s3Medium.IsFile("other.txt"))
+	core.AssertFalse(t, s3Medium.IsFile("dir/file1.txt"))
+	core.AssertFalse(t, s3Medium.IsFile("dir/sub/file2.txt"))
+	core.AssertTrue(t, s3Medium.IsFile("other.txt"))
 }
 
-func TestS3_DeleteAll_EmptyPath_Bad(t *testing.T) {
+func TestS3_DeleteAll_EmptyPath_Bad(t *core.T) {
 	s3Medium, _ := newS3Medium(t)
 	err := s3Medium.DeleteAll("")
-	assert.Error(t, err)
+	core.AssertError(t, err)
 }
 
-func TestS3_DeleteAll_DeleteObjectError_Bad(t *testing.T) {
+func TestS3_DeleteAll_DeleteObjectError_Bad(t *core.T) {
 	s3Medium, testS3Client := newS3Medium(t)
 	testS3Client.deleteObjectErrors["dir"] = core.NewError("boom")
 
 	err := s3Medium.DeleteAll("dir")
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to delete object: dir")
+	core.AssertError(t, err)
+	core.AssertContains(t, err.Error(), "failed to delete object: dir")
 }
 
-func TestS3_DeleteAll_PartialDelete_Bad(t *testing.T) {
+func TestS3_DeleteAll_PartialDelete_Bad(t *core.T) {
 	s3Medium, testS3Client := newS3Medium(t)
 
-	require.NoError(t, s3Medium.Write("dir/file1.txt", "a"))
-	require.NoError(t, s3Medium.Write("dir/file2.txt", "b"))
+	core.RequireNoError(t, s3Medium.Write("dir/file1.txt", "a"))
+	core.RequireNoError(t, s3Medium.Write("dir/file2.txt", "b"))
 	testS3Client.deleteObjectsErrs["dir/file2.txt"] = types.Error{
 		Key:     aws.String("dir/file2.txt"),
 		Code:    aws.String("AccessDenied"),
@@ -377,278 +374,278 @@ func TestS3_DeleteAll_PartialDelete_Bad(t *testing.T) {
 	}
 
 	err := s3Medium.DeleteAll("dir")
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "partial delete failed")
-	assert.Contains(t, err.Error(), "dir/file2.txt")
-	assert.True(t, s3Medium.IsFile("dir/file2.txt"))
-	assert.False(t, s3Medium.IsFile("dir/file1.txt"))
+	core.AssertError(t, err)
+	core.AssertContains(t, err.Error(), "partial delete failed")
+	core.AssertContains(t, err.Error(), "dir/file2.txt")
+	core.AssertTrue(t, s3Medium.IsFile("dir/file2.txt"))
+	core.AssertFalse(t, s3Medium.IsFile("dir/file1.txt"))
 }
 
-func TestS3_Rename_Good(t *testing.T) {
+func TestS3_Rename_Good(t *core.T) {
 	s3Medium, _ := newS3Medium(t)
 
-	require.NoError(t, s3Medium.Write("old.txt", "content"))
-	assert.True(t, s3Medium.IsFile("old.txt"))
+	core.RequireNoError(t, s3Medium.Write("old.txt", "content"))
+	core.AssertTrue(t, s3Medium.IsFile("old.txt"))
 
 	err := s3Medium.Rename("old.txt", "new.txt")
-	require.NoError(t, err)
+	core.RequireNoError(t, err)
 
-	assert.False(t, s3Medium.IsFile("old.txt"))
-	assert.True(t, s3Medium.IsFile("new.txt"))
+	core.AssertFalse(t, s3Medium.IsFile("old.txt"))
+	core.AssertTrue(t, s3Medium.IsFile("new.txt"))
 
 	content, err := s3Medium.Read("new.txt")
-	require.NoError(t, err)
-	assert.Equal(t, "content", content)
+	core.RequireNoError(t, err)
+	core.AssertEqual(t, "content", content)
 }
 
-func TestS3_Rename_EmptyPath_Bad(t *testing.T) {
+func TestS3_Rename_EmptyPath_Bad(t *core.T) {
 	s3Medium, _ := newS3Medium(t)
 	err := s3Medium.Rename("", "new.txt")
-	assert.Error(t, err)
+	core.AssertError(t, err)
 
 	err = s3Medium.Rename("old.txt", "")
-	assert.Error(t, err)
+	core.AssertError(t, err)
 }
 
-func TestS3_Rename_SourceNotFound_Bad(t *testing.T) {
+func TestS3_Rename_SourceNotFound_Bad(t *core.T) {
 	s3Medium, _ := newS3Medium(t)
 	err := s3Medium.Rename("nonexistent.txt", "new.txt")
-	assert.Error(t, err)
+	core.AssertError(t, err)
 }
 
-func TestS3_List_Good(t *testing.T) {
+func TestS3_List_Good(t *core.T) {
 	s3Medium, _ := newS3Medium(t)
 
-	require.NoError(t, s3Medium.Write("dir/file1.txt", "a"))
-	require.NoError(t, s3Medium.Write("dir/file2.txt", "b"))
-	require.NoError(t, s3Medium.Write("dir/sub/file3.txt", "c"))
+	core.RequireNoError(t, s3Medium.Write("dir/file1.txt", "a"))
+	core.RequireNoError(t, s3Medium.Write("dir/file2.txt", "b"))
+	core.RequireNoError(t, s3Medium.Write("dir/sub/file3.txt", "c"))
 
 	entries, err := s3Medium.List("dir")
-	require.NoError(t, err)
+	core.RequireNoError(t, err)
 
 	names := make(map[string]bool)
 	for _, entry := range entries {
 		names[entry.Name()] = true
 	}
 
-	assert.True(t, names["file1.txt"], "should list file1.txt")
-	assert.True(t, names["file2.txt"], "should list file2.txt")
-	assert.True(t, names["sub"], "should list sub directory")
-	assert.Len(t, entries, 3)
+	core.AssertTrue(t, names["file1.txt"], "should list file1.txt")
+	core.AssertTrue(t, names["file2.txt"], "should list file2.txt")
+	core.AssertTrue(t, names["sub"], "should list sub directory")
+	core.AssertLen(t, entries, 3)
 
 	for _, entry := range entries {
 		if entry.Name() == "sub" {
-			assert.True(t, entry.IsDir())
+			core.AssertTrue(t, entry.IsDir())
 			info, err := entry.Info()
-			require.NoError(t, err)
-			assert.True(t, info.IsDir())
+			core.RequireNoError(t, err)
+			core.AssertTrue(t, info.IsDir())
 		}
 	}
 }
 
-func TestS3_List_Root_Good(t *testing.T) {
+func TestS3_List_Root_Good(t *core.T) {
 	s3Medium, _ := newS3Medium(t)
 
-	require.NoError(t, s3Medium.Write("root.txt", "content"))
-	require.NoError(t, s3Medium.Write("dir/nested.txt", "nested"))
+	core.RequireNoError(t, s3Medium.Write("root.txt", "content"))
+	core.RequireNoError(t, s3Medium.Write("dir/nested.txt", "nested"))
 
 	entries, err := s3Medium.List("")
-	require.NoError(t, err)
+	core.RequireNoError(t, err)
 
 	names := make(map[string]bool)
 	for _, entry := range entries {
 		names[entry.Name()] = true
 	}
 
-	assert.True(t, names["root.txt"])
-	assert.True(t, names["dir"])
+	core.AssertTrue(t, names["root.txt"])
+	core.AssertTrue(t, names["dir"])
 }
 
-func TestS3_Stat_Good(t *testing.T) {
+func TestS3_Stat_Good(t *core.T) {
 	s3Medium, _ := newS3Medium(t)
 
-	require.NoError(t, s3Medium.Write("file.txt", "hello world"))
+	core.RequireNoError(t, s3Medium.Write("file.txt", "hello world"))
 
 	info, err := s3Medium.Stat("file.txt")
-	require.NoError(t, err)
-	assert.Equal(t, "file.txt", info.Name())
-	assert.Equal(t, int64(11), info.Size())
-	assert.False(t, info.IsDir())
+	core.RequireNoError(t, err)
+	core.AssertEqual(t, "file.txt", info.Name())
+	core.AssertEqual(t, int64(11), info.Size())
+	core.AssertFalse(t, info.IsDir())
 }
 
-func TestS3_Stat_NotFound_Bad(t *testing.T) {
+func TestS3_Stat_NotFound_Bad(t *core.T) {
 	s3Medium, _ := newS3Medium(t)
 
 	_, err := s3Medium.Stat("nonexistent.txt")
-	assert.Error(t, err)
+	core.AssertError(t, err)
 }
 
-func TestS3_Stat_EmptyPath_Bad(t *testing.T) {
+func TestS3_Stat_EmptyPath_Bad(t *core.T) {
 	s3Medium, _ := newS3Medium(t)
 	_, err := s3Medium.Stat("")
-	assert.Error(t, err)
+	core.AssertError(t, err)
 }
 
-func TestS3_Open_Good(t *testing.T) {
+func TestS3_Open_Good(t *core.T) {
 	s3Medium, _ := newS3Medium(t)
 
-	require.NoError(t, s3Medium.Write("file.txt", "open me"))
+	core.RequireNoError(t, s3Medium.Write("file.txt", "open me"))
 
 	file, err := s3Medium.Open("file.txt")
-	require.NoError(t, err)
+	core.RequireNoError(t, err)
 	defer file.Close()
 
 	data, err := goio.ReadAll(file.(goio.Reader))
-	require.NoError(t, err)
-	assert.Equal(t, "open me", string(data))
+	core.RequireNoError(t, err)
+	core.AssertEqual(t, "open me", string(data))
 
 	stat, err := file.Stat()
-	require.NoError(t, err)
-	assert.Equal(t, "file.txt", stat.Name())
+	core.RequireNoError(t, err)
+	core.AssertEqual(t, "file.txt", stat.Name())
 }
 
-func TestS3_Open_NotFound_Bad(t *testing.T) {
+func TestS3_Open_NotFound_Bad(t *core.T) {
 	s3Medium, _ := newS3Medium(t)
 
 	_, err := s3Medium.Open("nonexistent.txt")
-	assert.Error(t, err)
+	core.AssertError(t, err)
 }
 
-func TestS3_Create_Good(t *testing.T) {
+func TestS3_Create_Good(t *core.T) {
 	s3Medium, _ := newS3Medium(t)
 
 	writer, err := s3Medium.Create("new.txt")
-	require.NoError(t, err)
+	core.RequireNoError(t, err)
 
 	bytesWritten, err := writer.Write([]byte("created"))
-	require.NoError(t, err)
-	assert.Equal(t, 7, bytesWritten)
+	core.RequireNoError(t, err)
+	core.AssertEqual(t, 7, bytesWritten)
 
 	err = writer.Close()
-	require.NoError(t, err)
+	core.RequireNoError(t, err)
 
 	content, err := s3Medium.Read("new.txt")
-	require.NoError(t, err)
-	assert.Equal(t, "created", content)
+	core.RequireNoError(t, err)
+	core.AssertEqual(t, "created", content)
 }
 
-func TestS3_Append_Good(t *testing.T) {
+func TestS3_Append_Good(t *core.T) {
 	s3Medium, _ := newS3Medium(t)
 
-	require.NoError(t, s3Medium.Write("append.txt", "hello"))
+	core.RequireNoError(t, s3Medium.Write("append.txt", "hello"))
 
 	writer, err := s3Medium.Append("append.txt")
-	require.NoError(t, err)
+	core.RequireNoError(t, err)
 
 	_, err = writer.Write([]byte(" world"))
-	require.NoError(t, err)
+	core.RequireNoError(t, err)
 	err = writer.Close()
-	require.NoError(t, err)
+	core.RequireNoError(t, err)
 
 	content, err := s3Medium.Read("append.txt")
-	require.NoError(t, err)
-	assert.Equal(t, "hello world", content)
+	core.RequireNoError(t, err)
+	core.AssertEqual(t, "hello world", content)
 }
 
-func TestS3_Append_NewFile_Good(t *testing.T) {
+func TestS3_Append_NewFile_Good(t *core.T) {
 	s3Medium, _ := newS3Medium(t)
 
 	writer, err := s3Medium.Append("new.txt")
-	require.NoError(t, err)
+	core.RequireNoError(t, err)
 
 	_, err = writer.Write([]byte("fresh"))
-	require.NoError(t, err)
+	core.RequireNoError(t, err)
 	err = writer.Close()
-	require.NoError(t, err)
+	core.RequireNoError(t, err)
 
 	content, err := s3Medium.Read("new.txt")
-	require.NoError(t, err)
-	assert.Equal(t, "fresh", content)
+	core.RequireNoError(t, err)
+	core.AssertEqual(t, "fresh", content)
 }
 
-func TestS3_ReadStream_Good(t *testing.T) {
+func TestS3_ReadStream_Good(t *core.T) {
 	s3Medium, _ := newS3Medium(t)
 
-	require.NoError(t, s3Medium.Write("stream.txt", "streaming content"))
+	core.RequireNoError(t, s3Medium.Write("stream.txt", "streaming content"))
 
 	reader, err := s3Medium.ReadStream("stream.txt")
-	require.NoError(t, err)
+	core.RequireNoError(t, err)
 	defer reader.Close()
 
 	data, err := goio.ReadAll(reader)
-	require.NoError(t, err)
-	assert.Equal(t, "streaming content", string(data))
+	core.RequireNoError(t, err)
+	core.AssertEqual(t, "streaming content", string(data))
 }
 
-func TestS3_ReadStream_NotFound_Bad(t *testing.T) {
+func TestS3_ReadStream_NotFound_Bad(t *core.T) {
 	s3Medium, _ := newS3Medium(t)
 	_, err := s3Medium.ReadStream("nonexistent.txt")
-	assert.Error(t, err)
+	core.AssertError(t, err)
 }
 
-func TestS3_WriteStream_Good(t *testing.T) {
+func TestS3_WriteStream_Good(t *core.T) {
 	s3Medium, _ := newS3Medium(t)
 
 	writer, err := s3Medium.WriteStream("output.txt")
-	require.NoError(t, err)
+	core.RequireNoError(t, err)
 
 	_, err = goio.Copy(writer, core.NewReader("piped data"))
-	require.NoError(t, err)
+	core.RequireNoError(t, err)
 	err = writer.Close()
-	require.NoError(t, err)
+	core.RequireNoError(t, err)
 
 	content, err := s3Medium.Read("output.txt")
-	require.NoError(t, err)
-	assert.Equal(t, "piped data", content)
+	core.RequireNoError(t, err)
+	core.AssertEqual(t, "piped data", content)
 }
 
-func TestS3_Exists_Good(t *testing.T) {
+func TestS3_Exists_Good(t *core.T) {
 	s3Medium, _ := newS3Medium(t)
 
-	assert.False(t, s3Medium.Exists("nonexistent.txt"))
+	core.AssertFalse(t, s3Medium.Exists("nonexistent.txt"))
 
-	require.NoError(t, s3Medium.Write("file.txt", "content"))
-	assert.True(t, s3Medium.Exists("file.txt"))
+	core.RequireNoError(t, s3Medium.Write("file.txt", "content"))
+	core.AssertTrue(t, s3Medium.Exists("file.txt"))
 }
 
-func TestS3_Exists_DirectoryPrefix_Good(t *testing.T) {
+func TestS3_Exists_DirectoryPrefix_Good(t *core.T) {
 	s3Medium, _ := newS3Medium(t)
 
-	require.NoError(t, s3Medium.Write("dir/file.txt", "content"))
-	assert.True(t, s3Medium.Exists("dir"))
+	core.RequireNoError(t, s3Medium.Write("dir/file.txt", "content"))
+	core.AssertTrue(t, s3Medium.Exists("dir"))
 }
 
-func TestS3_IsDir_Good(t *testing.T) {
+func TestS3_IsDir_Good(t *core.T) {
 	s3Medium, _ := newS3Medium(t)
 
-	require.NoError(t, s3Medium.Write("dir/file.txt", "content"))
+	core.RequireNoError(t, s3Medium.Write("dir/file.txt", "content"))
 
-	assert.True(t, s3Medium.IsDir("dir"))
-	assert.False(t, s3Medium.IsDir("dir/file.txt"))
-	assert.False(t, s3Medium.IsDir("nonexistent"))
-	assert.False(t, s3Medium.IsDir(""))
+	core.AssertTrue(t, s3Medium.IsDir("dir"))
+	core.AssertFalse(t, s3Medium.IsDir("dir/file.txt"))
+	core.AssertFalse(t, s3Medium.IsDir("nonexistent"))
+	core.AssertFalse(t, s3Medium.IsDir(""))
 }
 
-func TestS3_ObjectKey_Good(t *testing.T) {
+func TestS3_ObjectKey_Good(t *core.T) {
 	testS3Client := newTestS3Client()
 
 	s3Medium, _ := New(Options{Bucket: "bucket", Client: testS3Client})
-	assert.Equal(t, "file.txt", s3Medium.objectKey("file.txt"))
-	assert.Equal(t, "dir/file.txt", s3Medium.objectKey("dir/file.txt"))
-	assert.Equal(t, "", s3Medium.objectKey(""))
-	assert.Equal(t, "file.txt", s3Medium.objectKey("/file.txt"))
-	assert.Equal(t, "file.txt", s3Medium.objectKey("../file.txt"))
+	core.AssertEqual(t, "file.txt", s3Medium.objectKey("file.txt"))
+	core.AssertEqual(t, "dir/file.txt", s3Medium.objectKey("dir/file.txt"))
+	core.AssertEqual(t, "", s3Medium.objectKey(""))
+	core.AssertEqual(t, "file.txt", s3Medium.objectKey("/file.txt"))
+	core.AssertEqual(t, "file.txt", s3Medium.objectKey("../file.txt"))
 
 	prefixedS3Medium, _ := New(Options{Bucket: "bucket", Client: testS3Client, Prefix: "pfx"})
-	assert.Equal(t, "pfx/file.txt", prefixedS3Medium.objectKey("file.txt"))
-	assert.Equal(t, "pfx/dir/file.txt", prefixedS3Medium.objectKey("dir/file.txt"))
-	assert.Equal(t, "pfx/", prefixedS3Medium.objectKey(""))
+	core.AssertEqual(t, "pfx/file.txt", prefixedS3Medium.objectKey("file.txt"))
+	core.AssertEqual(t, "pfx/dir/file.txt", prefixedS3Medium.objectKey("dir/file.txt"))
+	core.AssertEqual(t, "pfx/", prefixedS3Medium.objectKey(""))
 }
 
-func TestS3_InterfaceCompliance_Good(t *testing.T) {
+func TestS3_InterfaceCompliance_Good(t *core.T) {
 	testS3Client := newTestS3Client()
 	s3Medium, err := New(Options{Bucket: "bucket", Client: testS3Client})
-	require.NoError(t, err)
+	core.RequireNoError(t, err)
 
 	var _ interface {
 		Read(string) (string, error)

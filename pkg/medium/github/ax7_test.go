@@ -1,0 +1,561 @@
+package github
+
+import (
+	"context"
+	"fmt"
+	goio "io"
+	"io/fs"
+	"net/http"
+	"time"
+
+	core "dappco.re/go"
+)
+
+func ax7GitHubFileMedium(t *core.T, filePath, content string) *Medium {
+	t.Helper()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/Snider/demo/contents/"+filePath, func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprint(w, githubFileJSON(filePath, content))
+	})
+	return newGitHubTestMedium(t, mux)
+}
+
+func TestAX7_New_Good(t *core.T) {
+	medium := newGitHubTestMedium(t, http.NewServeMux())
+	core.AssertNotNil(t, medium)
+	core.AssertEqual(t, "Snider", medium.owner)
+}
+
+func TestAX7_New_Bad(t *core.T) {
+	medium, err := New(Options{Repo: "demo"})
+	core.AssertError(t, err)
+	core.AssertNil(t, medium)
+}
+
+func TestAX7_New_Ugly(t *core.T) {
+	medium, err := New(Options{Owner: "Snider", Repo: "demo", Branch: "main", TokenFile: core.Path(t.TempDir(), "missing")})
+	core.AssertNoError(t, err)
+	core.AssertEqual(t, "main", medium.ref)
+}
+
+func TestAX7_Medium_Read_Good(t *core.T) {
+	medium := ax7GitHubFileMedium(t, "read.txt", "payload")
+	got, err := medium.Read("read.txt")
+	core.AssertNoError(t, err)
+	core.AssertEqual(t, "payload", got)
+}
+
+func TestAX7_Medium_Read_Bad(t *core.T) {
+	medium := newGitHubTestMedium(t, http.NewServeMux())
+	got, err := medium.Read("")
+	core.AssertError(t, err)
+	core.AssertEqual(t, "", got)
+}
+
+func TestAX7_Medium_Read_Ugly(t *core.T) {
+	medium := ax7GitHubFileMedium(t, "safe/file.txt", "payload")
+	got, err := medium.Read("/safe/../safe/file.txt")
+	core.AssertNoError(t, err)
+	core.AssertEqual(t, "payload", got)
+}
+
+func TestAX7_Medium_Write_Good(t *core.T) {
+	medium := newGitHubTestMedium(t, http.NewServeMux())
+	err := medium.Write("write.txt", "payload")
+	core.AssertErrorIs(t, err, ErrReadOnly)
+}
+
+func TestAX7_Medium_Write_Bad(t *core.T) {
+	medium := newGitHubTestMedium(t, http.NewServeMux())
+	err := medium.Write("", "payload")
+	core.AssertErrorIs(t, err, ErrReadOnly)
+}
+
+func TestAX7_Medium_Write_Ugly(t *core.T) {
+	medium := newGitHubTestMedium(t, http.NewServeMux())
+	err := medium.Write("../escape.txt", "payload")
+	core.AssertErrorIs(t, err, ErrReadOnly)
+}
+
+func TestAX7_Medium_WriteMode_Good(t *core.T) {
+	medium := newGitHubTestMedium(t, http.NewServeMux())
+	err := medium.WriteMode("mode.txt", "payload", 0600)
+	core.AssertErrorIs(t, err, ErrReadOnly)
+}
+
+func TestAX7_Medium_WriteMode_Bad(t *core.T) {
+	medium := newGitHubTestMedium(t, http.NewServeMux())
+	err := medium.WriteMode("", "payload", 0600)
+	core.AssertErrorIs(t, err, ErrReadOnly)
+}
+
+func TestAX7_Medium_WriteMode_Ugly(t *core.T) {
+	medium := newGitHubTestMedium(t, http.NewServeMux())
+	err := medium.WriteMode("zero-mode.txt", "payload", 0)
+	core.AssertErrorIs(t, err, ErrReadOnly)
+}
+
+func TestAX7_Medium_EnsureDir_Good(t *core.T) {
+	medium := newGitHubTestMedium(t, http.NewServeMux())
+	err := medium.EnsureDir("dir")
+	core.AssertErrorIs(t, err, ErrReadOnly)
+}
+
+func TestAX7_Medium_EnsureDir_Bad(t *core.T) {
+	medium := newGitHubTestMedium(t, http.NewServeMux())
+	err := medium.EnsureDir("")
+	core.AssertErrorIs(t, err, ErrReadOnly)
+}
+
+func TestAX7_Medium_EnsureDir_Ugly(t *core.T) {
+	medium := newGitHubTestMedium(t, http.NewServeMux())
+	err := medium.EnsureDir("a/b/c")
+	core.AssertErrorIs(t, err, ErrReadOnly)
+}
+
+func TestAX7_Medium_IsFile_Good(t *core.T) {
+	medium := ax7GitHubFileMedium(t, "file.txt", "payload")
+	got := medium.IsFile("file.txt")
+	core.AssertTrue(t, got)
+}
+
+func TestAX7_Medium_IsFile_Bad(t *core.T) {
+	medium := newGitHubTestMedium(t, http.NewServeMux())
+	got := medium.IsFile("")
+	core.AssertFalse(t, got)
+}
+
+func TestAX7_Medium_IsFile_Ugly(t *core.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/Snider/demo/contents/dir", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprintf(w, `[%s]`, githubFileJSON("dir/file.txt", "payload"))
+	})
+	medium := newGitHubTestMedium(t, mux)
+	got := medium.IsFile("dir")
+	core.AssertFalse(t, got)
+}
+
+func TestAX7_Medium_Delete_Good(t *core.T) {
+	medium := newGitHubTestMedium(t, http.NewServeMux())
+	err := medium.Delete("delete.txt")
+	core.AssertErrorIs(t, err, ErrReadOnly)
+}
+
+func TestAX7_Medium_Delete_Bad(t *core.T) {
+	medium := newGitHubTestMedium(t, http.NewServeMux())
+	err := medium.Delete("")
+	core.AssertErrorIs(t, err, ErrReadOnly)
+}
+
+func TestAX7_Medium_Delete_Ugly(t *core.T) {
+	medium := newGitHubTestMedium(t, http.NewServeMux())
+	err := medium.Delete("../escape.txt")
+	core.AssertErrorIs(t, err, ErrReadOnly)
+}
+
+func TestAX7_Medium_DeleteAll_Good(t *core.T) {
+	medium := newGitHubTestMedium(t, http.NewServeMux())
+	err := medium.DeleteAll("tree")
+	core.AssertErrorIs(t, err, ErrReadOnly)
+}
+
+func TestAX7_Medium_DeleteAll_Bad(t *core.T) {
+	medium := newGitHubTestMedium(t, http.NewServeMux())
+	err := medium.DeleteAll("")
+	core.AssertErrorIs(t, err, ErrReadOnly)
+}
+
+func TestAX7_Medium_DeleteAll_Ugly(t *core.T) {
+	medium := newGitHubTestMedium(t, http.NewServeMux())
+	err := medium.DeleteAll("../escape")
+	core.AssertErrorIs(t, err, ErrReadOnly)
+}
+
+func TestAX7_Medium_Rename_Good(t *core.T) {
+	medium := newGitHubTestMedium(t, http.NewServeMux())
+	err := medium.Rename("old.txt", "new.txt")
+	core.AssertErrorIs(t, err, ErrReadOnly)
+}
+
+func TestAX7_Medium_Rename_Bad(t *core.T) {
+	medium := newGitHubTestMedium(t, http.NewServeMux())
+	err := medium.Rename("", "new.txt")
+	core.AssertErrorIs(t, err, ErrReadOnly)
+}
+
+func TestAX7_Medium_Rename_Ugly(t *core.T) {
+	medium := newGitHubTestMedium(t, http.NewServeMux())
+	err := medium.Rename("../old.txt", "new.txt")
+	core.AssertErrorIs(t, err, ErrReadOnly)
+}
+
+func TestAX7_Medium_List_Good(t *core.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/Snider/demo/contents/dir", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprintf(w, `[%s]`, githubFileJSON("dir/file.txt", "payload"))
+	})
+	medium := newGitHubTestMedium(t, mux)
+	entries, err := medium.List("dir")
+	core.AssertNoError(t, err)
+	core.AssertLen(t, entries, 1)
+}
+
+func TestAX7_Medium_List_Bad(t *core.T) {
+	medium := newGitHubTestMedium(t, http.NewServeMux())
+	entries, err := medium.List("missing")
+	core.AssertError(t, err)
+	core.AssertNil(t, entries)
+}
+
+func TestAX7_Medium_List_Ugly(t *core.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/Snider/demo/contents/dir", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprintf(w, `[%s]`, githubFileJSON("dir/file.txt", "payload"))
+	})
+	medium := newGitHubTestMedium(t, mux)
+	entries, err := medium.List("/dir/../dir")
+	core.AssertNoError(t, err)
+	core.AssertLen(t, entries, 1)
+}
+
+func TestAX7_Medium_Stat_Good(t *core.T) {
+	medium := ax7GitHubFileMedium(t, "stat.txt", "payload")
+	info, err := medium.Stat("stat.txt")
+	core.AssertNoError(t, err)
+	core.AssertEqual(t, "stat.txt", info.Name())
+}
+
+func TestAX7_Medium_Stat_Bad(t *core.T) {
+	medium := newGitHubTestMedium(t, http.NewServeMux())
+	info, err := medium.Stat("")
+	core.AssertError(t, err)
+	core.AssertNil(t, info)
+}
+
+func TestAX7_Medium_Stat_Ugly(t *core.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/Snider/demo/contents/dir", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprintf(w, `[%s]`, githubFileJSON("dir/file.txt", "payload"))
+	})
+	medium := newGitHubTestMedium(t, mux)
+	info, err := medium.Stat("dir")
+	core.AssertNoError(t, err)
+	core.AssertTrue(t, info.IsDir())
+}
+
+func TestAX7_Medium_Open_Good(t *core.T) {
+	medium := ax7GitHubFileMedium(t, "open.txt", "payload")
+	file, err := medium.Open("open.txt")
+	core.AssertNoError(t, err)
+	core.AssertNotNil(t, file)
+	core.RequireNoError(t, file.Close())
+}
+
+func TestAX7_Medium_Open_Bad(t *core.T) {
+	medium := newGitHubTestMedium(t, http.NewServeMux())
+	file, err := medium.Open("")
+	core.AssertError(t, err)
+	core.AssertNil(t, file)
+}
+
+func TestAX7_Medium_Open_Ugly(t *core.T) {
+	medium := newGitHubTestMedium(t, http.NewServeMux())
+	file, err := medium.Open("missing.txt")
+	core.AssertError(t, err)
+	core.AssertNil(t, file)
+}
+
+func TestAX7_Medium_Create_Good(t *core.T) {
+	medium := newGitHubTestMedium(t, http.NewServeMux())
+	writer, err := medium.Create("create.txt")
+	core.AssertErrorIs(t, err, ErrReadOnly)
+	core.AssertNil(t, writer)
+}
+
+func TestAX7_Medium_Create_Bad(t *core.T) {
+	medium := newGitHubTestMedium(t, http.NewServeMux())
+	writer, err := medium.Create("")
+	core.AssertErrorIs(t, err, ErrReadOnly)
+	core.AssertNil(t, writer)
+}
+
+func TestAX7_Medium_Create_Ugly(t *core.T) {
+	medium := newGitHubTestMedium(t, http.NewServeMux())
+	writer, err := medium.Create("../escape")
+	core.AssertErrorIs(t, err, ErrReadOnly)
+	core.AssertNil(t, writer)
+}
+
+func TestAX7_Medium_Append_Good(t *core.T) {
+	medium := newGitHubTestMedium(t, http.NewServeMux())
+	writer, err := medium.Append("append.txt")
+	core.AssertErrorIs(t, err, ErrReadOnly)
+	core.AssertNil(t, writer)
+}
+
+func TestAX7_Medium_Append_Bad(t *core.T) {
+	medium := newGitHubTestMedium(t, http.NewServeMux())
+	writer, err := medium.Append("")
+	core.AssertErrorIs(t, err, ErrReadOnly)
+	core.AssertNil(t, writer)
+}
+
+func TestAX7_Medium_Append_Ugly(t *core.T) {
+	medium := newGitHubTestMedium(t, http.NewServeMux())
+	writer, err := medium.Append("../escape")
+	core.AssertErrorIs(t, err, ErrReadOnly)
+	core.AssertNil(t, writer)
+}
+
+func TestAX7_Medium_ReadStream_Good(t *core.T) {
+	medium := ax7GitHubFileMedium(t, "stream.txt", "payload")
+	reader, err := medium.ReadStream("stream.txt")
+	core.RequireNoError(t, err)
+	defer reader.Close()
+	data, readErr := goio.ReadAll(reader)
+	core.AssertNoError(t, readErr)
+	core.AssertEqual(t, "payload", string(data))
+}
+
+func TestAX7_Medium_ReadStream_Bad(t *core.T) {
+	medium := newGitHubTestMedium(t, http.NewServeMux())
+	reader, err := medium.ReadStream("")
+	core.AssertError(t, err)
+	core.AssertNil(t, reader)
+}
+
+func TestAX7_Medium_ReadStream_Ugly(t *core.T) {
+	medium := newGitHubTestMedium(t, http.NewServeMux())
+	reader, err := medium.ReadStream("missing.txt")
+	core.AssertError(t, err)
+	core.AssertNil(t, reader)
+}
+
+func TestAX7_Medium_WriteStream_Good(t *core.T) {
+	medium := newGitHubTestMedium(t, http.NewServeMux())
+	writer, err := medium.WriteStream("stream.txt")
+	core.AssertErrorIs(t, err, ErrReadOnly)
+	core.AssertNil(t, writer)
+}
+
+func TestAX7_Medium_WriteStream_Bad(t *core.T) {
+	medium := newGitHubTestMedium(t, http.NewServeMux())
+	writer, err := medium.WriteStream("")
+	core.AssertErrorIs(t, err, ErrReadOnly)
+	core.AssertNil(t, writer)
+}
+
+func TestAX7_Medium_WriteStream_Ugly(t *core.T) {
+	medium := newGitHubTestMedium(t, http.NewServeMux())
+	writer, err := medium.WriteStream("../escape")
+	core.AssertErrorIs(t, err, ErrReadOnly)
+	core.AssertNil(t, writer)
+}
+
+func TestAX7_Medium_Exists_Good(t *core.T) {
+	medium := ax7GitHubFileMedium(t, "exists.txt", "payload")
+	got := medium.Exists("exists.txt")
+	core.AssertTrue(t, got)
+}
+
+func TestAX7_Medium_Exists_Bad(t *core.T) {
+	medium := newGitHubTestMedium(t, http.NewServeMux())
+	got := medium.Exists("")
+	core.AssertFalse(t, got)
+}
+
+func TestAX7_Medium_Exists_Ugly(t *core.T) {
+	medium := newGitHubTestMedium(t, http.NewServeMux())
+	got := medium.Exists("missing")
+	core.AssertFalse(t, got)
+}
+
+func TestAX7_Medium_IsDir_Good(t *core.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/Snider/demo/contents/dir", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprintf(w, `[%s]`, githubFileJSON("dir/file.txt", "payload"))
+	})
+	medium := newGitHubTestMedium(t, mux)
+	got := medium.IsDir("dir")
+	core.AssertTrue(t, got)
+}
+
+func TestAX7_Medium_IsDir_Bad(t *core.T) {
+	medium := newGitHubTestMedium(t, http.NewServeMux())
+	got := medium.IsDir("")
+	core.AssertFalse(t, got)
+}
+
+func TestAX7_Medium_IsDir_Ugly(t *core.T) {
+	medium := ax7GitHubFileMedium(t, "file.txt", "payload")
+	got := medium.IsDir("file.txt")
+	core.AssertFalse(t, got)
+}
+
+func TestAX7_Medium_Clone_Good(t *core.T) {
+	medium := ax7GitHubFileMedium(t, "clone.txt", "payload")
+	contents, err := medium.Clone("clone.txt")
+	core.AssertNoError(t, err)
+	core.AssertEqual(t, map[string]string{"clone.txt": "payload"}, contents)
+}
+
+func TestAX7_Medium_Clone_Bad(t *core.T) {
+	medium := newGitHubTestMedium(t, http.NewServeMux())
+	contents, err := medium.Clone("missing")
+	core.AssertError(t, err)
+	core.AssertNil(t, contents)
+}
+
+func TestAX7_Medium_Clone_Ugly(t *core.T) {
+	medium := ax7GitHubFileMedium(t, "safe/file.txt", "payload")
+	contents, err := medium.Clone("/safe/../safe/file.txt")
+	core.AssertNoError(t, err)
+	core.AssertEqual(t, "payload", contents["safe/file.txt"])
+}
+
+func TestAX7_File_Stat_Good(t *core.T) {
+	file := &githubFile{name: "file.txt", content: []byte("payload"), mode: 0600, modTime: time.Unix(1, 0)}
+	info, err := file.Stat()
+	core.AssertNoError(t, err)
+	core.AssertEqual(t, "file.txt", info.Name())
+}
+
+func TestAX7_File_Stat_Bad(t *core.T) {
+	file := &githubFile{}
+	info, err := file.Stat()
+	core.AssertNoError(t, err)
+	core.AssertEqual(t, "", info.Name())
+}
+
+func TestAX7_File_Stat_Ugly(t *core.T) {
+	file := &githubFile{name: "empty.txt"}
+	info, err := file.Stat()
+	core.AssertNoError(t, err)
+	core.AssertEqual(t, int64(0), info.Size())
+}
+
+func TestAX7_File_Read_Good(t *core.T) {
+	file := &githubFile{content: []byte("payload")}
+	buffer := make([]byte, 7)
+	count, err := file.Read(buffer)
+	core.AssertNoError(t, err)
+	core.AssertEqual(t, "payload", string(buffer[:count]))
+}
+
+func TestAX7_File_Read_Bad(t *core.T) {
+	file := &githubFile{closed: true}
+	buffer := make([]byte, 1)
+	count, err := file.Read(buffer)
+	core.AssertErrorIs(t, err, fs.ErrClosed)
+	core.AssertEqual(t, 0, count)
+}
+
+func TestAX7_File_Read_Ugly(t *core.T) {
+	file := &githubFile{content: []byte("payload")}
+	buffer := make([]byte, 3)
+	count, err := file.Read(buffer)
+	core.AssertNoError(t, err)
+	core.AssertEqual(t, "pay", string(buffer[:count]))
+}
+
+func TestAX7_File_Close_Good(t *core.T) {
+	file := &githubFile{name: "file.txt"}
+	err := file.Close()
+	core.AssertNoError(t, err)
+	core.AssertTrue(t, file.closed)
+}
+
+func TestAX7_File_Close_Bad(t *core.T) {
+	file := &githubFile{}
+	err := file.Close()
+	core.AssertNoError(t, err)
+	core.AssertTrue(t, file.closed)
+}
+
+func TestAX7_File_Close_Ugly(t *core.T) {
+	file := &githubFile{offset: 99}
+	err := file.Close()
+	core.AssertNoError(t, err)
+	core.AssertEqual(t, int64(99), file.offset)
+}
+
+func TestAX7_File_String_Good(t *core.T) {
+	file := &githubFile{name: "file.txt"}
+	got := file.String()
+	core.AssertEqual(t, "githubFile(file.txt)", got)
+}
+
+func TestAX7_File_String_Bad(t *core.T) {
+	file := &githubFile{}
+	got := file.String()
+	core.AssertEqual(t, "githubFile()", got)
+}
+
+func TestAX7_File_String_Ugly(t *core.T) {
+	file := &githubFile{name: "dir/file.txt"}
+	got := file.String()
+	core.AssertContains(t, got, "dir/file.txt")
+}
+
+func TestAX7_RegisterFactory_Good(t *core.T) {
+	result := RegisterFactory("ax7-github-good", New)
+	core.AssertTrue(t, result.OK)
+	factory, ok := FactoryFor("ax7-github-good")
+	core.AssertTrue(t, ok)
+	core.AssertNotNil(t, factory)
+}
+
+func TestAX7_RegisterFactory_Bad(t *core.T) {
+	result := RegisterFactory("ax7-github-bad", nil)
+	core.AssertTrue(t, result.OK)
+	factory, ok := FactoryFor("ax7-github-bad")
+	core.AssertTrue(t, ok)
+	core.AssertNil(t, factory)
+}
+
+func TestAX7_RegisterFactory_Ugly(t *core.T) {
+	result := RegisterFactory("ax7-github-ugly", New)
+	core.AssertTrue(t, result.OK)
+	result = RegisterFactory("ax7-github-ugly", New)
+	core.AssertTrue(t, result.OK)
+}
+
+func TestAX7_FactoryFor_Good(t *core.T) {
+	RegisterFactory("ax7-github-factory", New)
+	factory, ok := FactoryFor("ax7-github-factory")
+	core.AssertTrue(t, ok)
+	core.AssertNotNil(t, factory)
+}
+
+func TestAX7_FactoryFor_Bad(t *core.T) {
+	factory, ok := FactoryFor("missing-github-factory")
+	core.AssertFalse(t, ok)
+	core.AssertNil(t, factory)
+}
+
+func TestAX7_FactoryFor_Ugly(t *core.T) {
+	factory, ok := FactoryFor("")
+	core.AssertFalse(t, ok)
+	core.AssertNil(t, factory)
+}
+
+func TestAX7_RegisterActions_Good(t *core.T) {
+	c := core.New()
+	RegisterActions(c)
+	core.AssertTrue(t, c.Action(ActionRead).Exists())
+	core.AssertTrue(t, c.Action(ActionList).Exists())
+}
+
+func TestAX7_RegisterActions_Bad(t *core.T) {
+	core.AssertNotPanics(t, func() { RegisterActions(nil) })
+	c := core.New()
+	core.AssertFalse(t, c.Action(ActionRead).Exists())
+}
+
+func TestAX7_RegisterActions_Ugly(t *core.T) {
+	c := core.New()
+	RegisterActions(c)
+	result := c.Action(ActionRead).Run(context.Background(), core.NewOptions())
+	core.AssertFalse(t, result.OK)
+}

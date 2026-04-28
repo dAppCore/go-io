@@ -14,7 +14,7 @@ import (
 	"strings"
 	"sync"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 	coreio "dappco.re/go/io"
 	workspacesvc "dappco.re/go/io/workspace"
 	"github.com/gin-gonic/gin"
@@ -680,7 +680,9 @@ func fileInfoDTOFromInfo(info fs.FileInfo) *fileInfoDTO {
 
 func writeAndClose(writer goio.WriteCloser, content string) error {
 	if _, err := goio.WriteString(writer, content); err != nil {
-		_ = writer.Close()
+		if closeErr := writer.Close(); closeErr != nil {
+			return errors.Join(err, closeErr)
+		}
 		return err
 	}
 	return writer.Close()

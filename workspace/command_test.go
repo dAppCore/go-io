@@ -1,12 +1,10 @@
 package workspace
 
 import (
-	"testing"
-
-	"github.com/stretchr/testify/assert"
+	core "dappco.re/go"
 )
 
-func TestWorkspaceCommand_Good(t *testing.T) {
+func TestWorkspaceCommand_Good(t *core.T) {
 	command := WorkspaceCommand{
 		Action:    WorkspaceWriteAction,
 		Workspace: "alpha",
@@ -14,22 +12,24 @@ func TestWorkspaceCommand_Good(t *testing.T) {
 		Content:   "ship it",
 	}
 
-	assert.Equal(t, "write", command.Action)
-	assert.Equal(t, "alpha", command.workspaceName())
-	assert.Equal(t, "notes/todo.txt", command.Path)
-	assert.Equal(t, "ship it", command.Content)
+	core.AssertEqual(t, "write", command.Action)
+	core.AssertEqual(t, "alpha", command.workspaceName())
+	core.AssertEqual(t, "notes/todo.txt", command.Path)
+	core.AssertEqual(t, "ship it", command.Content)
 }
 
-func TestWorkspaceCommand_Bad_EmptyWorkspace(t *testing.T) {
+func TestWorkspaceCommand_Bad_EmptyWorkspace(t *core.T) {
 	command := WorkspaceCommand{Action: WorkspaceReadAction}
 
-	assert.Empty(t, command.workspaceName())
+	core.AssertEqual(t, WorkspaceReadAction, command.Action)
+	core.AssertEmpty(t, command.workspaceName())
+	core.AssertEmpty(t, command.Path)
 }
 
-func TestWorkspaceCommand_Ugly_LegacyWorkspaceFields(t *testing.T) {
-	assert.Equal(t, "legacy-id", WorkspaceCommand{WorkspaceID: "legacy-id"}.workspaceName())
-	assert.Equal(t, "identifier", WorkspaceCommand{Identifier: "identifier"}.workspaceName())
-	assert.Equal(t, "workspace", WorkspaceCommand{
+func TestWorkspaceCommand_Ugly_LegacyWorkspaceFields(t *core.T) {
+	core.AssertEqual(t, "legacy-id", WorkspaceCommand{WorkspaceID: "legacy-id"}.workspaceName())
+	core.AssertEqual(t, "identifier", WorkspaceCommand{Identifier: "identifier"}.workspaceName())
+	core.AssertEqual(t, "workspace", WorkspaceCommand{
 		Workspace:   "workspace",
 		WorkspaceID: "legacy-id",
 		Identifier:  "identifier",

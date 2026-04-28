@@ -3,14 +3,12 @@
 package api
 
 import (
-	"testing"
-
-	core "dappco.re/go/core"
+	. "dappco.re/go"
 	coreio "dappco.re/go/io"
 )
 
-func TestNewProvider_Good(t *testing.T) {
-	c := core.New()
+func TestNewProvider_Good(t *T) {
+	c := New()
 	provider := NewProvider(c)
 
 	if provider.Name() != "io" {
@@ -27,7 +25,7 @@ func TestNewProvider_Good(t *testing.T) {
 	}
 }
 
-func TestNewProvider_Bad(t *testing.T) {
+func TestNewProvider_Bad(t *T) {
 	provider := NewProvider(nil)
 	if provider == nil {
 		t.Fatal("expected provider")
@@ -40,8 +38,8 @@ func TestNewProvider_Bad(t *testing.T) {
 	}
 }
 
-func TestNewProvider_Ugly(t *testing.T) {
-	c := core.New()
+func TestNewProvider_Ugly(t *T) {
+	c := New()
 	coreio.RegisterActions(c)
 
 	provider := NewProvider(c)

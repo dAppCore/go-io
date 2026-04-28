@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 	coreio "dappco.re/go/io"
 )
 
@@ -151,33 +151,33 @@ func (workspace *Workspace) HandleWorkspaceCommand(command WorkspaceCommand) cor
 	case WorkspaceCreateAction, legacyWorkspaceCreateAction:
 		medium, err := workspace.CreateWorkspace(command.workspaceName())
 		if err != nil {
-			return core.Result{}.New(err)
+			return core.Fail(err)
 		}
-		return core.Result{Value: medium, OK: true}
+		return core.Ok(medium)
 	case WorkspaceSwitchAction, legacyWorkspaceSwitchAction:
 		if err := workspace.SwitchWorkspace(command.workspaceName()); err != nil {
-			return core.Result{}.New(err)
+			return core.Fail(err)
 		}
-		return core.Result{OK: true}
+		return core.Ok(nil)
 	case WorkspaceReadAction:
 		content, err := workspace.ReadWorkspaceFile(command.workspaceName(), command.Path)
 		if err != nil {
-			return core.Result{}.New(err)
+			return core.Fail(err)
 		}
-		return core.Result{Value: content, OK: true}
+		return core.Ok(content)
 	case WorkspaceWriteAction:
 		if err := workspace.WriteWorkspaceFile(command.workspaceName(), command.Path, command.Content); err != nil {
-			return core.Result{}.New(err)
+			return core.Fail(err)
 		}
-		return core.Result{OK: true}
+		return core.Ok(nil)
 	case WorkspaceListAction:
 		entries, err := workspace.ListWorkspaceFiles(command.workspaceName(), command.Path)
 		if err != nil {
-			return core.Result{}.New(err)
+			return core.Fail(err)
 		}
-		return core.Result{Value: entries, OK: true}
+		return core.Ok(entries)
 	default:
-		return core.Result{}.New(core.E("workspace.HandleWorkspaceCommand", core.Concat("unsupported action: ", command.Action), fs.ErrInvalid))
+		return core.Fail(core.E("workspace.HandleWorkspaceCommand", core.Concat("unsupported action: ", command.Action), fs.ErrInvalid))
 	}
 }
 

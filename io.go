@@ -5,7 +5,7 @@ import (
 	"io/fs"   // AX-6-exception: fs interface types have no core equivalent.
 	"time"    // AX-6-exception: filesystem metadata timestamps have no core equivalent.
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 	"dappco.re/go/io/internal/fsutil"
 	"dappco.re/go/io/local"
 )

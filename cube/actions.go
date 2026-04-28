@@ -12,7 +12,7 @@ import (
 	"context"
 	"io/fs"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 	coreio "dappco.re/go/io"
 )
 
@@ -59,28 +59,28 @@ func readAction(_ context.Context, opts core.Options) core.Result {
 	if medium, ok := opts.Get("medium").Value.(coreio.Medium); ok && medium != nil {
 		content, err := medium.Read(opts.String("path"))
 		if err != nil {
-			return core.Result{}.New(err)
+			return core.Fail(err)
 		}
-		return core.Result{Value: content, OK: true}
+		return core.Ok(content)
 	}
 
 	inner, ok := opts.Get("inner").Value.(coreio.Medium)
 	if !ok {
-		return core.Result{}.New(core.E(opReadAction, "inner medium is required", fs.ErrInvalid))
+		return core.Fail(core.E(opReadAction, "inner medium is required", fs.ErrInvalid))
 	}
 	key, err := keyFromOptions(opts, opReadAction)
 	if err != nil {
-		return core.Result{}.New(err)
+		return core.Fail(err)
 	}
 	medium, err := New(Options{Inner: inner, Key: key})
 	if err != nil {
-		return core.Result{}.New(err)
+		return core.Fail(err)
 	}
 	content, err := medium.Read(opts.String("path"))
 	if err != nil {
-		return core.Result{}.New(err)
+		return core.Fail(err)
 	}
-	return core.Result{Value: content, OK: true}
+	return core.Ok(content)
 }
 
 // Example: opts := core.NewOptions(
@@ -92,27 +92,27 @@ func readAction(_ context.Context, opts core.Options) core.Result {
 func writeAction(_ context.Context, opts core.Options) core.Result {
 	if medium, ok := opts.Get("medium").Value.(coreio.Medium); ok && medium != nil {
 		if err := medium.Write(opts.String("path"), opts.String("content")); err != nil {
-			return core.Result{}.New(err)
+			return core.Fail(err)
 		}
-		return core.Result{OK: true}
+		return core.Ok(nil)
 	}
 
 	inner, ok := opts.Get("inner").Value.(coreio.Medium)
 	if !ok {
-		return core.Result{}.New(core.E(opWriteAction, "inner medium is required", fs.ErrInvalid))
+		return core.Fail(core.E(opWriteAction, "inner medium is required", fs.ErrInvalid))
 	}
 	key, err := keyFromOptions(opts, opWriteAction)
 	if err != nil {
-		return core.Result{}.New(err)
+		return core.Fail(err)
 	}
 	medium, err := New(Options{Inner: inner, Key: key})
 	if err != nil {
-		return core.Result{}.New(err)
+		return core.Fail(err)
 	}
 	if err := medium.Write(opts.String("path"), opts.String("content")); err != nil {
-		return core.Result{}.New(err)
+		return core.Fail(err)
 	}
-	return core.Result{OK: true}
+	return core.Ok(nil)
 }
 
 // Example: opts := core.NewOptions(
@@ -123,17 +123,17 @@ func writeAction(_ context.Context, opts core.Options) core.Result {
 func packAction(_ context.Context, opts core.Options) core.Result {
 	source, ok := opts.Get("source").Value.(coreio.Medium)
 	if !ok {
-		return core.Result{}.New(core.E(opPackAction, "source medium is required", fs.ErrInvalid))
+		return core.Fail(core.E(opPackAction, "source medium is required", fs.ErrInvalid))
 	}
 	key, err := keyFromOptions(opts, opPackAction)
 	if err != nil {
-		return core.Result{}.New(err)
+		return core.Fail(err)
 	}
 	output := opts.String("output")
 	if err := Pack(output, source, key); err != nil {
-		return core.Result{}.New(err)
+		return core.Fail(err)
 	}
-	return core.Result{OK: true}
+	return core.Ok(nil)
 }
 
 // Example: opts := core.NewOptions(
@@ -144,17 +144,17 @@ func packAction(_ context.Context, opts core.Options) core.Result {
 func unpackAction(_ context.Context, opts core.Options) core.Result {
 	destination, ok := opts.Get("destination").Value.(coreio.Medium)
 	if !ok {
-		return core.Result{}.New(core.E(opUnpackAction, "destination medium is required", fs.ErrInvalid))
+		return core.Fail(core.E(opUnpackAction, "destination medium is required", fs.ErrInvalid))
 	}
 	key, err := keyFromOptions(opts, opUnpackAction)
 	if err != nil {
-		return core.Result{}.New(err)
+		return core.Fail(err)
 	}
 	cubePath := opts.String("cube")
 	if err := Unpack(cubePath, destination, key); err != nil {
-		return core.Result{}.New(err)
+		return core.Fail(err)
 	}
-	return core.Result{OK: true}
+	return core.Ok(nil)
 }
 
 func keyFromOptions(opts core.Options, operation string) ([]byte, error) {

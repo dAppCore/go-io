@@ -6,7 +6,7 @@ package api
 import (
 	"net/http"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 	coreio "dappco.re/go/io"
 	"dappco.re/go/io/cube"
 	"github.com/gin-gonic/gin"

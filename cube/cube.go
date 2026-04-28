@@ -11,7 +11,7 @@ import (
 	"path"        // AX-6-exception: tar entry names use slash-separated paths.
 	"time"        // AX-6-exception: filesystem metadata timestamps have no core equivalent.
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 	coreio "dappco.re/go/io"
 	"dappco.re/go/io/node"
 	"dappco.re/go/io/sigil"

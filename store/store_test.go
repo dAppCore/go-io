@@ -1,63 +1,68 @@
 package store
 
 import (
-	"testing"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	core "dappco.re/go"
 )
 
-func newKeyValueStore(t *testing.T) *KeyValueStore {
+func newKeyValueStore(t *core.T) *KeyValueStore {
 	t.Helper()
 
 	keyValueStore, err := New(Options{Path: ":memory:"})
-	require.NoError(t, err)
+	core.RequireNoError(t, err)
 	t.Cleanup(func() {
-		require.NoError(t, keyValueStore.Close())
+		core.RequireNoError(t, keyValueStore.Close())
 	})
 	return keyValueStore
 }
 
-func TestKeyValueStore_New_Options_Good(t *testing.T) {
+func TestKeyValueStore_New_Options_Good(t *core.T) {
 	keyValueStore := newKeyValueStore(t)
-	assert.NotNil(t, keyValueStore)
+	core.AssertNotNil(t, keyValueStore)
+	count, err := keyValueStore.Count("empty")
+	core.RequireNoError(t, err)
+	core.AssertEqual(t, 0, count)
 }
 
-func TestKeyValueStore_New_Options_Bad(t *testing.T) {
-	_, err := New(Options{})
-	assert.Error(t, err)
+func TestKeyValueStore_New_Options_Bad(t *core.T) {
+	keyValueStore, err := New(Options{})
+	core.AssertNil(t, keyValueStore)
+	core.AssertError(t, err)
+	if err == nil {
+		t.Fatal("expected empty database path to fail")
+	}
+	core.AssertContains(t, err.Error(), "database path is required")
 }
 
-func TestKeyValueStore_SetGet_Good(t *testing.T) {
+func TestKeyValueStore_SetGet_Good(t *core.T) {
 	keyValueStore := newKeyValueStore(t)
 
 	err := keyValueStore.Set("config", "theme", "dark")
-	require.NoError(t, err)
+	core.RequireNoError(t, err)
 
 	value, err := keyValueStore.Get("config", "theme")
-	require.NoError(t, err)
-	assert.Equal(t, "dark", value)
+	core.RequireNoError(t, err)
+	core.AssertEqual(t, "dark", value)
 }
 
-func TestKeyValueStore_Get_NotFound_Bad(t *testing.T) {
+func TestKeyValueStore_Get_NotFound_Bad(t *core.T) {
 	keyValueStore := newKeyValueStore(t)
 
 	_, err := keyValueStore.Get("config", "missing")
-	assert.ErrorIs(t, err, NotFoundError)
+	core.AssertErrorIs(t, err, NotFoundError)
 }
 
-func TestKeyValueStore_Delete_Good(t *testing.T) {
+func TestKeyValueStore_Delete_Good(t *core.T) {
 	keyValueStore := newKeyValueStore(t)
 
 	_ = keyValueStore.Set("config", "key", "val")
 	err := keyValueStore.Delete("config", "key")
-	require.NoError(t, err)
+	core.RequireNoError(t, err)
 
 	_, err = keyValueStore.Get("config", "key")
-	assert.ErrorIs(t, err, NotFoundError)
+	core.AssertErrorIs(t, err, NotFoundError)
 }
 
-func TestKeyValueStore_Count_Good(t *testing.T) {
+func TestKeyValueStore_Count_Good(t *core.T) {
 	keyValueStore := newKeyValueStore(t)
 
 	_ = keyValueStore.Set("group", "a", "1")
@@ -65,23 +70,23 @@ func TestKeyValueStore_Count_Good(t *testing.T) {
 	_ = keyValueStore.Set("other", "c", "3")
 
 	count, err := keyValueStore.Count("group")
-	require.NoError(t, err)
-	assert.Equal(t, 2, count)
+	core.RequireNoError(t, err)
+	core.AssertEqual(t, 2, count)
 }
 
-func TestKeyValueStore_DeleteGroup_Good(t *testing.T) {
+func TestKeyValueStore_DeleteGroup_Good(t *core.T) {
 	keyValueStore := newKeyValueStore(t)
 
 	_ = keyValueStore.Set("group", "a", "1")
 	_ = keyValueStore.Set("group", "b", "2")
 	err := keyValueStore.DeleteGroup("group")
-	require.NoError(t, err)
+	core.RequireNoError(t, err)
 
 	count, _ := keyValueStore.Count("group")
-	assert.Equal(t, 0, count)
+	core.AssertEqual(t, 0, count)
 }
 
-func TestKeyValueStore_GetAll_Good(t *testing.T) {
+func TestKeyValueStore_GetAll_Good(t *core.T) {
 	keyValueStore := newKeyValueStore(t)
 
 	_ = keyValueStore.Set("group", "a", "1")
@@ -89,19 +94,19 @@ func TestKeyValueStore_GetAll_Good(t *testing.T) {
 	_ = keyValueStore.Set("other", "c", "3")
 
 	all, err := keyValueStore.GetAll("group")
-	require.NoError(t, err)
-	assert.Equal(t, map[string]string{"a": "1", "b": "2"}, all)
+	core.RequireNoError(t, err)
+	core.AssertEqual(t, map[string]string{"a": "1", "b": "2"}, all)
 }
 
-func TestKeyValueStore_GetAll_Empty_Good(t *testing.T) {
+func TestKeyValueStore_GetAll_Empty_Good(t *core.T) {
 	keyValueStore := newKeyValueStore(t)
 
 	all, err := keyValueStore.GetAll("empty")
-	require.NoError(t, err)
-	assert.Empty(t, all)
+	core.RequireNoError(t, err)
+	core.AssertEmpty(t, all)
 }
 
-func TestKeyValueStore_Render_Good(t *testing.T) {
+func TestKeyValueStore_Render_Good(t *core.T) {
 	keyValueStore := newKeyValueStore(t)
 
 	_ = keyValueStore.Set("user", "pool", "pool.lthn.io:3333")
@@ -109,7 +114,7 @@ func TestKeyValueStore_Render_Good(t *testing.T) {
 
 	templateText := `{"pool":"{{ .pool }}","wallet":"{{ .wallet }}"}`
 	renderedText, err := keyValueStore.Render(templateText, "user")
-	require.NoError(t, err)
-	assert.Contains(t, renderedText, "pool.lthn.io:3333")
-	assert.Contains(t, renderedText, "iz...")
+	core.RequireNoError(t, err)
+	core.AssertContains(t, renderedText, "pool.lthn.io:3333")
+	core.AssertContains(t, renderedText, "iz...")
 }

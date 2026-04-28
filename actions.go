@@ -11,7 +11,7 @@ import (
 	"context"
 	"io/fs"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 )
 
 // Named action identifiers used by Core consumers. Each maps to a Medium
@@ -80,102 +80,96 @@ func RegisterActions(c *core.Core) {
 func localReadAction(_ context.Context, opts core.Options) core.Result {
 	medium, err := localMediumFromOptions(opts)
 	if err != nil {
-		return core.Result{}.New(err)
+		return core.Fail(err)
 	}
 	content, err := medium.Read(opts.String("path"))
 	if err != nil {
-		return core.Result{}.New(err)
+		return core.Fail(err)
 	}
-	return core.Result{Value: content, OK: true}
+	return core.Ok(content)
 }
 
 // Example: opts := core.NewOptions(core.Option{Key: "root", Value: "/srv/app"}, core.Option{Key: "path", Value: "log.txt"}, core.Option{Key: "content", Value: "event"})
 func localWriteAction(_ context.Context, opts core.Options) core.Result {
 	medium, err := localMediumFromOptions(opts)
 	if err != nil {
-		return core.Result{}.New(err)
+		return core.Fail(err)
 	}
 	if err := medium.Write(opts.String("path"), opts.String("content")); err != nil {
-		return core.Result{}.New(err)
+		return core.Fail(err)
 	}
-	return core.Result{OK: true}
+	return core.Ok(nil)
 }
 
 // Example: opts := core.NewOptions(core.Option{Key: "root", Value: "/srv/app"}, core.Option{Key: "path", Value: "config"})
 func localListAction(_ context.Context, opts core.Options) core.Result {
 	medium, err := localMediumFromOptions(opts)
 	if err != nil {
-		return core.Result{}.New(err)
+		return core.Fail(err)
 	}
 	entries, err := medium.List(opts.String("path"))
 	if err != nil {
-		return core.Result{}.New(err)
+		return core.Fail(err)
 	}
-	return core.Result{Value: entries, OK: true}
+	return core.Ok(entries)
 }
 
 // Example: opts := core.NewOptions(core.Option{Key: "root", Value: "/srv/app"}, core.Option{Key: "path", Value: "tmp/old.log"})
 func localDeleteAction(_ context.Context, opts core.Options) core.Result {
 	medium, err := localMediumFromOptions(opts)
 	if err != nil {
-		return core.Result{}.New(err)
+		return core.Fail(err)
 	}
 	path := opts.String("path")
 	recursive := opts.Bool("recursive")
 	if recursive {
 		if err := medium.DeleteAll(path); err != nil {
-			return core.Result{}.New(err)
+			return core.Fail(err)
 		}
 	} else {
 		if err := medium.Delete(path); err != nil {
-			return core.Result{}.New(err)
+			return core.Fail(err)
 		}
 	}
-	return core.Result{OK: true}
+	return core.Ok(nil)
 }
 
 // Example: opts := core.NewOptions(core.Option{Key: "path", Value: "config/app.yaml"})
 func memoryReadAction(_ context.Context, opts core.Options) core.Result {
 	content, err := memoryActionStore.Read(opts.String("path"))
 	if err != nil {
-		return core.Result{}.New(err)
+		return core.Fail(err)
 	}
-	return core.Result{Value: content, OK: true}
+	return core.Ok(content)
 }
 
 // Example: opts := core.NewOptions(core.Option{Key: "path", Value: "config/app.yaml"}, core.Option{Key: "content", Value: "port: 8080"})
 func memoryWriteAction(_ context.Context, opts core.Options) core.Result {
 	if err := memoryActionStore.Write(opts.String("path"), opts.String("content")); err != nil {
-		return core.Result{}.New(err)
+		return core.Fail(err)
 	}
-	return core.Result{OK: true}
+	return core.Ok(nil)
 }
 
 func githubNotImplementedAction(context.Context, core.Options) core.Result {
-	return core.Result{
-		OK:    false,
-		Value: core.E("io.github", "not implemented — see #633 for backend tracking", nil),
-	}
+	return core.Fail(core.E("io.github", "not implemented — see #633 for backend tracking", nil))
 }
 
 func pwaNotImplementedAction(context.Context, core.Options) core.Result {
-	return core.Result{
-		OK:    false,
-		Value: core.E("io.pwa", "not implemented — see #633 for backend tracking", nil),
-	}
+	return core.Fail(core.E("io.pwa", "not implemented — see #633 for backend tracking", nil))
 }
 
 func mediumReadAction(operation string) core.ActionHandler {
 	return func(_ context.Context, opts core.Options) core.Result {
 		medium, err := mediumFromOptions(opts, operation)
 		if err != nil {
-			return core.Result{}.New(err)
+			return core.Fail(err)
 		}
 		content, err := medium.Read(opts.String("path"))
 		if err != nil {
-			return core.Result{}.New(err)
+			return core.Fail(err)
 		}
-		return core.Result{Value: content, OK: true}
+		return core.Ok(content)
 	}
 }
 
@@ -183,12 +177,12 @@ func mediumWriteAction(operation string) core.ActionHandler {
 	return func(_ context.Context, opts core.Options) core.Result {
 		medium, err := mediumFromOptions(opts, operation)
 		if err != nil {
-			return core.Result{}.New(err)
+			return core.Fail(err)
 		}
 		if err := medium.Write(opts.String("path"), opts.String("content")); err != nil {
-			return core.Result{}.New(err)
+			return core.Fail(err)
 		}
-		return core.Result{OK: true}
+		return core.Ok(nil)
 	}
 }
 
@@ -201,16 +195,16 @@ func mediumWriteAction(operation string) core.ActionHandler {
 func copyAction(_ context.Context, opts core.Options) core.Result {
 	source, ok := opts.Get("source").Value.(Medium)
 	if !ok {
-		return core.Result{}.New(core.E("io.copyAction", "source medium is required", fs.ErrInvalid))
+		return core.Fail(core.E("io.copyAction", "source medium is required", fs.ErrInvalid))
 	}
 	destination, ok := opts.Get("destination").Value.(Medium)
 	if !ok {
-		return core.Result{}.New(core.E("io.copyAction", "destination medium is required", fs.ErrInvalid))
+		return core.Fail(core.E("io.copyAction", "destination medium is required", fs.ErrInvalid))
 	}
 	if err := Copy(source, opts.String("sourcePath"), destination, opts.String("destinationPath")); err != nil {
-		return core.Result{}.New(err)
+		return core.Fail(err)
 	}
-	return core.Result{OK: true}
+	return core.Ok(nil)
 }
 
 // localMediumFromOptions constructs a sandboxed local Medium using the

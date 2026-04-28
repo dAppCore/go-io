@@ -10,7 +10,7 @@ import (
 	"slices"
 	"syscall"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 )
 
 // Example: medium, _ := local.New("/srv/app")

@@ -1,16 +1,14 @@
 package sftp
 
 import (
+	core "dappco.re/go"
 	"net"
-	"testing"
 	"time"
 
 	pkgsftp "github.com/pkg/sftp"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
-func newSFTPTestMedium(t *testing.T) *Medium {
+func newSFTPTestMedium(t *core.T) *Medium {
 	t.Helper()
 
 	serverConn, clientConn := net.Pipe()
@@ -21,10 +19,10 @@ func newSFTPTestMedium(t *testing.T) *Medium {
 	}()
 
 	client, err := pkgsftp.NewClientPipe(clientConn, clientConn)
-	require.NoError(t, err)
+	core.RequireNoError(t, err)
 
 	medium, err := New(Options{Client: client})
-	require.NoError(t, err)
+	core.RequireNoError(t, err)
 
 	t.Cleanup(func() {
 		_ = client.Close()
@@ -39,97 +37,97 @@ func newSFTPTestMedium(t *testing.T) *Medium {
 	return medium
 }
 
-func TestSFTPMedium_Read_Good(t *testing.T) {
+func TestSFTPMedium_Read_Good(t *core.T) {
 	medium := newSFTPTestMedium(t)
 
-	require.NoError(t, medium.Write("notes/read.txt", "hello sftp"))
+	core.RequireNoError(t, medium.Write("notes/read.txt", "hello sftp"))
 
 	content, err := medium.Read("notes/read.txt")
-	require.NoError(t, err)
-	assert.Equal(t, "hello sftp", content)
+	core.RequireNoError(t, err)
+	core.AssertEqual(t, "hello sftp", content)
 }
 
-func TestSFTPMedium_Read_Bad(t *testing.T) {
+func TestSFTPMedium_Read_Bad(t *core.T) {
 	medium := newSFTPTestMedium(t)
 
 	_, err := medium.Read("missing.txt")
 
-	assert.Error(t, err)
+	core.AssertError(t, err)
 }
 
-func TestSFTPMedium_Read_Ugly(t *testing.T) {
+func TestSFTPMedium_Read_Ugly(t *core.T) {
 	medium := newSFTPTestMedium(t)
 
-	require.NoError(t, medium.Write("safe/file.txt", "normalised"))
+	core.RequireNoError(t, medium.Write("safe/file.txt", "normalised"))
 
 	content, err := medium.Read("/safe/../safe/./file.txt")
-	require.NoError(t, err)
-	assert.Equal(t, "normalised", content)
+	core.RequireNoError(t, err)
+	core.AssertEqual(t, "normalised", content)
 }
 
-func TestSFTPMedium_Write_Good(t *testing.T) {
+func TestSFTPMedium_Write_Good(t *core.T) {
 	medium := newSFTPTestMedium(t)
 
 	err := medium.Write("nested/path/file.txt", "content")
-	require.NoError(t, err)
+	core.RequireNoError(t, err)
 
-	assert.True(t, medium.IsFile("nested/path/file.txt"))
+	core.AssertTrue(t, medium.IsFile("nested/path/file.txt"))
 	content, err := medium.Read("nested/path/file.txt")
-	require.NoError(t, err)
-	assert.Equal(t, "content", content)
+	core.RequireNoError(t, err)
+	core.AssertEqual(t, "content", content)
 }
 
-func TestSFTPMedium_Write_Bad(t *testing.T) {
+func TestSFTPMedium_Write_Bad(t *core.T) {
 	medium := newSFTPTestMedium(t)
 
 	err := medium.Write("", "content")
 
-	assert.Error(t, err)
+	core.AssertError(t, err)
 }
 
-func TestSFTPMedium_Write_Ugly(t *testing.T) {
+func TestSFTPMedium_Write_Ugly(t *core.T) {
 	medium := newSFTPTestMedium(t)
 
-	require.NoError(t, medium.Write("../escaped.txt", "contained"))
+	core.RequireNoError(t, medium.Write("../escaped.txt", "contained"))
 
 	content, err := medium.Read("escaped.txt")
-	require.NoError(t, err)
-	assert.Equal(t, "contained", content)
+	core.RequireNoError(t, err)
+	core.AssertEqual(t, "contained", content)
 }
 
-func TestSFTPMedium_List_Good(t *testing.T) {
+func TestSFTPMedium_List_Good(t *core.T) {
 	medium := newSFTPTestMedium(t)
 
-	require.NoError(t, medium.Write("dir/b.txt", "b"))
-	require.NoError(t, medium.Write("dir/a.txt", "a"))
-	require.NoError(t, medium.EnsureDir("dir/sub"))
+	core.RequireNoError(t, medium.Write("dir/b.txt", "b"))
+	core.RequireNoError(t, medium.Write("dir/a.txt", "a"))
+	core.RequireNoError(t, medium.EnsureDir("dir/sub"))
 
 	entries, err := medium.List("dir")
-	require.NoError(t, err)
+	core.RequireNoError(t, err)
 
-	require.Len(t, entries, 3)
-	assert.Equal(t, "a.txt", entries[0].Name())
-	assert.Equal(t, "b.txt", entries[1].Name())
-	assert.Equal(t, "sub", entries[2].Name())
-	assert.True(t, entries[2].IsDir())
+	core.AssertLen(t, entries, 3)
+	core.AssertEqual(t, "a.txt", entries[0].Name())
+	core.AssertEqual(t, "b.txt", entries[1].Name())
+	core.AssertEqual(t, "sub", entries[2].Name())
+	core.AssertTrue(t, entries[2].IsDir())
 }
 
-func TestSFTPMedium_List_Bad(t *testing.T) {
+func TestSFTPMedium_List_Bad(t *core.T) {
 	medium := newSFTPTestMedium(t)
 
 	_, err := medium.List("missing")
 
-	assert.Error(t, err)
+	core.AssertError(t, err)
 }
 
-func TestSFTPMedium_List_Ugly(t *testing.T) {
+func TestSFTPMedium_List_Ugly(t *core.T) {
 	medium := newSFTPTestMedium(t)
 
-	require.NoError(t, medium.Write("dir/file.txt", "content"))
+	core.RequireNoError(t, medium.Write("dir/file.txt", "content"))
 
 	entries, err := medium.List("//dir/../dir/.")
-	require.NoError(t, err)
+	core.RequireNoError(t, err)
 
-	require.Len(t, entries, 1)
-	assert.Equal(t, "file.txt", entries[0].Name())
+	core.AssertLen(t, entries, 1)
+	core.AssertEqual(t, "file.txt", entries[0].Name())
 }

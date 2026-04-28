@@ -3,16 +3,13 @@ package pwa
 import (
 	"context"
 	"errors"
-	"testing"
 
-	core "dappco.re/go/core"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	core "dappco.re/go"
 )
 
-func TestPWAMedium_StubOperations_ReturnErrNotImplemented(t *testing.T) {
+func TestPWAMedium_StubOperations_ReturnErrNotImplemented(t *core.T) {
 	medium, err := New(Options{})
-	require.NoError(t, err)
+	core.RequireNoError(t, err)
 
 	checks := []struct {
 		name string
@@ -35,30 +32,30 @@ func TestPWAMedium_StubOperations_ReturnErrNotImplemented(t *testing.T) {
 	}
 
 	for _, check := range checks {
-		t.Run(check.name, func(t *testing.T) {
-			assert.True(t, errors.Is(check.run(), ErrNotImplemented))
+		t.Run(check.name, func(t *core.T) {
+			core.AssertTrue(t, errors.Is(check.run(), ErrNotImplemented))
 		})
 	}
 
-	assert.False(t, medium.IsFile("page"))
-	assert.False(t, medium.Exists("page"))
-	assert.False(t, medium.IsDir("page"))
+	core.AssertFalse(t, medium.IsFile("page"))
+	core.AssertFalse(t, medium.Exists("page"))
+	core.AssertFalse(t, medium.IsDir("page"))
 }
 
-func TestPWAMedium_Actions_ReturnErrNotImplemented(t *testing.T) {
+func TestPWAMedium_Actions_ReturnErrNotImplemented(t *core.T) {
 	_, ok := FactoryFor(Scheme)
-	require.True(t, ok)
+	core.RequireTrue(t, ok)
 
 	c := core.New()
 	RegisterActions(c)
 
 	for _, action := range []string{ActionScrape, ActionRead, ActionList, ActionWrite} {
-		require.True(t, c.Action(action).Exists())
+		core.RequireTrue(t, c.Action(action).Exists())
 		result := c.Action(action).Run(context.Background(), core.NewOptions(
 			core.Option{Key: "url", Value: "https://example.test"},
 			core.Option{Key: "path", Value: "page"},
 		))
-		require.False(t, result.OK)
-		assert.True(t, errors.Is(result.Value.(error), ErrNotImplemented))
+		core.AssertFalse(t, result.OK)
+		core.AssertTrue(t, errors.Is(result.Value.(error), ErrNotImplemented))
 	}
 }

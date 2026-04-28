@@ -3,7 +3,7 @@ package github
 import (
 	"context"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 )
 
 const (
@@ -72,35 +72,35 @@ func mediumFromOptions(opts core.Options) (*Medium, error) {
 func readAction(_ context.Context, opts core.Options) core.Result {
 	medium, err := mediumFromOptions(opts)
 	if err != nil {
-		return core.Result{}.New(err)
+		return core.Fail(err)
 	}
 	content, err := medium.Read(opts.String("path"))
 	if err != nil {
-		return core.Result{}.New(err)
+		return core.Fail(err)
 	}
-	return core.Result{Value: content, OK: true}
+	return core.Ok(content)
 }
 
 func listAction(_ context.Context, opts core.Options) core.Result {
 	medium, err := mediumFromOptions(opts)
 	if err != nil {
-		return core.Result{}.New(err)
+		return core.Fail(err)
 	}
 	entries, err := medium.List(opts.String("path"))
 	if err != nil {
-		return core.Result{}.New(err)
+		return core.Fail(err)
 	}
-	return core.Result{Value: entries, OK: true}
+	return core.Ok(entries)
 }
 
 func cloneAction(_ context.Context, opts core.Options) core.Result {
 	medium, err := mediumFromOptions(opts)
 	if err != nil {
-		return core.Result{}.New(err)
+		return core.Fail(err)
 	}
 	contents, err := medium.Clone(opts.String("path"))
 	if err != nil {
-		return core.Result{}.New(err)
+		return core.Fail(err)
 	}
-	return core.Result{Value: contents, OK: true}
+	return core.Ok(contents)
 }

@@ -9,7 +9,7 @@ import (
 	"slices"
 	"strings"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 	coreio "dappco.re/go/io"
 	pkgsftp "github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"

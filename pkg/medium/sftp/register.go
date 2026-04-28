@@ -4,7 +4,7 @@ import (
 	"context"
 	"io/fs"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 )
 
 const (
@@ -45,22 +45,22 @@ func RegisterActions(c *core.Core) {
 func readAction(_ context.Context, opts core.Options) core.Result {
 	medium, ok := opts.Get("medium").Value.(*Medium)
 	if !ok {
-		return core.Result{}.New(core.E("sftp.readAction", "medium is required", fs.ErrInvalid))
+		return core.Fail(core.E("sftp.readAction", "medium is required", fs.ErrInvalid))
 	}
 	content, err := medium.Read(opts.String("path"))
 	if err != nil {
-		return core.Result{}.New(err)
+		return core.Fail(err)
 	}
-	return core.Result{Value: content, OK: true}
+	return core.Ok(content)
 }
 
 func writeAction(_ context.Context, opts core.Options) core.Result {
 	medium, ok := opts.Get("medium").Value.(*Medium)
 	if !ok {
-		return core.Result{}.New(core.E("sftp.writeAction", "medium is required", fs.ErrInvalid))
+		return core.Fail(core.E("sftp.writeAction", "medium is required", fs.ErrInvalid))
 	}
 	if err := medium.Write(opts.String("path"), opts.String("content")); err != nil {
-		return core.Result{}.New(err)
+		return core.Fail(err)
 	}
-	return core.Result{OK: true}
+	return core.Ok(nil)
 }

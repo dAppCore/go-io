@@ -9,14 +9,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	pathpkg "path"
-	"testing"
 
-	core "dappco.re/go/core"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	core "dappco.re/go"
 )
 
-func newGitHubTestMedium(t *testing.T, handler http.Handler) *Medium {
+func newGitHubTestMedium(t *core.T, handler http.Handler) *Medium {
 	t.Helper()
 
 	server := httptest.NewServer(handler)
@@ -30,7 +27,7 @@ func newGitHubTestMedium(t *testing.T, handler http.Handler) *Medium {
 		TokenFile:  pathpkg.Join(t.TempDir(), "missing-token"),
 		BaseURL:    server.URL + "/",
 	})
-	require.NoError(t, err)
+	core.RequireNoError(t, err)
 	return medium
 }
 
@@ -53,30 +50,30 @@ func githubDirJSON(filePath string) string {
 	)
 }
 
-func TestGitHubMedium_Read_Good(t *testing.T) {
+func TestGitHubMedium_Read_Good(t *core.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/repos/Snider/demo/contents/docs/read.txt", func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "main", r.URL.Query().Get("ref"))
+		core.AssertEqual(t, "main", r.URL.Query().Get("ref"))
 		_, _ = fmt.Fprint(w, githubFileJSON("docs/read.txt", "hello github"))
 	})
 	medium := newGitHubTestMedium(t, mux)
 
 	content, err := medium.Read("docs/read.txt")
 
-	require.NoError(t, err)
-	assert.Equal(t, "hello github", content)
+	core.RequireNoError(t, err)
+	core.AssertEqual(t, "hello github", content)
 }
 
-func TestGitHubMedium_Read_Bad(t *testing.T) {
+func TestGitHubMedium_Read_Bad(t *core.T) {
 	medium := newGitHubTestMedium(t, http.NewServeMux())
 
 	_, err := medium.Read("missing.txt")
 
-	assert.Error(t, err)
-	assert.True(t, errors.Is(err, fs.ErrNotExist))
+	core.AssertError(t, err)
+	core.AssertTrue(t, errors.Is(err, fs.ErrNotExist))
 }
 
-func TestGitHubMedium_Read_Ugly(t *testing.T) {
+func TestGitHubMedium_Read_Ugly(t *core.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/repos/Snider/demo/contents/safe/file.txt", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = fmt.Fprint(w, githubFileJSON("safe/file.txt", "normalised"))
@@ -85,11 +82,11 @@ func TestGitHubMedium_Read_Ugly(t *testing.T) {
 
 	content, err := medium.Read("//safe/../safe/./file.txt")
 
-	require.NoError(t, err)
-	assert.Equal(t, "normalised", content)
+	core.RequireNoError(t, err)
+	core.AssertEqual(t, "normalised", content)
 }
 
-func TestGitHubMedium_List_Good(t *testing.T) {
+func TestGitHubMedium_List_Good(t *core.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/repos/Snider/demo/contents/dir", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = fmt.Fprintf(w, `[%s,%s,%s]`,
@@ -105,25 +102,25 @@ func TestGitHubMedium_List_Good(t *testing.T) {
 
 	entries, err := medium.List("dir")
 
-	require.NoError(t, err)
-	require.Len(t, entries, 4)
-	assert.Equal(t, "dir/a.txt", entries[0].Name())
-	assert.Equal(t, "dir/b.txt", entries[1].Name())
-	assert.Equal(t, "dir/sub", entries[2].Name())
-	assert.True(t, entries[2].IsDir())
-	assert.Equal(t, "dir/sub/c.txt", entries[3].Name())
+	core.RequireNoError(t, err)
+	core.AssertLen(t, entries, 4)
+	core.AssertEqual(t, "dir/a.txt", entries[0].Name())
+	core.AssertEqual(t, "dir/b.txt", entries[1].Name())
+	core.AssertEqual(t, "dir/sub", entries[2].Name())
+	core.AssertTrue(t, entries[2].IsDir())
+	core.AssertEqual(t, "dir/sub/c.txt", entries[3].Name())
 }
 
-func TestGitHubMedium_List_Bad(t *testing.T) {
+func TestGitHubMedium_List_Bad(t *core.T) {
 	medium := newGitHubTestMedium(t, http.NewServeMux())
 
 	_, err := medium.List("missing")
 
-	assert.Error(t, err)
-	assert.True(t, errors.Is(err, fs.ErrNotExist))
+	core.AssertError(t, err)
+	core.AssertTrue(t, errors.Is(err, fs.ErrNotExist))
 }
 
-func TestGitHubMedium_List_Ugly(t *testing.T) {
+func TestGitHubMedium_List_Ugly(t *core.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/repos/Snider/demo/contents/dir", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = fmt.Fprintf(w, `[%s]`, githubFileJSON("dir/file.txt", "content"))
@@ -132,50 +129,50 @@ func TestGitHubMedium_List_Ugly(t *testing.T) {
 
 	entries, err := medium.List("//dir/../dir/.")
 
-	require.NoError(t, err)
-	require.Len(t, entries, 1)
-	assert.Equal(t, "dir/file.txt", entries[0].Name())
+	core.RequireNoError(t, err)
+	core.AssertLen(t, entries, 1)
+	core.AssertEqual(t, "dir/file.txt", entries[0].Name())
 }
 
-func TestGitHubMedium_Write_Good(t *testing.T) {
+func TestGitHubMedium_Write_Good(t *core.T) {
 	medium := newGitHubTestMedium(t, http.NewServeMux())
 
 	err := medium.Write("notes/write.txt", "content")
 
-	assert.ErrorIs(t, err, ErrReadOnly)
+	core.AssertErrorIs(t, err, ErrReadOnly)
 }
 
-func TestGitHubMedium_Write_Bad(t *testing.T) {
+func TestGitHubMedium_Write_Bad(t *core.T) {
 	medium := newGitHubTestMedium(t, http.NewServeMux())
 
 	err := medium.Write("", "content")
 
-	assert.ErrorIs(t, err, ErrReadOnly)
+	core.AssertErrorIs(t, err, ErrReadOnly)
 }
 
-func TestGitHubMedium_Write_Ugly(t *testing.T) {
+func TestGitHubMedium_Write_Ugly(t *core.T) {
 	medium := newGitHubTestMedium(t, http.NewServeMux())
 
 	err := medium.Write("../escaped.txt", "content")
 
-	assert.ErrorIs(t, err, ErrReadOnly)
+	core.AssertErrorIs(t, err, ErrReadOnly)
 }
 
-func TestGitHubMedium_Actions_Register(t *testing.T) {
+func TestGitHubMedium_Actions_Register(t *core.T) {
 	_, ok := FactoryFor(Scheme)
-	require.True(t, ok)
+	core.RequireTrue(t, ok)
 
 	c := core.New()
 	RegisterActions(c)
 
-	assert.True(t, c.Action(ActionRead).Exists())
-	assert.True(t, c.Action(ActionList).Exists())
-	assert.True(t, c.Action(ActionClone).Exists())
+	core.AssertTrue(t, c.Action(ActionRead).Exists())
+	core.AssertTrue(t, c.Action(ActionList).Exists())
+	core.AssertTrue(t, c.Action(ActionClone).Exists())
 
 	result := c.Action(ActionRead).Run(context.Background(), core.NewOptions(
 		core.Option{Key: "owner", Value: "Snider"},
 		core.Option{Key: "repo", Value: "demo"},
 		core.Option{Key: "path", Value: ""},
 	))
-	assert.False(t, result.OK)
+	core.AssertFalse(t, result.OK)
 }

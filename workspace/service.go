@@ -8,7 +8,7 @@ import (
 	"io/fs"
 	"sync" // Note: AX-6 — internal concurrency primitive; structural per RFC §5.1
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 	"golang.org/x/crypto/hkdf"
 
 	"dappco.re/go/io"
@@ -281,24 +281,24 @@ func (service *Service) HandleWorkspaceCommand(command WorkspaceCommand) core.Re
 	case WorkspaceCreateAction, legacyWorkspaceCreateAction:
 		identifier := command.workspaceName()
 		if identifier == "" {
-			return core.Result{}.New(core.E("workspace.HandleWorkspaceCommand", "workspace identifier is required", fs.ErrInvalid))
+			return core.Fail(core.E("workspace.HandleWorkspaceCommand", "workspace identifier is required", fs.ErrInvalid))
 		}
 		workspaceID, err := service.CreateWorkspace(identifier, command.Password)
 		if err != nil {
-			return core.Result{}.New(err)
+			return core.Fail(err)
 		}
-		return core.Result{Value: workspaceID, OK: true}
+		return core.Ok(workspaceID)
 	case WorkspaceSwitchAction, legacyWorkspaceSwitchAction:
 		workspaceID := command.workspaceName()
 		if workspaceID == "" {
-			return core.Result{}.New(core.E("workspace.HandleWorkspaceCommand", "workspace id is required", fs.ErrInvalid))
+			return core.Fail(core.E("workspace.HandleWorkspaceCommand", "workspace id is required", fs.ErrInvalid))
 		}
 		if err := service.SwitchWorkspace(workspaceID); err != nil {
-			return core.Result{}.New(err)
+			return core.Fail(err)
 		}
-		return core.Result{OK: true}
+		return core.Ok(nil)
 	}
-	return core.Result{}.New(core.E("workspace.HandleWorkspaceCommand", core.Concat("unsupported action: ", command.Action), fs.ErrInvalid))
+	return core.Fail(core.E("workspace.HandleWorkspaceCommand", core.Concat("unsupported action: ", command.Action), fs.ErrInvalid))
 }
 
 // Example: result := service.HandleWorkspaceMessage(core.New(), WorkspaceCommand{Action: WorkspaceSwitchAction, WorkspaceID: "f3f0d7"})
@@ -307,7 +307,7 @@ func (service *Service) HandleWorkspaceMessage(_ *core.Core, message core.Messag
 	case WorkspaceCommand:
 		return service.HandleWorkspaceCommand(command)
 	}
-	return core.Result{}.New(core.E("workspace.HandleWorkspaceMessage", "unsupported message type", fs.ErrInvalid))
+	return core.Fail(core.E("workspace.HandleWorkspaceMessage", "unsupported message type", fs.ErrInvalid))
 }
 
 func resolveWorkspaceHomeDirectory() string {

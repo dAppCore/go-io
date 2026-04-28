@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 	coreio "dappco.re/go/io"
 	gh "github.com/google/go-github/v75/github"
 	"golang.org/x/oauth2"

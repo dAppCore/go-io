@@ -11,7 +11,7 @@ import (
 	"encoding/hex"
 	"io/fs" // AX-6-exception: fs sentinel errors have no core equivalent.
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 	"golang.org/x/crypto/blake2b"
 	"golang.org/x/crypto/blake2s"
 	"golang.org/x/crypto/md4"

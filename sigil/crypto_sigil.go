@@ -10,7 +10,7 @@ import (
 	"encoding/binary"
 	goio "io"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 	"golang.org/x/crypto/chacha20poly1305"
 )
 

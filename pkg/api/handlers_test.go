@@ -9,9 +9,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
-	"testing"
 
-	core "dappco.re/go/core"
+	. "dappco.re/go"
 	coreio "dappco.re/go/io"
 	"github.com/gin-gonic/gin"
 )
@@ -20,7 +19,7 @@ func init() {
 	gin.SetMode(gin.TestMode)
 }
 
-func TestCreateWorkspace_Good_Delegates(t *testing.T) {
+func TestCreateWorkspace_Good_Delegates(t *T) {
 	router := testRouter(NewProvider(nil))
 
 	rec := postJSON(t, router, "/v1/workspace", `{"workspace":"alice"}`)
@@ -32,7 +31,7 @@ func TestCreateWorkspace_Good_Delegates(t *testing.T) {
 	}
 }
 
-func TestCreateWorkspace_Bad_InvalidJSON(t *testing.T) {
+func TestCreateWorkspace_Bad_InvalidJSON(t *T) {
 	router := testRouter(NewProvider(nil))
 
 	rec := postJSON(t, router, "/v1/workspace", `{`)
@@ -42,7 +41,7 @@ func TestCreateWorkspace_Bad_InvalidJSON(t *testing.T) {
 	assertAPIErrorCode(t, rec, "invalid_request")
 }
 
-func TestSwitchWorkspace_Good_Delegates(t *testing.T) {
+func TestSwitchWorkspace_Good_Delegates(t *T) {
 	router := testRouter(NewProvider(nil))
 
 	create := postJSON(t, router, "/v1/workspace", `{"workspace":"ws-1"}`)
@@ -55,7 +54,7 @@ func TestSwitchWorkspace_Good_Delegates(t *testing.T) {
 	}
 }
 
-func TestSwitchWorkspace_Bad_EmptyID(t *testing.T) {
+func TestSwitchWorkspace_Bad_EmptyID(t *T) {
 	router := testRouter(NewProvider(nil))
 
 	rec := postJSON(t, router, "/v1/workspace/%20/switch", `{}`)
@@ -65,7 +64,7 @@ func TestSwitchWorkspace_Bad_EmptyID(t *testing.T) {
 	assertAPIErrorCode(t, rec, "invalid_request")
 }
 
-func TestHandleWorkspaceCommand_Good_Delegates(t *testing.T) {
+func TestHandleWorkspaceCommand_Good_Delegates(t *T) {
 	router := testRouter(NewProvider(nil))
 
 	create := postJSON(t, router, "/v1/workspace", `{"workspace":"ws-1"}`)
@@ -85,7 +84,7 @@ func TestHandleWorkspaceCommand_Good_Delegates(t *testing.T) {
 	}
 }
 
-func TestHandleWorkspaceCommand_Bad_MissingAction(t *testing.T) {
+func TestHandleWorkspaceCommand_Bad_MissingAction(t *T) {
 	router := testRouter(NewProvider(nil))
 
 	rec := postJSON(t, router, "/v1/workspace/ws-1/command", `{}`)
@@ -95,7 +94,7 @@ func TestHandleWorkspaceCommand_Bad_MissingAction(t *testing.T) {
 	assertAPIErrorCode(t, rec, "invalid_request")
 }
 
-func TestMediumDispatcher_Good_MemoryRoundTrip(t *testing.T) {
+func TestMediumDispatcher_Good_MemoryRoundTrip(t *T) {
 	router := testRouter(NewProvider(nil))
 
 	write := postJSON(t, router, "/v1/medium/memory/write", `{"path":"note.txt","content":"hello"}`)
@@ -112,7 +111,7 @@ func TestMediumDispatcher_Good_MemoryRoundTrip(t *testing.T) {
 	}
 }
 
-func TestMediumDispatcher_Bad_UnsupportedMedium(t *testing.T) {
+func TestMediumDispatcher_Bad_UnsupportedMedium(t *T) {
 	router := testRouter(NewProvider(nil))
 
 	rec := postJSON(t, router, "/v1/medium/github/read", `{"path":"README.md"}`)
@@ -122,7 +121,7 @@ func TestMediumDispatcher_Bad_UnsupportedMedium(t *testing.T) {
 	assertAPIErrorCode(t, rec, "not_implemented")
 }
 
-func TestActionDispatcher_Good_WiredActionDelegates(t *testing.T) {
+func TestActionDispatcher_Good_WiredActionDelegates(t *T) {
 	coreio.ResetMemoryActionStore()
 	defer coreio.ResetMemoryActionStore()
 
@@ -142,7 +141,7 @@ func TestActionDispatcher_Good_WiredActionDelegates(t *testing.T) {
 	}
 }
 
-func TestActionDispatcher_Bad_UnknownAction(t *testing.T) {
+func TestActionDispatcher_Bad_UnknownAction(t *T) {
 	router := testRouter(NewProvider(nil))
 
 	rec := postJSON(t, router, "/v1/io/core.io.unknown", `{}`)
@@ -152,14 +151,14 @@ func TestActionDispatcher_Bad_UnknownAction(t *testing.T) {
 	assertAPIErrorCode(t, rec, "unknown_action")
 }
 
-func TestActionDispatcher_Good_FormerMissingActionDelegates(t *testing.T) {
-	c := core.New()
+func TestActionDispatcher_Good_FormerMissingActionDelegates(t *T) {
+	c := New()
 	provider := NewProvider(c)
-	c.Action(coreio.ActionS3Read, func(_ context.Context, opts core.Options) core.Result {
+	c.Action(coreio.ActionS3Read, func(_ context.Context, opts Options) Result {
 		if opts.String("path") != "reports/daily.txt" {
-			return core.Result{}.New(core.E("test", "unexpected path", nil))
+			return Result{}.New(E("test", "unexpected path", nil))
 		}
-		return core.Result{OK: true, Value: "delegated s3 read"}
+		return Ok("delegated s3 read")
 	})
 	router := testRouter(provider)
 
@@ -178,7 +177,7 @@ func testRouter(provider *IOProvider) *gin.Engine {
 	return router
 }
 
-func postJSON(t *testing.T, router http.Handler, path string, body string) *httptest.ResponseRecorder {
+func postJSON(t *T, router http.Handler, path string, body string) *httptest.ResponseRecorder {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodPost, path, bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -187,7 +186,7 @@ func postJSON(t *testing.T, router http.Handler, path string, body string) *http
 	return rec
 }
 
-func assertAPIErrorCode(t *testing.T, rec *httptest.ResponseRecorder, code string) {
+func assertAPIErrorCode(t *T, rec *httptest.ResponseRecorder, code string) {
 	t.Helper()
 	var resp apiResponse
 	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {

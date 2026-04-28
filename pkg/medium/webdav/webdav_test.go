@@ -1,15 +1,12 @@
 package webdav
 
 import (
-	"net/http/httptest"
-	"testing"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	core "dappco.re/go"
 	xwebdav "golang.org/x/net/webdav"
+	"net/http/httptest"
 )
 
-func newWebDAVTestMedium(t *testing.T) *Medium {
+func newWebDAVTestMedium(t *core.T) *Medium {
 	t.Helper()
 
 	handler := &xwebdav.Handler{
@@ -20,101 +17,101 @@ func newWebDAVTestMedium(t *testing.T) *Medium {
 	t.Cleanup(server.Close)
 
 	medium, err := New(Options{BaseURL: server.URL})
-	require.NoError(t, err)
+	core.RequireNoError(t, err)
 	return medium
 }
 
-func TestWebDAVMedium_Read_Good(t *testing.T) {
+func TestWebDAVMedium_Read_Good(t *core.T) {
 	medium := newWebDAVTestMedium(t)
 
-	require.NoError(t, medium.Write("notes/read.txt", "hello webdav"))
+	core.RequireNoError(t, medium.Write("notes/read.txt", "hello webdav"))
 
 	content, err := medium.Read("notes/read.txt")
-	require.NoError(t, err)
-	assert.Equal(t, "hello webdav", content)
+	core.RequireNoError(t, err)
+	core.AssertEqual(t, "hello webdav", content)
 }
 
-func TestWebDAVMedium_Read_Bad(t *testing.T) {
+func TestWebDAVMedium_Read_Bad(t *core.T) {
 	medium := newWebDAVTestMedium(t)
 
 	_, err := medium.Read("missing.txt")
 
-	assert.Error(t, err)
+	core.AssertError(t, err)
 }
 
-func TestWebDAVMedium_Read_Ugly(t *testing.T) {
+func TestWebDAVMedium_Read_Ugly(t *core.T) {
 	medium := newWebDAVTestMedium(t)
 
-	require.NoError(t, medium.Write("safe/file.txt", "normalised"))
+	core.RequireNoError(t, medium.Write("safe/file.txt", "normalised"))
 
 	content, err := medium.Read("/safe/../safe/./file.txt")
-	require.NoError(t, err)
-	assert.Equal(t, "normalised", content)
+	core.RequireNoError(t, err)
+	core.AssertEqual(t, "normalised", content)
 }
 
-func TestWebDAVMedium_Write_Good(t *testing.T) {
+func TestWebDAVMedium_Write_Good(t *core.T) {
 	medium := newWebDAVTestMedium(t)
 
 	err := medium.Write("nested/path/file.txt", "content")
-	require.NoError(t, err)
+	core.RequireNoError(t, err)
 
-	assert.True(t, medium.IsFile("nested/path/file.txt"))
+	core.AssertTrue(t, medium.IsFile("nested/path/file.txt"))
 	content, err := medium.Read("nested/path/file.txt")
-	require.NoError(t, err)
-	assert.Equal(t, "content", content)
+	core.RequireNoError(t, err)
+	core.AssertEqual(t, "content", content)
 }
 
-func TestWebDAVMedium_Write_Bad(t *testing.T) {
+func TestWebDAVMedium_Write_Bad(t *core.T) {
 	medium := newWebDAVTestMedium(t)
 
 	err := medium.Write("", "content")
 
-	assert.Error(t, err)
+	core.AssertError(t, err)
 }
 
-func TestWebDAVMedium_Write_Ugly(t *testing.T) {
+func TestWebDAVMedium_Write_Ugly(t *core.T) {
 	medium := newWebDAVTestMedium(t)
 
-	require.NoError(t, medium.Write("../escaped.txt", "contained"))
+	core.RequireNoError(t, medium.Write("../escaped.txt", "contained"))
 
 	content, err := medium.Read("escaped.txt")
-	require.NoError(t, err)
-	assert.Equal(t, "contained", content)
+	core.RequireNoError(t, err)
+	core.AssertEqual(t, "contained", content)
 }
 
-func TestWebDAVMedium_List_Good(t *testing.T) {
+func TestWebDAVMedium_List_Good(t *core.T) {
 	medium := newWebDAVTestMedium(t)
 
-	require.NoError(t, medium.Write("dir/b.txt", "b"))
-	require.NoError(t, medium.Write("dir/a.txt", "a"))
-	require.NoError(t, medium.EnsureDir("dir/sub"))
+	core.RequireNoError(t, medium.Write("dir/b.txt", "b"))
+	core.RequireNoError(t, medium.Write("dir/a.txt", "a"))
+	core.RequireNoError(t, medium.EnsureDir("dir/sub"))
 
 	entries, err := medium.List("dir")
-	require.NoError(t, err)
+	core.RequireNoError(t, err)
 
-	require.Len(t, entries, 3)
-	assert.Equal(t, "a.txt", entries[0].Name())
-	assert.Equal(t, "b.txt", entries[1].Name())
-	assert.Equal(t, "sub", entries[2].Name())
-	assert.True(t, entries[2].IsDir())
+	core.AssertLen(t, entries, 3)
+	core.AssertEqual(t, "a.txt", entries[0].Name())
+	core.AssertEqual(t, "b.txt", entries[1].Name())
+	core.AssertEqual(t, "sub", entries[2].Name())
+	core.AssertTrue(t, entries[2].IsDir())
 }
 
-func TestWebDAVMedium_List_Bad(t *testing.T) {
+func TestWebDAVMedium_List_Bad(t *core.T) {
 	medium := newWebDAVTestMedium(t)
 
 	_, err := medium.List("missing")
 
-	assert.Error(t, err)
+	core.AssertError(t, err)
 }
 
-func TestWebDAVMedium_List_Ugly(t *testing.T) {
+func TestWebDAVMedium_List_Ugly(t *core.T) {
 	medium := newWebDAVTestMedium(t)
 
-	require.NoError(t, medium.Write("dir/file.txt", "content"))
+	core.RequireNoError(t, medium.Write("dir/file.txt", "content"))
 
 	entries, err := medium.List("//dir/../dir/.")
-	require.NoError(t, err)
+	core.RequireNoError(t, err)
 
-	require.Len(t, entries, 1)
-	assert.Equal(t, "file.txt", entries[0].Name())
+	core.AssertLen(t, entries, 1)
+	core.AssertEqual(t, "file.txt", entries[0].Name())
 }
