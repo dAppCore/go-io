@@ -1,22 +1,14 @@
 # Woodpecker CI pipeline for core/go-io.
 # Server: ci.lthn.sh (homelab). Agent: same host, Docker backend.
 #
-# Pipeline runs on every push to dev or main. Two stages, parallel,
-# both depend only on clone — sonar still reports even if lint fails:
-#   1. golangci-lint — static analysis on all packages
-#   2. sonar — code-quality scan against sonar.lthn.sh
+# Steps (all depend only on clone — run in parallel where possible):
+#   1. golangci-lint  — static analysis on all packages
+#   2. go-test        — race + coverage; writes coverage.out
+#   3. sonar          — code-quality scan against sonar.lthn.sh
+#                       (depends_on: go-test so coverage.out is present)
 #
 # Secrets are admin-scoped (Woodpecker → Admin → Secrets):
 #   sonar_token  — SonarQube auth token (cerberus identity)
-#
-# *.lthn.sh resolution comes from coredns on lthn.sh (db hosts.lthn.sh)
-# + Docker daemon dns config; job containers inherit the resolution
-# automatically.
-#
-# Sonar runs the official sonar-scanner-cli image directly rather than
-# a Woodpecker plugin — sonar.lthn.sh is the Community Build, which
-# does not allow sonar.branch.name. The raw scanner respects only the
-# settings we pass + sonar-project.properties.
 
 when:
   - event: push
@@ -32,9 +24,20 @@ steps:
     commands:
       - golangci-lint run --timeout=5m ./...
 
+  - name: go-test
+    image: golang:1.26-alpine
+    depends_on: []
+    environment:
+      GOFLAGS: -buildvcs=false
+      GOWORK: "off"
+      CGO_ENABLED: "1"
+    commands:
+      - apk add --no-cache git build-base
+      - go test -race -coverprofile=coverage.out -covermode=atomic -count=1 ./...
+
   - name: sonar
     image: sonarsource/sonar-scanner-cli:latest
-    depends_on: []
+    depends_on: [go-test]
     environment:
       SONAR_HOST_URL: https://sonar.lthn.sh
       SONAR_TOKEN:
