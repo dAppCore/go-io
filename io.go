@@ -206,6 +206,7 @@ type MemoryMedium struct {
 }
 
 var _ Medium = (*MemoryMedium)(nil)
+var _ fs.FS = (*MemoryMedium)(nil)
 
 // Example: medium := io.NewMemoryMedium()
 // Example: _ = medium.Write("config/app.yaml", "port: 8080")

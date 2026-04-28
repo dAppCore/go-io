@@ -16,6 +16,8 @@ import (
 
 	core "dappco.re/go"
 	coreio "dappco.re/go/io"
+	borgdatanode "forge.lthn.ai/Snider/Borg/pkg/datanode"
+	borgvcs "forge.lthn.ai/Snider/Borg/pkg/vcs"
 	gh "github.com/google/go-github/v75/github"
 	"golang.org/x/oauth2"
 )
@@ -24,23 +26,26 @@ import (
 var ErrReadOnly = errors.New("github medium is read-only")
 
 const (
-	opNew  = "github.New"
-	opRead = "github.Read"
-	opList = "github.List"
-	opStat = "github.Stat"
+	opNew   = "github.New"
+	opRead  = "github.Read"
+	opList  = "github.List"
+	opStat  = "github.Stat"
+	opClone = "github.Clone"
 
 	errNotFound = "not found: "
 )
 
 // Medium is a GitHub REST API-backed implementation of coreio.Medium.
 type Medium struct {
-	client *gh.Client
-	owner  string
-	repo   string
-	ref    string
+	client  *gh.Client
+	owner   string
+	repo    string
+	ref     string
+	baseURL string
 }
 
 var _ coreio.Medium = (*Medium)(nil)
+var _ fs.FS = (*Medium)(nil)
 
 // Options configures a GitHub Medium.
 type Options struct {
@@ -90,10 +95,11 @@ func New(options Options) (*Medium, error) {
 	}
 
 	return &Medium{
-		client: client,
-		owner:  owner,
-		repo:   repo,
-		ref:    ref,
+		client:  client,
+		owner:   owner,
+		repo:    repo,
+		ref:     ref,
+		baseURL: strings.TrimSpace(options.BaseURL),
 	}, nil
 }
 
@@ -440,7 +446,95 @@ func (medium *Medium) IsDir(filePath string) bool {
 }
 
 // Clone returns all file contents under filePath, keyed by repository path.
+// Default full-repo clones use Borg's Git cloner and DataNode substrate; custom
+// GitHub API URLs and explicit refs keep the REST contents path for compatibility.
 func (medium *Medium) Clone(filePath string) (map[string]string, error) {
+	if medium.baseURL == "" && medium.ref == "" {
+		return medium.cloneWithBorg(filePath)
+	}
+	return medium.cloneWithContentsAPI(filePath)
+}
+
+func (medium *Medium) cloneWithBorg(filePath string) (map[string]string, error) {
+	dataNode, err := borgvcs.NewGitCloner().CloneGitRepository(medium.borgCloneURL(), nil)
+	if err != nil {
+		return nil, core.E(opClone, "Borg clone failed", err)
+	}
+	contents, err := collectBorgDataNodeContents(dataNode, cleanRelative(filePath))
+	if err != nil {
+		return nil, core.E(opClone, "failed to read Borg DataNode clone", err)
+	}
+	return contents, nil
+}
+
+func (medium *Medium) borgCloneURL() string {
+	return fmt.Sprintf("https://github.com/%s/%s.git", medium.owner, medium.repo)
+}
+
+func collectBorgDataNodeContents(dataNode *borgdatanode.DataNode, clean string) (map[string]string, error) {
+	if dataNode == nil {
+		return nil, fs.ErrInvalid
+	}
+	contents := make(map[string]string)
+	if clean != "" {
+		info, err := dataNode.Stat(clean)
+		if err != nil {
+			return nil, fs.ErrNotExist
+		}
+		if !info.IsDir() {
+			content, err := readBorgDataNodeFile(dataNode, clean)
+			if err != nil {
+				return nil, err
+			}
+			contents[clean] = content
+			return contents, nil
+		}
+	}
+	if err := collectBorgDataNodeDir(dataNode, clean, contents); err != nil {
+		return nil, err
+	}
+	return contents, nil
+}
+
+func collectBorgDataNodeDir(dataNode *borgdatanode.DataNode, dirPath string, contents map[string]string) error {
+	entries, err := dataNode.ReadDir(dirPath)
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		childPath := entry.Name()
+		if dirPath != "" {
+			childPath = path.Join(dirPath, childPath)
+		}
+		if entry.IsDir() {
+			if err := collectBorgDataNodeDir(dataNode, childPath, contents); err != nil {
+				return err
+			}
+			continue
+		}
+		content, err := readBorgDataNodeFile(dataNode, childPath)
+		if err != nil {
+			return err
+		}
+		contents[childPath] = content
+	}
+	return nil
+}
+
+func readBorgDataNodeFile(dataNode *borgdatanode.DataNode, filePath string) (string, error) {
+	file, err := dataNode.Open(filePath)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+	data, err := goio.ReadAll(file)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
+
+func (medium *Medium) cloneWithContentsAPI(filePath string) (map[string]string, error) {
 	clean := cleanRelative(filePath)
 	if clean != "" {
 		info, err := medium.Stat(clean)

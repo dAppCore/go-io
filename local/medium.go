@@ -19,6 +19,8 @@ type Medium struct {
 	filesystemRoot string
 }
 
+var _ fs.FS = (*Medium)(nil)
+
 var unrestrictedFileSystem = (&core.Fs{}).NewUnrestricted()
 
 // Example: medium, _ := local.New("/srv/app")

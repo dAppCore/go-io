@@ -24,6 +24,7 @@ type Medium struct {
 }
 
 var _ coreio.Medium = (*Medium)(nil)
+var _ fs.FS = (*Medium)(nil)
 
 // Example: medium, _ := store.NewMedium(store.Options{Path: "config.db"})
 // Example: _ = medium.Write("app/theme", "midnight")

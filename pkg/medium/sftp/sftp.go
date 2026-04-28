@@ -38,6 +38,7 @@ type Medium struct {
 }
 
 var _ coreio.Medium = (*Medium)(nil)
+var _ fs.FS = (*Medium)(nil)
 
 // Options configures an SFTP Medium.
 type Options struct {

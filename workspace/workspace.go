@@ -275,6 +275,7 @@ type scopedMedium struct {
 }
 
 var _ coreio.Medium = (*scopedMedium)(nil)
+var _ fs.FS = (*scopedMedium)(nil)
 
 func (medium *scopedMedium) scopedPath(operation, entryPath string, allowRoot bool) (string, error) {
 	cleanPath, err := cleanMediumSubpath(operation, entryPath, allowRoot)

@@ -38,6 +38,7 @@ type Medium struct {
 }
 
 var _ coreio.Medium = (*Medium)(nil)
+var _ fs.FS = (*Medium)(nil)
 
 // Example: medium, _ := s3.New(s3.Options{Bucket: "backups", Client: client, Prefix: "daily/"})
 type Options struct {

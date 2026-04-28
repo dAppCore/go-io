@@ -13,8 +13,10 @@ import (
 
 	core "dappco.re/go"
 	coreio "dappco.re/go/io"
-	"dappco.re/go/io/node"
+	coredatanode "dappco.re/go/io/datanode"
 	"dappco.re/go/io/sigil"
+	borgdatanode "forge.lthn.ai/Snider/Borg/pkg/datanode"
+	borgtrix "forge.lthn.ai/Snider/Borg/pkg/trix"
 )
 
 const (
@@ -36,6 +38,7 @@ type Medium struct {
 }
 
 var _ coreio.Medium = (*Medium)(nil)
+var _ fs.FS = (*Medium)(nil)
 
 // Example: medium, _ := cube.New(cube.Options{Inner: io.NewMemoryMedium(), Key: key})
 type Options struct {
@@ -261,19 +264,17 @@ func Pack(outputPath string, source coreio.Medium, key []byte) error {
 	if outputPath == "" {
 		return core.E(opCubePack, "output path is required", fs.ErrInvalid)
 	}
-
-	archiveBytes, err := archiveMediumToTar(source)
-	if err != nil {
-		return core.E(opCubePack, "failed to build archive", err)
+	if err := validateCubeKey(opCubePack, key); err != nil {
+		return err
 	}
 
-	cipherSigil, err := sigil.NewChaChaPolySigil(key, nil)
+	dataNode, err := archiveMediumToBorgDataNode(source)
 	if err != nil {
-		return core.E(opCubePack, errCreateCipher, err)
+		return core.E(opCubePack, "failed to build Borg DataNode", err)
 	}
-	ciphertext, err := sigil.Transmute(archiveBytes, []sigil.Sigil{cipherSigil})
+	ciphertext, err := borgtrix.ToTrixChaCha(dataNode, string(key))
 	if err != nil {
-		return core.E(opCubePack, "failed to encrypt archive", err)
+		return core.E(opCubePack, "failed to encode Borg Trix container", err)
 	}
 
 	localMedium, relativePath, err := sandboxedLocalForPath(opCubePack, outputPath)
@@ -304,16 +305,15 @@ func Unpack(cubePath string, destination coreio.Medium, key []byte) error {
 		return core.E(opCubeUnpack, core.Concat("failed to read cube: ", cubePath), err)
 	}
 
-	cipherSigil, err := sigil.NewChaChaPolySigil(key, nil)
-	if err != nil {
-		return core.E(opCubeUnpack, errCreateCipher, err)
+	if err := validateCubeKey(opCubeUnpack, key); err != nil {
+		return err
 	}
-	archiveBytes, err := sigil.Untransmute([]byte(ciphertext), []sigil.Sigil{cipherSigil})
+	dataNode, err := borgtrix.FromTrixChaCha([]byte(ciphertext), string(key))
 	if err != nil {
-		return core.E(opCubeUnpack, "failed to decrypt archive", err)
+		return core.E(opCubeUnpack, "failed to decode Borg Trix container", err)
 	}
 
-	return extractTarToMedium(archiveBytes, destination)
+	return writeBorgDataNodeToMedium(dataNode, destination)
 }
 
 // Example: medium, _ := cube.Open("app.cube", key)
@@ -336,20 +336,30 @@ func Open(cubePath string, key []byte) (coreio.Medium, error) {
 		return nil, core.E(opCubeOpen, core.Concat("failed to read cube: ", cubePath), err)
 	}
 
-	cipherSigil, err := sigil.NewChaChaPolySigil(key, nil)
-	if err != nil {
-		return nil, core.E(opCubeOpen, errCreateCipher, err)
+	if err := validateCubeKey(opCubeOpen, key); err != nil {
+		return nil, err
 	}
-	archiveBytes, err := sigil.Untransmute([]byte(ciphertext), []sigil.Sigil{cipherSigil})
+	dataNode, err := borgtrix.FromTrixChaCha([]byte(ciphertext), string(key))
 	if err != nil {
-		return nil, core.E(opCubeOpen, "failed to decrypt archive", err)
+		return nil, core.E(opCubeOpen, "failed to decode Borg Trix container", err)
 	}
 
-	nodeTree, err := node.FromTar(archiveBytes)
+	tarball, err := dataNode.ToTar()
 	if err != nil {
-		return nil, core.E(opCubeOpen, "failed to load archive", err)
+		return nil, core.E(opCubeOpen, "failed to serialize Borg DataNode", err)
 	}
-	return nodeTree, nil
+	medium, err := coredatanode.FromTar(tarball)
+	if err != nil {
+		return nil, core.E(opCubeOpen, "failed to load Borg DataNode", err)
+	}
+	return medium, nil
+}
+
+func validateCubeKey(operation string, key []byte) error {
+	if _, err := sigil.NewChaChaPolySigil(key, nil); err != nil {
+		return core.E(operation, errCreateCipher, err)
+	}
+	return nil
 }
 
 func sandboxedLocalForPath(operation, filePath string) (coreio.Medium, string, error) {
@@ -413,10 +423,95 @@ func walkAndArchive(source coreio.Medium, path string, tarWriter *tar.Writer) er
 }
 
 func archiveChildPath(parent, name string) string {
+	name = path.Clean(name)
+	name = core.TrimPrefix(name, "/")
+	if name == "." {
+		return parent
+	}
 	if parent == "" {
 		return name
 	}
-	return core.Concat(parent, "/", name)
+	if name == parent || core.HasPrefix(name, parent+"/") {
+		return name
+	}
+	return path.Join(parent, name)
+}
+
+func archiveMediumToBorgDataNode(source coreio.Medium) (*borgdatanode.DataNode, error) {
+	dataNode := borgdatanode.New()
+	if err := addMediumPathToBorgDataNode(source, "", dataNode); err != nil {
+		return nil, err
+	}
+	return dataNode, nil
+}
+
+func addMediumPathToBorgDataNode(source coreio.Medium, directoryPath string, dataNode *borgdatanode.DataNode) error {
+	entries, err := source.List(directoryPath)
+	if err != nil {
+		return core.E(opCubeArchive, core.Concat("failed to list: ", directoryPath), err)
+	}
+	for _, entry := range entries {
+		childPath := archiveChildPath(directoryPath, entry.Name())
+		if entry.IsDir() {
+			if err := addMediumPathToBorgDataNode(source, childPath, dataNode); err != nil {
+				return err
+			}
+			continue
+		}
+		content, err := source.Read(childPath)
+		if err != nil {
+			return core.E(opCubeArchive, core.Concat("failed to read: ", childPath), err)
+		}
+		dataNode.AddData(childPath, []byte(content))
+	}
+	return nil
+}
+
+func writeBorgDataNodeToMedium(dataNode *borgdatanode.DataNode, destination coreio.Medium) error {
+	if dataNode == nil {
+		return core.E(opCubeExtract, "Borg DataNode is required", fs.ErrInvalid)
+	}
+	return writeBorgDataNodeDir(dataNode, "", destination)
+}
+
+func writeBorgDataNodeDir(dataNode *borgdatanode.DataNode, directoryPath string, destination coreio.Medium) error {
+	entries, err := dataNode.ReadDir(directoryPath)
+	if err != nil {
+		return core.E(opCubeExtract, core.Concat("failed to list Borg DataNode: ", directoryPath), err)
+	}
+	for _, entry := range entries {
+		childPath := archiveChildPath(directoryPath, entry.Name())
+		if entry.IsDir() {
+			if err := writeBorgDataNodeDir(dataNode, childPath, destination); err != nil {
+				return err
+			}
+			continue
+		}
+		if err := writeBorgDataNodeFile(dataNode, childPath, destination); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func writeBorgDataNodeFile(dataNode *borgdatanode.DataNode, filePath string, destination coreio.Medium) error {
+	name, ok, err := validatedTarEntryName(filePath)
+	if err != nil || !ok {
+		return err
+	}
+	file, err := dataNode.Open(filePath)
+	if err != nil {
+		return core.E(opCubeExtract, core.Concat("failed to open Borg DataNode file: ", filePath), err)
+	}
+	defer file.Close()
+	content, err := goio.ReadAll(file)
+	if err != nil {
+		return core.E(opCubeExtract, core.Concat("failed to read Borg DataNode file: ", filePath), err)
+	}
+	if err := destination.WriteMode(name, string(content), 0644); err != nil {
+		return core.E(opCubeExtract, core.Concat("failed to write entry: ", name), err)
+	}
+	return nil
 }
 
 func writeTarFileEntry(source coreio.Medium, filePath string, tarWriter *tar.Writer) error {

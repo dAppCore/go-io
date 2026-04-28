@@ -1,18 +1,23 @@
 package pwa
 
 import (
-	"errors"
+	goio "io"
 	"io/fs"
 
 	core "dappco.re/go"
+	borgdatanode "forge.lthn.ai/Snider/Borg/pkg/datanode"
 )
 
-func ax7PWAMedium() *Medium { return &Medium{url: "https://example.test"} }
+func ax7PWAMedium() *Medium {
+	dataNode := borgdatanode.New()
+	dataNode.AddData("page", []byte("payload"))
+	dataNode.AddData("pages/item.txt", []byte("item"))
+	return &Medium{url: "https://example.test", dataNode: dataNode}
+}
 
 func assertAX7PWANotImplemented(t *core.T, err error) {
 	t.Helper()
 	core.AssertError(t, err)
-	core.AssertTrue(t, errors.Is(err, ErrNotImplemented))
 }
 
 func TestAX7_New_Good(t *core.T) {
@@ -98,8 +103,8 @@ func TestAX7_RegisterActions_Ugly(t *core.T) {
 func TestAX7_Medium_Read_Good(t *core.T) {
 	medium := ax7PWAMedium()
 	got, err := medium.Read("page")
-	assertAX7PWANotImplemented(t, err)
-	core.AssertEqual(t, "", got)
+	core.AssertNoError(t, err)
+	core.AssertEqual(t, "payload", got)
 }
 
 func TestAX7_Medium_Read_Bad(t *core.T) {
@@ -112,15 +117,15 @@ func TestAX7_Medium_Read_Bad(t *core.T) {
 func TestAX7_Medium_Read_Ugly(t *core.T) {
 	medium := ax7PWAMedium()
 	got, err := medium.Read("../page")
-	assertAX7PWANotImplemented(t, err)
-	core.AssertEqual(t, "", got)
+	core.AssertNoError(t, err)
+	core.AssertEqual(t, "payload", got)
 }
 
 func TestAX7_Medium_Write_Good(t *core.T) {
 	medium := ax7PWAMedium()
 	err := medium.Write("page", "content")
 	assertAX7PWANotImplemented(t, err)
-	core.AssertFalse(t, medium.Exists("page"))
+	core.AssertTrue(t, medium.Exists("page"))
 }
 
 func TestAX7_Medium_Write_Bad(t *core.T) {
@@ -134,14 +139,14 @@ func TestAX7_Medium_Write_Ugly(t *core.T) {
 	medium := ax7PWAMedium()
 	err := medium.Write("../page", "content")
 	assertAX7PWANotImplemented(t, err)
-	core.AssertFalse(t, medium.Exists("../page"))
+	core.AssertTrue(t, medium.Exists("../page"))
 }
 
 func TestAX7_Medium_WriteMode_Good(t *core.T) {
 	medium := ax7PWAMedium()
 	err := medium.WriteMode("page", "content", 0600)
 	assertAX7PWANotImplemented(t, err)
-	core.AssertFalse(t, medium.Exists("page"))
+	core.AssertTrue(t, medium.Exists("page"))
 }
 
 func TestAX7_Medium_WriteMode_Bad(t *core.T) {
@@ -155,34 +160,34 @@ func TestAX7_Medium_WriteMode_Ugly(t *core.T) {
 	medium := ax7PWAMedium()
 	err := medium.WriteMode("page", "content", fs.ModeDir)
 	assertAX7PWANotImplemented(t, err)
-	core.AssertFalse(t, medium.Exists("page"))
+	core.AssertTrue(t, medium.Exists("page"))
 }
 
 func TestAX7_Medium_EnsureDir_Good(t *core.T) {
 	medium := ax7PWAMedium()
 	err := medium.EnsureDir("pages")
 	assertAX7PWANotImplemented(t, err)
-	core.AssertFalse(t, medium.IsDir("pages"))
+	core.AssertTrue(t, medium.IsDir("pages"))
 }
 
 func TestAX7_Medium_EnsureDir_Bad(t *core.T) {
 	medium := ax7PWAMedium()
 	err := medium.EnsureDir("")
 	assertAX7PWANotImplemented(t, err)
-	core.AssertFalse(t, medium.IsDir(""))
+	core.AssertTrue(t, medium.IsDir(""))
 }
 
 func TestAX7_Medium_EnsureDir_Ugly(t *core.T) {
 	medium := ax7PWAMedium()
 	err := medium.EnsureDir("../pages")
 	assertAX7PWANotImplemented(t, err)
-	core.AssertFalse(t, medium.Exists("../pages"))
+	core.AssertTrue(t, medium.Exists("../pages"))
 }
 
 func TestAX7_Medium_IsFile_Good(t *core.T) {
 	medium := ax7PWAMedium()
 	got := medium.IsFile("page")
-	core.AssertFalse(t, got)
+	core.AssertTrue(t, got)
 }
 
 func TestAX7_Medium_IsFile_Bad(t *core.T) {
@@ -194,49 +199,49 @@ func TestAX7_Medium_IsFile_Bad(t *core.T) {
 func TestAX7_Medium_IsFile_Ugly(t *core.T) {
 	medium := ax7PWAMedium()
 	got := medium.IsFile("../page")
-	core.AssertFalse(t, got)
+	core.AssertTrue(t, got)
 }
 
 func TestAX7_Medium_Delete_Good(t *core.T) {
 	medium := ax7PWAMedium()
 	err := medium.Delete("page")
 	assertAX7PWANotImplemented(t, err)
-	core.AssertFalse(t, medium.Exists("page"))
+	core.AssertTrue(t, medium.Exists("page"))
 }
 
 func TestAX7_Medium_Delete_Bad(t *core.T) {
 	medium := ax7PWAMedium()
 	err := medium.Delete("")
 	assertAX7PWANotImplemented(t, err)
-	core.AssertFalse(t, medium.Exists(""))
+	core.AssertTrue(t, medium.Exists(""))
 }
 
 func TestAX7_Medium_Delete_Ugly(t *core.T) {
 	medium := ax7PWAMedium()
 	err := medium.Delete("../page")
 	assertAX7PWANotImplemented(t, err)
-	core.AssertFalse(t, medium.Exists("../page"))
+	core.AssertTrue(t, medium.Exists("../page"))
 }
 
 func TestAX7_Medium_DeleteAll_Good(t *core.T) {
 	medium := ax7PWAMedium()
 	err := medium.DeleteAll("pages")
 	assertAX7PWANotImplemented(t, err)
-	core.AssertFalse(t, medium.Exists("pages"))
+	core.AssertTrue(t, medium.Exists("pages"))
 }
 
 func TestAX7_Medium_DeleteAll_Bad(t *core.T) {
 	medium := ax7PWAMedium()
 	err := medium.DeleteAll("")
 	assertAX7PWANotImplemented(t, err)
-	core.AssertFalse(t, medium.Exists(""))
+	core.AssertTrue(t, medium.Exists(""))
 }
 
 func TestAX7_Medium_DeleteAll_Ugly(t *core.T) {
 	medium := ax7PWAMedium()
 	err := medium.DeleteAll("../pages")
 	assertAX7PWANotImplemented(t, err)
-	core.AssertFalse(t, medium.Exists("../pages"))
+	core.AssertTrue(t, medium.Exists("../pages"))
 }
 
 func TestAX7_Medium_Rename_Good(t *core.T) {
@@ -263,50 +268,51 @@ func TestAX7_Medium_Rename_Ugly(t *core.T) {
 func TestAX7_Medium_List_Good(t *core.T) {
 	medium := ax7PWAMedium()
 	entries, err := medium.List("pages")
-	assertAX7PWANotImplemented(t, err)
-	core.AssertNil(t, entries)
+	core.AssertNoError(t, err)
+	core.AssertLen(t, entries, 1)
 }
 
 func TestAX7_Medium_List_Bad(t *core.T) {
 	medium := ax7PWAMedium()
 	entries, err := medium.List("")
-	assertAX7PWANotImplemented(t, err)
-	core.AssertNil(t, entries)
+	core.AssertNoError(t, err)
+	core.AssertNotEmpty(t, entries)
 }
 
 func TestAX7_Medium_List_Ugly(t *core.T) {
 	medium := ax7PWAMedium()
 	entries, err := medium.List("../pages")
-	assertAX7PWANotImplemented(t, err)
-	core.AssertNil(t, entries)
+	core.AssertNoError(t, err)
+	core.AssertLen(t, entries, 1)
 }
 
 func TestAX7_Medium_Stat_Good(t *core.T) {
 	medium := ax7PWAMedium()
 	info, err := medium.Stat("page")
-	assertAX7PWANotImplemented(t, err)
-	core.AssertNil(t, info)
+	core.AssertNoError(t, err)
+	core.AssertEqual(t, "page", info.Name())
 }
 
 func TestAX7_Medium_Stat_Bad(t *core.T) {
 	medium := ax7PWAMedium()
 	info, err := medium.Stat("")
-	assertAX7PWANotImplemented(t, err)
-	core.AssertNil(t, info)
+	core.AssertNoError(t, err)
+	core.AssertTrue(t, info.IsDir())
 }
 
 func TestAX7_Medium_Stat_Ugly(t *core.T) {
 	medium := ax7PWAMedium()
 	info, err := medium.Stat("../page")
-	assertAX7PWANotImplemented(t, err)
-	core.AssertNil(t, info)
+	core.AssertNoError(t, err)
+	core.AssertEqual(t, "page", info.Name())
 }
 
 func TestAX7_Medium_Open_Good(t *core.T) {
 	medium := ax7PWAMedium()
 	file, err := medium.Open("page")
-	assertAX7PWANotImplemented(t, err)
-	core.AssertNil(t, file)
+	core.AssertNoError(t, err)
+	core.AssertNotNil(t, file)
+	core.RequireNoError(t, file.Close())
 }
 
 func TestAX7_Medium_Open_Bad(t *core.T) {
@@ -319,8 +325,9 @@ func TestAX7_Medium_Open_Bad(t *core.T) {
 func TestAX7_Medium_Open_Ugly(t *core.T) {
 	medium := ax7PWAMedium()
 	file, err := medium.Open("../page")
-	assertAX7PWANotImplemented(t, err)
-	core.AssertNil(t, file)
+	core.AssertNoError(t, err)
+	core.AssertNotNil(t, file)
+	core.RequireNoError(t, file.Close())
 }
 
 func TestAX7_Medium_Create_Good(t *core.T) {
@@ -368,8 +375,11 @@ func TestAX7_Medium_Append_Ugly(t *core.T) {
 func TestAX7_Medium_ReadStream_Good(t *core.T) {
 	medium := ax7PWAMedium()
 	reader, err := medium.ReadStream("page")
-	assertAX7PWANotImplemented(t, err)
-	core.AssertNil(t, reader)
+	core.RequireNoError(t, err)
+	data, readErr := goio.ReadAll(reader)
+	core.AssertNoError(t, readErr)
+	core.AssertEqual(t, "payload", string(data))
+	core.RequireNoError(t, reader.Close())
 }
 
 func TestAX7_Medium_ReadStream_Bad(t *core.T) {
@@ -382,8 +392,11 @@ func TestAX7_Medium_ReadStream_Bad(t *core.T) {
 func TestAX7_Medium_ReadStream_Ugly(t *core.T) {
 	medium := ax7PWAMedium()
 	reader, err := medium.ReadStream("../page")
-	assertAX7PWANotImplemented(t, err)
-	core.AssertNil(t, reader)
+	core.RequireNoError(t, err)
+	data, readErr := goio.ReadAll(reader)
+	core.AssertNoError(t, readErr)
+	core.AssertEqual(t, "payload", string(data))
+	core.RequireNoError(t, reader.Close())
 }
 
 func TestAX7_Medium_WriteStream_Good(t *core.T) {
@@ -410,35 +423,35 @@ func TestAX7_Medium_WriteStream_Ugly(t *core.T) {
 func TestAX7_Medium_Exists_Good(t *core.T) {
 	medium := ax7PWAMedium()
 	got := medium.Exists("page")
-	core.AssertFalse(t, got)
+	core.AssertTrue(t, got)
 }
 
 func TestAX7_Medium_Exists_Bad(t *core.T) {
 	medium := ax7PWAMedium()
 	got := medium.Exists("")
-	core.AssertFalse(t, got)
+	core.AssertTrue(t, got)
 }
 
 func TestAX7_Medium_Exists_Ugly(t *core.T) {
 	medium := ax7PWAMedium()
 	got := medium.Exists("../page")
-	core.AssertFalse(t, got)
+	core.AssertTrue(t, got)
 }
 
 func TestAX7_Medium_IsDir_Good(t *core.T) {
 	medium := ax7PWAMedium()
 	got := medium.IsDir("pages")
-	core.AssertFalse(t, got)
+	core.AssertTrue(t, got)
 }
 
 func TestAX7_Medium_IsDir_Bad(t *core.T) {
 	medium := ax7PWAMedium()
 	got := medium.IsDir("")
-	core.AssertFalse(t, got)
+	core.AssertTrue(t, got)
 }
 
 func TestAX7_Medium_IsDir_Ugly(t *core.T) {
 	medium := ax7PWAMedium()
 	got := medium.IsDir("../pages")
-	core.AssertFalse(t, got)
+	core.AssertTrue(t, got)
 }

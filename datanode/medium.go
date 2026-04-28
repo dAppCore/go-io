@@ -31,6 +31,7 @@ var (
 )
 
 var _ coreio.Medium = (*Medium)(nil)
+var _ fs.FS = (*Medium)(nil)
 
 // Example: medium := datanode.New()
 // Example: _ = medium.Write("jobs/run.log", "started")

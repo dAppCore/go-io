@@ -54,6 +54,7 @@ type Medium struct {
 }
 
 var _ coreio.Medium = (*Medium)(nil)
+var _ fs.FS = (*Medium)(nil)
 
 // Options configures a WebDAV Medium.
 type Options struct {

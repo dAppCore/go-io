@@ -45,15 +45,19 @@ func RegisterActions(c *core.Core) {
 	c.Action(ActionWrite, writeAction)
 }
 
-func mediumFromOptions(opts core.Options) *Medium {
+func mediumFromOptions(opts core.Options) (*Medium, error) {
 	if medium, ok := opts.Get("medium").Value.(*Medium); ok {
-		return medium
+		return medium, nil
 	}
-	return &Medium{url: opts.String("url")}
+	return New(Options{URL: opts.String("url")})
 }
 
 func readAction(_ context.Context, opts core.Options) core.Result {
-	content, err := mediumFromOptions(opts).Read(opts.String("path"))
+	medium, err := mediumFromOptions(opts)
+	if err != nil {
+		return core.Fail(err)
+	}
+	content, err := medium.Read(opts.String("path"))
 	if err != nil {
 		return core.Fail(err)
 	}
@@ -61,19 +65,22 @@ func readAction(_ context.Context, opts core.Options) core.Result {
 }
 
 func scrapeAction(_ context.Context, opts core.Options) core.Result {
-	target := opts.String("url")
-	if target == "" {
-		target = opts.String("path")
-	}
-	content, err := mediumFromOptions(opts).Read(target)
+	medium, err := mediumFromOptions(opts)
 	if err != nil {
 		return core.Fail(err)
 	}
-	return core.Ok(content)
+	if _, err := medium.ensureDataNode(); err != nil {
+		return core.Fail(err)
+	}
+	return core.Ok(medium)
 }
 
 func listAction(_ context.Context, opts core.Options) core.Result {
-	entries, err := mediumFromOptions(opts).List(opts.String("path"))
+	medium, err := mediumFromOptions(opts)
+	if err != nil {
+		return core.Fail(err)
+	}
+	entries, err := medium.List(opts.String("path"))
 	if err != nil {
 		return core.Fail(err)
 	}
@@ -81,7 +88,11 @@ func listAction(_ context.Context, opts core.Options) core.Result {
 }
 
 func writeAction(_ context.Context, opts core.Options) core.Result {
-	if err := mediumFromOptions(opts).Write(opts.String("path"), opts.String("content")); err != nil {
+	medium, err := mediumFromOptions(opts)
+	if err != nil {
+		return core.Fail(err)
+	}
+	if err := medium.Write(opts.String("path"), opts.String("content")); err != nil {
 		return core.Fail(err)
 	}
 	return core.Ok(nil)

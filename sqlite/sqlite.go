@@ -22,6 +22,7 @@ type Medium struct {
 }
 
 var _ coreio.Medium = (*Medium)(nil)
+var _ fs.FS = (*Medium)(nil)
 
 // Example: medium, _ := sqlite.New(sqlite.Options{Path: ":memory:", Table: "files"})
 type Options struct {
