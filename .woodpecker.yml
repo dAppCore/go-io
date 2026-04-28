@@ -8,32 +8,17 @@
 # Secrets are admin-scoped (Woodpecker → Admin → Secrets):
 #   sonar_token  — SonarQube auth token (cerberus identity)
 #
-# extra_hosts repeats on every step because lthn.sh is a private 10.x
-# address with no public A record; Woodpecker job containers need
-# explicit /etc/hosts entries to resolve forge.lthn.sh, ci.lthn.sh and
-# sonar.lthn.sh.
+# *.lthn.sh resolution comes from the host /etc/hosts entries
+# (playbooks/homelab/etc-hosts.yml in DevOps). Job containers inherit
+# Docker daemon DNS on lthn.sh.
 
 when:
   - event: push
     branch: [dev, main]
 
-clone:
-  - name: clone
-    image: woodpeckerci/plugin-git
-    extra_hosts:
-      - "forge.lthn.sh:10.69.69.165"
-      - "ci.lthn.sh:10.69.69.165"
-      - "sonar.lthn.sh:10.69.69.165"
-      - "lthn.sh:10.69.69.165"
-
 steps:
   - name: golangci-lint
     image: golangci/golangci-lint:latest-alpine
-    extra_hosts:
-      - "forge.lthn.sh:10.69.69.165"
-      - "ci.lthn.sh:10.69.69.165"
-      - "sonar.lthn.sh:10.69.69.165"
-      - "lthn.sh:10.69.69.165"
     environment:
       GOFLAGS: -buildvcs=false
       GOWORK: "off"
@@ -42,11 +27,6 @@ steps:
 
   - name: sonar
     image: ghcr.io/j04n-f/sonar-plugin:go
-    extra_hosts:
-      - "forge.lthn.sh:10.69.69.165"
-      - "ci.lthn.sh:10.69.69.165"
-      - "sonar.lthn.sh:10.69.69.165"
-      - "lthn.sh:10.69.69.165"
     settings:
       sonar_token:
         from_secret: sonar_token
