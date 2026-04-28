@@ -1,14 +1,6 @@
-# Woodpecker CI pipeline for core/go-io.
-# Server: ci.lthn.sh (homelab). Agent: same host, Docker backend.
-#
-# Steps (all depend only on clone — run in parallel where possible):
-#   1. golangci-lint  — static analysis on all packages
-#   2. go-test        — race + coverage; writes coverage.out
-#   3. sonar          — code-quality scan against sonar.lthn.sh
-#                       (depends_on: go-test so coverage.out is present)
-#
-# Secrets are admin-scoped (Woodpecker → Admin → Secrets):
-#   sonar_token  — SonarQube auth token (cerberus identity)
+# Woodpecker CI pipeline.
+# Server: ci.lthn.sh. Lint + sonar in parallel, both depend only on clone.
+# sonar_token is admin-scoped on the Woodpecker server.
 
 when:
   - event: push
@@ -34,7 +26,6 @@ steps:
     commands:
       - apk add --no-cache git build-base
       - go test -race -coverprofile=coverage.out -covermode=atomic -count=1 ./...
-
   - name: sonar
     image: sonarsource/sonar-scanner-cli:latest
     depends_on: [go-test]
