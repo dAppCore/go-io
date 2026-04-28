@@ -12,6 +12,11 @@
 # *.lthn.sh resolution comes from coredns on lthn.sh (db hosts.lthn.sh)
 # + Docker daemon dns config; job containers inherit the resolution
 # automatically.
+#
+# Sonar runs the official sonar-scanner-cli image directly rather than
+# a Woodpecker plugin — sonar.lthn.sh is the Community Build, which
+# does not allow sonar.branch.name. The raw scanner respects only the
+# settings we pass + sonar-project.properties.
 
 when:
   - event: push
@@ -28,11 +33,11 @@ steps:
       - golangci-lint run --timeout=5m ./...
 
   - name: sonar
-    image: ghcr.io/j04n-f/sonar-plugin:go
+    image: sonarsource/sonar-scanner-cli:latest
     depends_on: []
-    settings:
-      sonar_token:
+    environment:
+      SONAR_HOST_URL: https://sonar.lthn.sh
+      SONAR_TOKEN:
         from_secret: sonar_token
-      sonar_url: https://sonar.lthn.sh
-      sonar_project_key: core_go-io
-      sonar_project_name: core/go-io
+    commands:
+      - sonar-scanner
