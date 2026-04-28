@@ -109,7 +109,7 @@ func resolveSymlinksRecursive(path string, seen map[string]struct{}) (string, er
 			}
 			return "", err
 		}
-		if !isSymlink(info.Mode) {
+		if !isSymlink(uint32(info.Mode)) {
 			current = next
 			continue
 		}
@@ -413,8 +413,11 @@ func lstat(path string) (*syscall.Stat_t, error) {
 	return info, nil
 }
 
-func isSymlink(mode uint16) bool {
-	return uint32(mode)&syscall.S_IFMT == syscall.S_IFLNK
+// isSymlink reports whether the stat mode bits represent a symlink.
+// Caller widens to uint32 because syscall.Stat_t.Mode is uint16 on
+// macOS but uint32 on Linux — accept the wider type, callers cast.
+func isSymlink(mode uint32) bool {
+	return mode&syscall.S_IFMT == syscall.S_IFLNK
 }
 
 func readlink(path string) (string, error) {
