@@ -1,0 +1,31 @@
+# Woodpecker CI pipeline for core/go-io.
+# Server: ci.lthn.sh (homelab). Agent: same host, Docker backend.
+#
+# Pipeline runs on every push to dev or main. Two stages, parallel:
+#   1. golangci-lint — static analysis on all packages
+#   2. sonar — code-quality scan against sonar.lthn.sh
+#
+# Secrets are admin-scoped (Woodpecker → Admin → Secrets):
+#   sonar_token  — SonarQube auth token (cerberus identity)
+
+when:
+  - event: push
+    branch: [dev, main]
+
+steps:
+  - name: golangci-lint
+    image: golangci/golangci-lint:latest-alpine
+    environment:
+      GOFLAGS: -buildvcs=false
+      GOWORK: "off"
+    commands:
+      - golangci-lint run --timeout=5m ./...
+
+  - name: sonar
+    image: ghcr.io/j04n-f/sonar-plugin:go
+    settings:
+      sonar_token:
+        from_secret: sonar_token
+      sonar_url: https://sonar.lthn.sh
+      sonar_project_key: core_go-io
+      sonar_project_name: core/go-io
