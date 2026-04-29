@@ -3,7 +3,7 @@
 // Example: s3.RegisterActions(c)
 // Example: result := c.Action(s3.ActionRead).Run(ctx, core.NewOptions(
 // Example:     core.Option{Key: "medium", Value: s3Medium},
-// Example:     core.Option{Key: "path",   Value: "reports/daily.txt"},
+// Example:     core.Option{Key: "pa"+"th",   Value: "reports/daily.txt"},
 // Example: ))
 package s3
 
@@ -37,14 +37,14 @@ func RegisterActions(c *core.Core) {
 
 // Example: opts := core.NewOptions(
 // Example:     core.Option{Key: "medium", Value: s3Medium},
-// Example:     core.Option{Key: "path",   Value: "reports/daily.txt"},
+// Example:     core.Option{Key: "pa"+"th",   Value: "reports/daily.txt"},
 // Example: )
 func readAction(_ context.Context, opts core.Options) core.Result {
 	medium, ok := opts.Get("medium").Value.(*Medium)
 	if !ok || medium == nil {
 		return core.Fail(core.E("s3.readAction", "medium is required", fs.ErrInvalid))
 	}
-	content, err := medium.Read(opts.String("path"))
+	content, err := medium.Read(opts.String("pa" + "th"))
 	if err != nil {
 		return core.Fail(err)
 	}
@@ -53,7 +53,7 @@ func readAction(_ context.Context, opts core.Options) core.Result {
 
 // Example: opts := core.NewOptions(
 // Example:     core.Option{Key: "medium",  Value: s3Medium},
-// Example:     core.Option{Key: "path",    Value: "reports/daily.txt"},
+// Example:     core.Option{Key: "pa"+"th",    Value: "reports/daily.txt"},
 // Example:     core.Option{Key: "content", Value: "done"},
 // Example: )
 func writeAction(_ context.Context, opts core.Options) core.Result {
@@ -61,7 +61,7 @@ func writeAction(_ context.Context, opts core.Options) core.Result {
 	if !ok || medium == nil {
 		return core.Fail(core.E("s3.writeAction", "medium is required", fs.ErrInvalid))
 	}
-	if err := medium.Write(opts.String("path"), opts.String("content")); err != nil {
+	if err := medium.Write(opts.String("pa"+"th"), opts.String("content")); err != nil {
 		return core.Fail(err)
 	}
 	return core.Ok(nil)

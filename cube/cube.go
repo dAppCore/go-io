@@ -8,7 +8,6 @@ import (
 	"archive/tar" // AX-6-exception: tar archive transport has no core equivalent.
 	goio "io"     // AX-6-exception: io interface types have no core equivalent; io.EOF preserves stream semantics.
 	"io/fs"       // AX-6-exception: fs interface types have no core equivalent.
-	"path"        // AX-6-exception: tar entry names use slash-separated paths.
 	"time"        // AX-6-exception: filesystem metadata timestamps have no core equivalent.
 
 	core "dappco.re/go"
@@ -423,7 +422,7 @@ func walkAndArchive(source coreio.Medium, path string, tarWriter *tar.Writer) er
 }
 
 func archiveChildPath(parent, name string) string {
-	name = path.Clean(name)
+	name = core.CleanPath(name, "/")
 	name = core.TrimPrefix(name, "/")
 	if name == "." {
 		return parent
@@ -434,7 +433,7 @@ func archiveChildPath(parent, name string) string {
 	if name == parent || core.HasPrefix(name, parent+"/") {
 		return name
 	}
-	return path.Join(parent, name)
+	return core.PathJoin(parent, name)
 }
 
 func archiveMediumToBorgDataNode(source coreio.Medium) (*borgdatanode.DataNode, error) {
@@ -600,7 +599,7 @@ func validatedTarEntryName(rawName string) (string, bool, error) {
 	if rawName == "" {
 		return "", false, nil
 	}
-	if path.IsAbs(rawName) || core.Contains(rawName, "\\") {
+	if core.HasPrefix(rawName, "/") || core.Contains(rawName, "\\") {
 		return "", false, core.E(opCubeExtract, core.Concat("invalid tar entry path: ", rawName), fs.ErrInvalid)
 	}
 	name := core.TrimPrefix(rawName, "/")
@@ -610,7 +609,7 @@ func validatedTarEntryName(rawName string) (string, bool, error) {
 	if hasParentPathSegment(name) {
 		return "", false, core.E(opCubeExtract, core.Concat("invalid tar entry path: ", name), fs.ErrInvalid)
 	}
-	clean := path.Clean(name)
+	clean := core.CleanPath(name, "/")
 	if clean == "." || clean == "" || clean == ".." || core.HasPrefix(clean, "../") {
 		return "", false, core.E(opCubeExtract, core.Concat("invalid tar entry path: ", name), fs.ErrInvalid)
 	}

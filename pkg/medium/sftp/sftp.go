@@ -4,10 +4,7 @@ import (
 	"cmp"
 	goio "io"
 	"io/fs"
-	"os"
-	"path"
 	"slices"
-	"strings"
 
 	core "dappco.re/go"
 	coreio "dappco.re/go/io"
@@ -133,7 +130,7 @@ func sshConfig(options Options) (*ssh.ClientConfig, error) {
 }
 
 func normaliseRoot(root string) string {
-	clean := path.Clean("/" + root)
+	clean := core.CleanPath("/"+root, "/")
 	if clean == "." || clean == "" {
 		return "/"
 	}
@@ -141,11 +138,11 @@ func normaliseRoot(root string) string {
 }
 
 func cleanRelative(filePath string) string {
-	clean := path.Clean("/" + strings.ReplaceAll(filePath, "\\", "/"))
+	clean := core.CleanPath("/"+core.Replace(filePath, "\\", "/"), "/")
 	if clean == "/" {
 		return ""
 	}
-	return strings.TrimPrefix(clean, "/")
+	return core.TrimPrefix(clean, "/")
 }
 
 func (medium *Medium) remotePath(filePath string) string {
@@ -156,7 +153,7 @@ func (medium *Medium) remotePath(filePath string) string {
 	if medium.root == "/" {
 		return "/" + relative
 	}
-	return path.Join(medium.root, relative)
+	return core.PathJoin(medium.root, relative)
 }
 
 func (medium *Medium) requiredRemotePath(operation, filePath string) (string, error) {
@@ -167,7 +164,7 @@ func (medium *Medium) requiredRemotePath(operation, filePath string) (string, er
 }
 
 func (medium *Medium) ensureParent(remotePath string) error {
-	parent := path.Dir(remotePath)
+	parent := core.PathDir(remotePath)
 	if parent == "." || parent == "/" {
 		return nil
 	}
@@ -223,7 +220,7 @@ func (medium *Medium) WriteMode(filePath, content string, mode fs.FileMode) erro
 		return core.E(opWriteMode, core.Concat(errCreateParentFailed, remotePath), err)
 	}
 
-	file, err := medium.client.OpenFile(remotePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC)
+	file, err := medium.client.OpenFile(remotePath, core.O_WRONLY|core.O_CREATE|core.O_TRUNC)
 	if err != nil {
 		return core.E(opWriteMode, core.Concat(errOpenFailed, remotePath), err)
 	}
@@ -235,7 +232,7 @@ func (medium *Medium) WriteMode(filePath, content string, mode fs.FileMode) erro
 		return core.E(opWriteMode, core.Concat("close failed: ", remotePath), closeErr)
 	}
 	if mode != 0 {
-		if err := medium.client.Chmod(remotePath, os.FileMode(mode)); err != nil {
+		if err := medium.client.Chmod(remotePath, core.FileMode(mode)); err != nil {
 			return core.E(opWriteMode, core.Concat("chmod failed: ", remotePath), err)
 		}
 	}
@@ -359,7 +356,7 @@ func (medium *Medium) Create(filePath string) (goio.WriteCloser, error) {
 	if err := medium.ensureParent(remotePath); err != nil {
 		return nil, core.E(opCreate, core.Concat(errCreateParentFailed, remotePath), err)
 	}
-	file, err := medium.client.OpenFile(remotePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC)
+	file, err := medium.client.OpenFile(remotePath, core.O_WRONLY|core.O_CREATE|core.O_TRUNC)
 	if err != nil {
 		return nil, core.E(opCreate, core.Concat(errOpenFailed, remotePath), err)
 	}
@@ -375,7 +372,7 @@ func (medium *Medium) Append(filePath string) (goio.WriteCloser, error) {
 	if err := medium.ensureParent(remotePath); err != nil {
 		return nil, core.E(opAppend, core.Concat(errCreateParentFailed, remotePath), err)
 	}
-	file, err := medium.client.OpenFile(remotePath, os.O_WRONLY|os.O_CREATE|os.O_APPEND)
+	file, err := medium.client.OpenFile(remotePath, core.O_WRONLY|core.O_CREATE|core.O_APPEND)
 	if err != nil {
 		return nil, core.E(opAppend, core.Concat(errOpenFailed, remotePath), err)
 	}

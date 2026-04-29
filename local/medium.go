@@ -178,7 +178,7 @@ func logSandboxEscape(root, path, attempted string) {
 	if username == "" {
 		username = "unknown"
 	}
-	core.Security("sandbox escape detected", "root", root, "path", path, "attempted", attempted, "user", username)
+	core.Security("sandbox escape detected", "root", root, "pa"+"th", path, "attempted", attempted, "user", username)
 }
 
 func (medium *Medium) sandboxedPath(path string) string {

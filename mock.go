@@ -3,11 +3,10 @@
 package io
 
 import (
-	"bytes"
 	"cmp"
+	core "dappco.re/go"
 	goio "io"
 	"io/fs"
-	pathpkg "path"
 	"slices"
 	"sync" // Note: AX-6 — internal concurrency primitive; structural per RFC §5.1
 	"time"
@@ -223,10 +222,10 @@ func (m *MockMedium) Stat(path string) (fs.FileInfo, error) {
 	defer m.mu.RUnlock()
 	if content, ok := m.Files[path]; ok {
 		mt := m.meta[path]
-		return NewFileInfo(pathpkg.Base(path), int64(len(content)), mt.mode, mt.modTime, false), nil
+		return NewFileInfo(core.PathBase(path), int64(len(content)), mt.mode, mt.modTime, false), nil
 	}
 	if m.dirs[path] {
-		return NewFileInfo(pathpkg.Base(path), 0, 0755, time.Now(), true), nil
+		return NewFileInfo(core.PathBase(path), 0, 0755, time.Now(), true), nil
 	}
 	return nil, fs.ErrNotExist
 }
@@ -239,7 +238,7 @@ func (m *MockMedium) Open(path string) (fs.File, error) {
 		return nil, fs.ErrNotExist
 	}
 	mt := m.meta[path]
-	return &MockFile{Reader: bytes.NewReader([]byte(content)), info: NewFileInfo(pathpkg.Base(path), int64(len(content)), mt.mode, mt.modTime, false)}, nil
+	return &MockFile{reader: core.NewReader(content), info: NewFileInfo(core.PathBase(path), int64(len(content)), mt.mode, mt.modTime, false)}, nil
 }
 
 func (m *MockMedium) Create(path string) (goio.WriteCloser, error) {
@@ -250,7 +249,7 @@ func (m *MockMedium) Append(path string) (goio.WriteCloser, error) {
 	m.mu.RLock()
 	existing := m.Files[path]
 	m.mu.RUnlock()
-	return &MockWriteCloser{medium: m, path: path, buf: *bytes.NewBufferString(existing)}, nil
+	return &MockWriteCloser{medium: m, path: path, data: []byte(existing)}, nil
 }
 
 func (m *MockMedium) ReadStream(path string) (goio.ReadCloser, error) {
@@ -260,7 +259,7 @@ func (m *MockMedium) ReadStream(path string) (goio.ReadCloser, error) {
 	if !ok {
 		return nil, fs.ErrNotExist
 	}
-	return goio.NopCloser(bytes.NewReader([]byte(f))), nil
+	return goio.NopCloser(core.NewReader(f)), nil
 }
 
 func (m *MockMedium) WriteStream(path string) (goio.WriteCloser, error) {
@@ -287,10 +286,11 @@ func (m *MockMedium) IsDir(path string) bool {
 //	file, _ := mock.Open("config/app.yaml")
 //	defer file.Close()
 type MockFile struct {
-	*bytes.Reader
-	info fs.FileInfo
+	reader goio.Reader
+	info   fs.FileInfo
 }
 
+func (f *MockFile) Read(p []byte) (int, error) { return f.reader.Read(p) }
 func (f *MockFile) Stat() (fs.FileInfo, error) { return f.info, nil }
 func (f *MockFile) Close() error               { return nil }
 
@@ -305,11 +305,14 @@ func (f *MockFile) Close() error               { return nil }
 type MockWriteCloser struct {
 	medium *MockMedium
 	path   string
-	buf    bytes.Buffer
+	data   []byte
 }
 
-func (w *MockWriteCloser) Write(p []byte) (int, error) { return w.buf.Write(p) }
+func (w *MockWriteCloser) Write(p []byte) (int, error) {
+	w.data = append(w.data, p...)
+	return len(p), nil
+}
 
 func (w *MockWriteCloser) Close() error {
-	return w.medium.Write(w.path, w.buf.String())
+	return w.medium.Write(w.path, string(w.data))
 }

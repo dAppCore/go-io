@@ -1,17 +1,12 @@
 package github
 
 import (
-	"bytes"
 	"context"
-	"errors"
-	"fmt"
 	goio "io"
 	"io/fs"
 	"net/http"
 	"net/url"
-	"path"
 	"slices"
-	"strings"
 	"time"
 
 	core "dappco.re/go"
@@ -23,7 +18,7 @@ import (
 )
 
 // ErrReadOnly is returned by all mutating operations on a GitHub Medium.
-var ErrReadOnly = errors.New("github medium is read-only")
+var ErrReadOnly = core.NewError("github medium is read-only")
 
 const (
 	opNew   = "github.New"
@@ -62,11 +57,11 @@ type Options struct {
 
 // New creates a GitHub Medium.
 func New(options Options) (*Medium, error) {
-	owner := strings.TrimSpace(options.Owner)
+	owner := core.Trim(options.Owner)
 	if owner == "" {
 		return nil, core.E(opNew, "owner is required", fs.ErrInvalid)
 	}
-	repo := strings.TrimSpace(options.Repo)
+	repo := core.Trim(options.Repo)
 	if repo == "" {
 		return nil, core.E(opNew, "repo is required", fs.ErrInvalid)
 	}
@@ -89,9 +84,9 @@ func New(options Options) (*Medium, error) {
 		}
 	}
 
-	ref := strings.TrimSpace(options.Ref)
+	ref := core.Trim(options.Ref)
 	if ref == "" {
-		ref = strings.TrimSpace(options.Branch)
+		ref = core.Trim(options.Branch)
 	}
 
 	return &Medium{
@@ -99,18 +94,18 @@ func New(options Options) (*Medium, error) {
 		owner:   owner,
 		repo:    repo,
 		ref:     ref,
-		baseURL: strings.TrimSpace(options.BaseURL),
+		baseURL: core.Trim(options.BaseURL),
 	}, nil
 }
 
 func tokenFromEnvironment(tokenFile string) string {
-	if token := strings.TrimSpace(core.Env("GITHUB_TOKEN")); token != "" {
+	if token := core.Trim(core.Env("GITHUB_TOKEN")); token != "" {
 		return token
 	}
 	if tokenFile == "" {
-		home := strings.TrimSpace(core.Env("HOME"))
+		home := core.Trim(core.Env("HOME"))
 		if home == "" {
-			home = strings.TrimSpace(core.Env("DIR_HOME"))
+			home = core.Trim(core.Env("DIR_HOME"))
 		}
 		if home == "" {
 			return ""
@@ -126,7 +121,7 @@ func tokenFromEnvironment(tokenFile string) string {
 	if err != nil {
 		return ""
 	}
-	return strings.TrimSpace(data)
+	return core.Trim(data)
 }
 
 func tokenFileMedium(tokenFile string) (coreio.Medium, string, error) {
@@ -141,6 +136,16 @@ func tokenFileMedium(tokenFile string) (coreio.Medium, string, error) {
 	}
 	medium, err := coreio.NewSandboxed(".")
 	return medium, tokenFile, err
+}
+
+func compareNames(left, right string) int {
+	if left < right {
+		return -1
+	}
+	if left > right {
+		return 1
+	}
+	return 0
 }
 
 func oauthClient(client *http.Client, token string) *http.Client {
@@ -167,7 +172,7 @@ func setClientBaseURL(client *gh.Client, baseURL string) error {
 	if parsed.Scheme == "" || parsed.Host == "" {
 		return fs.ErrInvalid
 	}
-	if !strings.HasSuffix(parsed.Path, "/") {
+	if !core.HasSuffix(parsed.Path, "/") {
 		parsed.Path += "/"
 	}
 	client.BaseURL = parsed
@@ -175,11 +180,11 @@ func setClientBaseURL(client *gh.Client, baseURL string) error {
 }
 
 func cleanRelative(filePath string) string {
-	clean := path.Clean("/" + strings.ReplaceAll(filePath, "\\", "/"))
+	clean := core.CleanPath("/"+core.Replace(filePath, "\\", "/"), "/")
 	if clean == "/" {
 		return ""
 	}
-	return strings.TrimPrefix(clean, "/")
+	return core.TrimPrefix(clean, "/")
 }
 
 func requiredPath(operation, filePath string) (string, error) {
@@ -215,12 +220,12 @@ func wrapGitHubError(operation, filePath string, err error) error {
 	if err == nil {
 		return nil
 	}
-	if errors.Is(err, gh.ErrPathForbidden) {
+	if core.Is(err, gh.ErrPathForbidden) {
 		return core.E(operation, core.Concat("path is invalid: ", filePath), fs.ErrInvalid)
 	}
 
 	var responseError *gh.ErrorResponse
-	if errors.As(err, &responseError) && responseError.Response != nil {
+	if core.As(err, &responseError) && responseError.Response != nil {
 		switch responseError.Response.StatusCode {
 		case http.StatusNotFound:
 			return core.E(operation, core.Concat(errNotFound, filePath), fs.ErrNotExist)
@@ -247,7 +252,7 @@ func fileInfoForContent(content *gh.RepositoryContent, name string) coreio.FileI
 }
 
 func dirInfoForPath(filePath string) coreio.FileInfo {
-	name := path.Base(filePath)
+	name := core.PathBase(filePath)
 	if name == "." || name == "/" || name == "" {
 		name = "."
 	}
@@ -325,7 +330,7 @@ func (medium *Medium) List(filePath string) ([]fs.DirEntry, error) {
 		return nil, err
 	}
 	slices.SortFunc(entries, func(a, b fs.DirEntry) int {
-		return strings.Compare(a.Name(), b.Name())
+		return compareNames(a.Name(), b.Name())
 	})
 	return entries, nil
 }
@@ -380,7 +385,7 @@ func (medium *Medium) Stat(filePath string) (fs.FileInfo, error) {
 	if directoryContent != nil || fileContent.GetType() == "dir" {
 		return dirInfoForPath(clean), nil
 	}
-	return fileInfoForContent(fileContent, path.Base(clean)), nil
+	return fileInfoForContent(fileContent, core.PathBase(clean)), nil
 }
 
 // Open opens a repository file for reading.
@@ -417,7 +422,7 @@ func (medium *Medium) ReadStream(filePath string) (goio.ReadCloser, error) {
 	if err != nil {
 		return nil, err
 	}
-	return goio.NopCloser(strings.NewReader(content)), nil
+	return goio.NopCloser(core.NewReader(content)), nil
 }
 
 // WriteStream returns ErrReadOnly because GitHub Medium is read-only.
@@ -468,7 +473,7 @@ func (medium *Medium) cloneWithBorg(filePath string) (map[string]string, error) 
 }
 
 func (medium *Medium) borgCloneURL() string {
-	return fmt.Sprintf("https://github.com/%s/%s.git", medium.owner, medium.repo)
+	return core.Sprintf("https://github.com/%s/%s.git", medium.owner, medium.repo)
 }
 
 func collectBorgDataNodeContents(dataNode *borgdatanode.DataNode, clean string) (map[string]string, error) {
@@ -504,7 +509,7 @@ func collectBorgDataNodeDir(dataNode *borgdatanode.DataNode, dirPath string, con
 	for _, entry := range entries {
 		childPath := entry.Name()
 		if dirPath != "" {
-			childPath = path.Join(dirPath, childPath)
+			childPath = core.PathJoin(dirPath, childPath)
 		}
 		if entry.IsDir() {
 			if err := collectBorgDataNodeDir(dataNode, childPath, contents); err != nil {
@@ -587,7 +592,7 @@ func (file *githubFile) Read(data []byte) (int, error) {
 	if file.closed {
 		return 0, fs.ErrClosed
 	}
-	reader := bytes.NewReader(file.content)
+	reader := core.NewReader(string(file.content))
 	if _, err := reader.Seek(file.offset, goio.SeekStart); err != nil {
 		return 0, err
 	}
@@ -602,5 +607,5 @@ func (file *githubFile) Close() error {
 }
 
 func (file *githubFile) String() string {
-	return fmt.Sprintf("githubFile(%s)", file.name)
+	return core.Sprintf("githubFile(%s)", file.name)
 }

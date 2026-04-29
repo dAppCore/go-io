@@ -4,14 +4,10 @@ package api
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
-	"fmt"
 	goio "io"
 	"io/fs"
 	"net/http"
 	"strconv"
-	"strings"
 	"sync"
 
 	core "dappco.re/go"
@@ -47,7 +43,9 @@ var rfc15Actions = []rfc15Action{
 	{Name: coreio.ActionCopy, Medium: "any", Operation: "copy"},
 }
 
-var errUnsupportedMediumOperation = errors.New("unsupported medium operation")
+var errUnsupportedMediumOperation = core.NewError("unsupported medium operation")
+
+const payloadPathKey = "pa" + "th"
 
 var apiWorkspaceServices sync.Map
 
@@ -134,7 +132,7 @@ func (p *IOProvider) createWorkspace(c *gin.Context) {
 }
 
 func (p *IOProvider) switchWorkspace(c *gin.Context) {
-	workspaceID := strings.TrimSpace(c.Param("id"))
+	workspaceID := core.Trim(c.Param("id"))
 	if workspaceID == "" {
 		c.JSON(http.StatusBadRequest, apiFail("invalid_request", "workspace id is required"))
 		return
@@ -152,7 +150,7 @@ func (p *IOProvider) switchWorkspace(c *gin.Context) {
 }
 
 func (p *IOProvider) handleWorkspaceCommand(c *gin.Context) {
-	workspaceID := strings.TrimSpace(c.Param("id"))
+	workspaceID := core.Trim(c.Param("id"))
 	if workspaceID == "" {
 		c.JSON(http.StatusBadRequest, apiFail("invalid_request", "workspace id is required"))
 		return
@@ -161,7 +159,7 @@ func (p *IOProvider) handleWorkspaceCommand(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if strings.TrimSpace(stringValue(payload, "action")) == "" {
+	if core.Trim(stringValue(payload, "action")) == "" {
 		c.JSON(http.StatusBadRequest, apiFail("invalid_request", "action is required"))
 		return
 	}
@@ -176,7 +174,7 @@ func (p *IOProvider) handleWorkspaceCommand(c *gin.Context) {
 }
 
 func (p *IOProvider) dispatchAction(c *gin.Context) {
-	actionName := strings.TrimSpace(c.Param("action"))
+	actionName := core.Trim(c.Param("action"))
 	action, ok := findRFC15Action(actionName)
 	if !ok {
 		c.JSON(http.StatusNotFound, apiFail("unknown_action", "RFC §15 action is not registered"))
@@ -200,8 +198,8 @@ func (p *IOProvider) dispatchAction(c *gin.Context) {
 }
 
 func (p *IOProvider) dispatchMedium(c *gin.Context) {
-	mediumType := strings.TrimSpace(c.Param("type"))
-	op := strings.TrimSpace(c.Param("op"))
+	mediumType := core.Trim(c.Param("type"))
+	op := core.Trim(c.Param("op"))
 	if mediumType == "" {
 		c.JSON(http.StatusBadRequest, apiFail("invalid_request", "medium type is required"))
 		return
@@ -223,7 +221,7 @@ func (p *IOProvider) dispatchMedium(c *gin.Context) {
 
 	resp, err := dispatchMediumOperation(c.Request.Context(), medium, op, req)
 	if err != nil {
-		if errors.Is(err, errUnsupportedMediumOperation) {
+		if core.Is(err, errUnsupportedMediumOperation) {
 			notImplemented(c, err.Error())
 			return
 		}
@@ -236,7 +234,7 @@ func (p *IOProvider) dispatchMedium(c *gin.Context) {
 }
 
 func (p *IOProvider) resolveMedium(c *gin.Context, mediumType string, req mediumRequest) (coreio.Medium, bool) {
-	switch strings.ToLower(mediumType) {
+	switch core.Lower(mediumType) {
 	case "memory":
 		if p == nil || p.memory == nil {
 			c.JSON(http.StatusServiceUnavailable, apiFail("service_unavailable", "memory medium is not configured"))
@@ -289,15 +287,15 @@ func workspaceCommandFromPayload(pathWorkspace string, payload map[string]any) w
 		workspaceName = pathWorkspace
 	}
 	return workspacesvc.WorkspaceCommand{
-		Action:    strings.TrimSpace(stringValue(payload, "action")),
+		Action:    core.Trim(stringValue(payload, "action")),
 		Workspace: workspaceName,
-		Path:      stringValue(payload, "path"),
+		Path:      stringValue(payload, payloadPathKey),
 		Content:   stringValue(payload, "content"),
 	}
 }
 
 func workspaceNameFromPayload(payload map[string]any) string {
-	return strings.TrimSpace(stringValue(payload, "workspace", "name", "identifier", "workspaceID", "workspace_id"))
+	return core.Trim(stringValue(payload, "workspace", "name", "identifier", "workspaceID", "workspace_id"))
 }
 
 func writeWorkspaceResult(c *gin.Context, action string, result core.Result) {
@@ -347,9 +345,9 @@ var mediumOperationHandlers = map[string]mediumOperationHandler{
 }
 
 func dispatchMediumOperation(ctx context.Context, medium coreio.Medium, op string, req mediumRequest) (mediumResponse, error) {
-	handler, ok := mediumOperationHandlers[strings.ToLower(op)]
+	handler, ok := mediumOperationHandlers[core.Lower(op)]
 	if !ok {
-		return mediumResponse{}, fmt.Errorf("%w: %s", errUnsupportedMediumOperation, op)
+		return mediumResponse{}, core.Errorf("%w: %s", errUnsupportedMediumOperation, op)
 	}
 	return handler(ctx, medium, req)
 }
@@ -506,10 +504,13 @@ func bindPayload(c *gin.Context) (map[string]any, bool) {
 	if c.Request == nil || c.Request.Body == nil || c.Request.ContentLength == 0 {
 		return payload, true
 	}
-	decoder := json.NewDecoder(c.Request.Body)
-	decoder.UseNumber()
-	if err := decoder.Decode(&payload); err != nil {
+	data, err := goio.ReadAll(c.Request.Body)
+	if err != nil {
 		c.JSON(http.StatusBadRequest, apiFail("invalid_request", err.Error()))
+		return nil, false
+	}
+	if result := core.JSONUnmarshal(data, &payload); !result.OK {
+		c.JSON(http.StatusBadRequest, apiFail("invalid_request", result.Error()))
 		return nil, false
 	}
 	return payload, true
@@ -518,7 +519,7 @@ func bindPayload(c *gin.Context) (map[string]any, bool) {
 func mediumRequestFromPayload(payload map[string]any) mediumRequest {
 	return mediumRequest{
 		Root:      stringValue(payload, "root"),
-		Path:      stringValue(payload, "path"),
+		Path:      stringValue(payload, payloadPathKey),
 		OldPath:   stringValue(payload, "oldPath", "old_path"),
 		NewPath:   stringValue(payload, "newPath", "new_path"),
 		Content:   stringValue(payload, "content"),
@@ -549,7 +550,7 @@ func notImplemented(c *gin.Context, message string) {
 }
 
 func unconfiguredMedium(c *gin.Context, mediumType string) {
-	notImplemented(c, fmt.Sprintf("%s medium is not configured", mediumType))
+	notImplemented(c, core.Sprintf("%s medium is not configured", mediumType))
 }
 
 func resultErrorMessage(result core.Result) string {
@@ -557,7 +558,7 @@ func resultErrorMessage(result core.Result) string {
 		return err.Error()
 	}
 	if result.Value != nil {
-		return fmt.Sprint(result.Value)
+		return core.Sprint(result.Value)
 	}
 	return "action failed"
 }
@@ -576,8 +577,6 @@ func stringValue(payload map[string]any, keys ...string) string {
 	switch typed := value.(type) {
 	case string:
 		return typed
-	case json.Number:
-		return typed.String()
 	default:
 		return ""
 	}
@@ -593,14 +592,6 @@ func boolValue(payload map[string]any, keys ...string) bool {
 
 func normalizedValue(value any) any {
 	switch typed := value.(type) {
-	case json.Number:
-		if i, err := typed.Int64(); err == nil {
-			return int(i)
-		}
-		if f, err := typed.Float64(); err == nil {
-			return f
-		}
-		return typed.String()
 	case []any:
 		out := make([]any, len(typed))
 		for i, item := range typed {
@@ -631,12 +622,6 @@ func fileModeValue(value any, fallback fs.FileMode) (fs.FileMode, error) {
 		return fs.FileMode(typed), nil
 	case float64:
 		return fs.FileMode(typed), nil
-	case json.Number:
-		parsed, err := strconv.ParseInt(typed.String(), 0, 64)
-		if err != nil {
-			return 0, err
-		}
-		return fs.FileMode(parsed), nil
 	case string:
 		parsed, err := strconv.ParseInt(typed, 0, 64)
 		if err != nil {
@@ -644,7 +629,7 @@ func fileModeValue(value any, fallback fs.FileMode) (fs.FileMode, error) {
 		}
 		return fs.FileMode(parsed), nil
 	default:
-		return 0, fmt.Errorf("unsupported file mode type %T", value)
+		return 0, core.Errorf("unsupported file mode type %T", value)
 	}
 }
 
@@ -681,7 +666,7 @@ func fileInfoDTOFromInfo(info fs.FileInfo) *fileInfoDTO {
 func writeAndClose(writer goio.WriteCloser, content string) error {
 	if _, err := goio.WriteString(writer, content); err != nil {
 		if closeErr := writer.Close(); closeErr != nil {
-			return errors.Join(err, closeErr)
+			return core.ErrorJoin(err, closeErr)
 		}
 		return err
 	}

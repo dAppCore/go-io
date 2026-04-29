@@ -3,8 +3,6 @@ package workspace
 import (
 	goio "io"
 	"io/fs"
-	"path"
-	"strings"
 	"sync"
 
 	core "dappco.re/go"
@@ -147,7 +145,7 @@ func (workspace *Workspace) ListWorkspaceFiles(name, directoryPath string) ([]fs
 
 // HandleWorkspaceCommand dispatches an RFC §5 WorkspaceCommand.
 func (workspace *Workspace) HandleWorkspaceCommand(command WorkspaceCommand) core.Result {
-	switch strings.ToLower(strings.TrimSpace(command.Action)) {
+	switch core.Lower(core.Trim(command.Action)) {
 	case WorkspaceCreateAction, legacyWorkspaceCreateAction:
 		medium, err := workspace.CreateWorkspace(command.workspaceName())
 		if err != nil {
@@ -220,33 +218,33 @@ func (workspace *Workspace) scopedMedium(root string) coreio.Medium {
 }
 
 func cleanWorkspaceName(operation, name string) (string, error) {
-	name = strings.TrimSpace(name)
+	name = core.Trim(name)
 	if name == "" || name == "." || name == ".." {
 		return "", core.E(operation, "workspace name is required", fs.ErrInvalid)
 	}
-	if strings.Contains(name, "/") || strings.Contains(name, "\\") {
+	if core.Contains(name, "/") || core.Contains(name, "\\") {
 		return "", core.E(operation, core.Concat("workspace name contains path separator: ", name), fs.ErrPermission)
 	}
 	return name, nil
 }
 
 func cleanMediumSubpath(operation, subpath string, allowEmpty bool) (string, error) {
-	subpath = strings.TrimSpace(strings.ReplaceAll(subpath, "\\", "/"))
+	subpath = core.Trim(core.Replace(subpath, "\\", "/"))
 	if subpath == "" || subpath == "." {
 		if allowEmpty {
 			return "", nil
 		}
 		return "", core.E(operation, "path is required", fs.ErrInvalid)
 	}
-	if strings.HasPrefix(subpath, "/") {
+	if core.HasPrefix(subpath, "/") {
 		return "", core.E(operation, core.Concat("absolute path rejected: ", subpath), fs.ErrPermission)
 	}
-	for _, part := range strings.Split(subpath, "/") {
+	for _, part := range core.Split(subpath, "/") {
 		if part == ".." {
 			return "", core.E(operation, core.Concat("path traversal rejected: ", subpath), fs.ErrPermission)
 		}
 	}
-	cleaned := path.Clean(subpath)
+	cleaned := core.CleanPath(subpath, "/")
 	if cleaned == "." {
 		if allowEmpty {
 			return "", nil
@@ -266,7 +264,7 @@ func joinMediumSubpaths(parts ...string) string {
 	if len(filtered) == 0 {
 		return ""
 	}
-	return path.Join(filtered...)
+	return core.PathJoin(filtered...)
 }
 
 type scopedMedium struct {

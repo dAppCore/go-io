@@ -3,7 +3,6 @@ package store
 import (
 	goio "io"
 	"io/fs"
-	"path"
 	"slices"
 	"time"
 
@@ -52,7 +51,7 @@ func (medium *Medium) Close() error {
 }
 
 func splitGroupKeyPath(entryPath string) (group, key string) {
-	clean := path.Clean(entryPath)
+	clean := core.CleanPath(entryPath, "/")
 	clean = core.TrimPrefix(clean, "/")
 	if clean == "" || clean == "." {
 		return "", ""

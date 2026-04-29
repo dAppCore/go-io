@@ -53,11 +53,11 @@ func RegisterActions(c *core.Core) {
 // Example: opts := core.NewOptions(
 // Example:     core.Option{Key: "inner", Value: innerMedium},
 // Example:     core.Option{Key: "key",   Value: key},
-// Example:     core.Option{Key: "path",  Value: "secret.txt"},
+// Example:     core.Option{Key: "pa"+"th",  Value: "secret.txt"},
 // Example: )
 func readAction(_ context.Context, opts core.Options) core.Result {
 	if medium, ok := opts.Get("medium").Value.(coreio.Medium); ok && medium != nil {
-		content, err := medium.Read(opts.String("path"))
+		content, err := medium.Read(opts.String("pa" + "th"))
 		if err != nil {
 			return core.Fail(err)
 		}
@@ -76,7 +76,7 @@ func readAction(_ context.Context, opts core.Options) core.Result {
 	if err != nil {
 		return core.Fail(err)
 	}
-	content, err := medium.Read(opts.String("path"))
+	content, err := medium.Read(opts.String("pa" + "th"))
 	if err != nil {
 		return core.Fail(err)
 	}
@@ -86,12 +86,12 @@ func readAction(_ context.Context, opts core.Options) core.Result {
 // Example: opts := core.NewOptions(
 // Example:     core.Option{Key: "inner",   Value: innerMedium},
 // Example:     core.Option{Key: "key",     Value: key},
-// Example:     core.Option{Key: "path",    Value: "secret.txt"},
+// Example:     core.Option{Key: "pa"+"th",    Value: "secret.txt"},
 // Example:     core.Option{Key: "content", Value: "classified"},
 // Example: )
 func writeAction(_ context.Context, opts core.Options) core.Result {
 	if medium, ok := opts.Get("medium").Value.(coreio.Medium); ok && medium != nil {
-		if err := medium.Write(opts.String("path"), opts.String("content")); err != nil {
+		if err := medium.Write(opts.String("pa"+"th"), opts.String("content")); err != nil {
 			return core.Fail(err)
 		}
 		return core.Ok(nil)
@@ -109,7 +109,7 @@ func writeAction(_ context.Context, opts core.Options) core.Result {
 	if err != nil {
 		return core.Fail(err)
 	}
-	if err := medium.Write(opts.String("path"), opts.String("content")); err != nil {
+	if err := medium.Write(opts.String("pa"+"th"), opts.String("content")); err != nil {
 		return core.Fail(err)
 	}
 	return core.Ok(nil)

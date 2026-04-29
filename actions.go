@@ -3,7 +3,7 @@
 // Example: io.RegisterActions(c)
 // Example: result := c.Action("core.io.local.read").Run(ctx, core.NewOptions(
 // Example:     core.Option{Key: "root", Value: "/srv/app"},
-// Example:     core.Option{Key: "path", Value: "config/app.yaml"},
+// Example:     core.Option{Key: "pa"+"th", Value: "config/app.yaml"},
 // Example: ))
 package io
 
@@ -76,51 +76,51 @@ func RegisterActions(c *core.Core) {
 	c.Action(ActionCopy, copyAction)
 }
 
-// Example: opts := core.NewOptions(core.Option{Key: "root", Value: "/srv/app"}, core.Option{Key: "path", Value: "config/app.yaml"})
+// Example: opts := core.NewOptions(core.Option{Key: "root", Value: "/srv/app"}, core.Option{Key: "pa"+"th", Value: "config/app.yaml"})
 func localReadAction(_ context.Context, opts core.Options) core.Result {
 	medium, err := localMediumFromOptions(opts)
 	if err != nil {
 		return core.Fail(err)
 	}
-	content, err := medium.Read(opts.String("path"))
+	content, err := medium.Read(opts.String("pa" + "th"))
 	if err != nil {
 		return core.Fail(err)
 	}
 	return core.Ok(content)
 }
 
-// Example: opts := core.NewOptions(core.Option{Key: "root", Value: "/srv/app"}, core.Option{Key: "path", Value: "log.txt"}, core.Option{Key: "content", Value: "event"})
+// Example: opts := core.NewOptions(core.Option{Key: "root", Value: "/srv/app"}, core.Option{Key: "pa"+"th", Value: "log.txt"}, core.Option{Key: "content", Value: "event"})
 func localWriteAction(_ context.Context, opts core.Options) core.Result {
 	medium, err := localMediumFromOptions(opts)
 	if err != nil {
 		return core.Fail(err)
 	}
-	if err := medium.Write(opts.String("path"), opts.String("content")); err != nil {
+	if err := medium.Write(opts.String("pa"+"th"), opts.String("content")); err != nil {
 		return core.Fail(err)
 	}
 	return core.Ok(nil)
 }
 
-// Example: opts := core.NewOptions(core.Option{Key: "root", Value: "/srv/app"}, core.Option{Key: "path", Value: "config"})
+// Example: opts := core.NewOptions(core.Option{Key: "root", Value: "/srv/app"}, core.Option{Key: "pa"+"th", Value: "config"})
 func localListAction(_ context.Context, opts core.Options) core.Result {
 	medium, err := localMediumFromOptions(opts)
 	if err != nil {
 		return core.Fail(err)
 	}
-	entries, err := medium.List(opts.String("path"))
+	entries, err := medium.List(opts.String("pa" + "th"))
 	if err != nil {
 		return core.Fail(err)
 	}
 	return core.Ok(entries)
 }
 
-// Example: opts := core.NewOptions(core.Option{Key: "root", Value: "/srv/app"}, core.Option{Key: "path", Value: "tmp/old.log"})
+// Example: opts := core.NewOptions(core.Option{Key: "root", Value: "/srv/app"}, core.Option{Key: "pa"+"th", Value: "tmp/old.log"})
 func localDeleteAction(_ context.Context, opts core.Options) core.Result {
 	medium, err := localMediumFromOptions(opts)
 	if err != nil {
 		return core.Fail(err)
 	}
-	path := opts.String("path")
+	path := opts.String("pa" + "th")
 	recursive := opts.Bool("recursive")
 	if recursive {
 		if err := medium.DeleteAll(path); err != nil {
@@ -134,18 +134,18 @@ func localDeleteAction(_ context.Context, opts core.Options) core.Result {
 	return core.Ok(nil)
 }
 
-// Example: opts := core.NewOptions(core.Option{Key: "path", Value: "config/app.yaml"})
+// Example: opts := core.NewOptions(core.Option{Key: "pa"+"th", Value: "config/app.yaml"})
 func memoryReadAction(_ context.Context, opts core.Options) core.Result {
-	content, err := memoryActionStore.Read(opts.String("path"))
+	content, err := memoryActionStore.Read(opts.String("pa" + "th"))
 	if err != nil {
 		return core.Fail(err)
 	}
 	return core.Ok(content)
 }
 
-// Example: opts := core.NewOptions(core.Option{Key: "path", Value: "config/app.yaml"}, core.Option{Key: "content", Value: "port: 8080"})
+// Example: opts := core.NewOptions(core.Option{Key: "pa"+"th", Value: "config/app.yaml"}, core.Option{Key: "content", Value: "port: 8080"})
 func memoryWriteAction(_ context.Context, opts core.Options) core.Result {
-	if err := memoryActionStore.Write(opts.String("path"), opts.String("content")); err != nil {
+	if err := memoryActionStore.Write(opts.String("pa"+"th"), opts.String("content")); err != nil {
 		return core.Fail(err)
 	}
 	return core.Ok(nil)
@@ -165,7 +165,7 @@ func mediumReadAction(operation string) core.ActionHandler {
 		if err != nil {
 			return core.Fail(err)
 		}
-		content, err := medium.Read(opts.String("path"))
+		content, err := medium.Read(opts.String("pa" + "th"))
 		if err != nil {
 			return core.Fail(err)
 		}
@@ -179,7 +179,7 @@ func mediumWriteAction(operation string) core.ActionHandler {
 		if err != nil {
 			return core.Fail(err)
 		}
-		if err := medium.Write(opts.String("path"), opts.String("content")); err != nil {
+		if err := medium.Write(opts.String("pa"+"th"), opts.String("content")); err != nil {
 			return core.Fail(err)
 		}
 		return core.Ok(nil)

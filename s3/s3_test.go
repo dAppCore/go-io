@@ -1,18 +1,16 @@
 package s3
 
 import (
-	"bytes"
 	"context"
+	core "dappco.re/go"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	awss3 "github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	goio "io"
 	"io/fs"
 	"sort"
 	"sync" // Note: AX-6 — internal concurrency primitive; structural per RFC §5.1
 	"time"
-
-	core "dappco.re/go"
-	"github.com/aws/aws-sdk-go-v2/aws"
-	awss3 "github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
 
 type testS3Client struct {
@@ -43,7 +41,7 @@ func (client *testS3Client) GetObject(operationContext context.Context, params *
 	}
 	mtime := client.mtimes[key]
 	return &awss3.GetObjectOutput{
-		Body:          goio.NopCloser(bytes.NewReader(data)),
+		Body:          goio.NopCloser(core.NewReader(string(data))),
 		ContentLength: aws.Int64(int64(len(data))),
 		LastModified:  &mtime,
 	}, nil
@@ -253,7 +251,7 @@ func TestS3_New_Options_Good(t *core.T) {
 	core.AssertEqual(t, "data/", prefixedS3Medium.prefix)
 }
 
-func TestS3_ReadWrite_Good(t *core.T) {
+func TestS3_ReadWriteGood(t *core.T) {
 	s3Medium, _ := newS3Medium(t)
 
 	err := s3Medium.Write("hello.txt", "world")
@@ -264,14 +262,14 @@ func TestS3_ReadWrite_Good(t *core.T) {
 	core.AssertEqual(t, "world", content)
 }
 
-func TestS3_ReadWrite_NotFound_Bad(t *core.T) {
+func TestS3_ReadWrite_NotFoundBad(t *core.T) {
 	s3Medium, _ := newS3Medium(t)
 
 	_, err := s3Medium.Read("nonexistent.txt")
 	core.AssertError(t, err)
 }
 
-func TestS3_ReadWrite_EmptyPath_Bad(t *core.T) {
+func TestS3_ReadWrite_EmptyPathBad(t *core.T) {
 	s3Medium, _ := newS3Medium(t)
 
 	_, err := s3Medium.Read("")
@@ -626,7 +624,7 @@ func TestS3_IsDir_Good(t *core.T) {
 	core.AssertFalse(t, s3Medium.IsDir(""))
 }
 
-func TestS3_ObjectKey_Good(t *core.T) {
+func TestS3_ObjectKeyGood(t *core.T) {
 	testS3Client := newTestS3Client()
 
 	s3Medium, _ := New(Options{Bucket: "bucket", Client: testS3Client})
@@ -642,7 +640,7 @@ func TestS3_ObjectKey_Good(t *core.T) {
 	core.AssertEqual(t, "pfx/", prefixedS3Medium.objectKey(""))
 }
 
-func TestS3_InterfaceCompliance_Good(t *core.T) {
+func TestS3_InterfaceComplianceGood(t *core.T) {
 	testS3Client := newTestS3Client()
 	s3Medium, err := New(Options{Bucket: "bucket", Client: testS3Client})
 	core.RequireNoError(t, err)
@@ -665,4 +663,709 @@ func TestS3_InterfaceCompliance_Good(t *core.T) {
 		Exists(string) bool
 		IsDir(string) bool
 	} = s3Medium
+}
+
+func newS3MediumFixture(t *core.T) *Medium {
+	t.Helper()
+	medium, _ := newS3Medium(t)
+	return medium
+}
+
+func TestS3_New_Bad(t *core.T) {
+	medium, err := New(Options{Client: newTestS3Client()})
+	core.AssertError(t, err)
+	core.AssertNil(t, medium)
+}
+
+func TestS3_New_Ugly(t *core.T) {
+	client := newTestS3Client()
+	medium, err := New(Options{Bucket: "bucket", Client: client, Prefix: "//nested//"})
+	core.AssertNoError(t, err)
+	core.AssertEqual(t, "nested/", medium.prefix)
+}
+
+func TestS3_Medium_Read_Good(t *core.T) {
+	medium := newS3MediumFixture(t)
+	core.RequireNoError(t, medium.Write("read.txt", "payload"))
+	got, err := medium.Read("read.txt")
+	core.AssertNoError(t, err)
+	core.AssertEqual(t, "payload", got)
+}
+
+func TestS3_Medium_Read_Bad(t *core.T) {
+	medium := newS3MediumFixture(t)
+	got, err := medium.Read("missing.txt")
+	core.AssertError(t, err)
+	core.AssertEqual(t, "", got)
+}
+
+func TestS3_Medium_Read_Ugly(t *core.T) {
+	medium := newS3MediumFixture(t)
+	got, err := medium.Read("")
+	core.AssertError(t, err)
+	core.AssertEqual(t, "", got)
+}
+
+func TestS3_Medium_Write_Good(t *core.T) {
+	medium := newS3MediumFixture(t)
+	err := medium.Write("write.txt", "payload")
+	core.AssertNoError(t, err)
+	core.AssertTrue(t, medium.IsFile("write.txt"))
+}
+
+func TestS3_Medium_Write_Bad(t *core.T) {
+	medium := newS3MediumFixture(t)
+	err := medium.Write("", "payload")
+	core.AssertError(t, err)
+	core.AssertFalse(t, medium.IsFile(""))
+}
+
+func TestS3_Medium_Write_Ugly(t *core.T) {
+	medium := newS3MediumFixture(t)
+	err := medium.Write("nested/write.txt", "payload")
+	core.AssertNoError(t, err)
+	core.AssertTrue(t, medium.IsFile("nested/write.txt"))
+}
+
+func TestS3_Medium_WriteMode_Good(t *core.T) {
+	medium := newS3MediumFixture(t)
+	err := medium.WriteMode("mode.txt", "payload", 0600)
+	info, statErr := medium.Stat("mode.txt")
+	core.AssertNoError(t, err)
+	core.AssertNoError(t, statErr)
+	core.AssertEqual(t, fs.FileMode(0644), info.Mode().Perm())
+}
+
+func TestS3_Medium_WriteMode_Bad(t *core.T) {
+	medium := newS3MediumFixture(t)
+	err := medium.WriteMode("", "payload", 0600)
+	core.AssertError(t, err)
+	core.AssertFalse(t, medium.IsFile(""))
+}
+
+func TestS3_Medium_WriteMode_Ugly(t *core.T) {
+	medium := newS3MediumFixture(t)
+	err := medium.WriteMode("zero-mode.txt", "payload", 0)
+	core.AssertNoError(t, err)
+	core.AssertTrue(t, medium.IsFile("zero-mode.txt"))
+}
+
+func TestS3_Medium_EnsureDir_Good(t *core.T) {
+	medium := newS3MediumFixture(t)
+	err := medium.EnsureDir("dir")
+	core.AssertNoError(t, err)
+	core.AssertFalse(t, medium.IsDir("dir"))
+}
+
+func TestS3_Medium_EnsureDir_Bad(t *core.T) {
+	medium := newS3MediumFixture(t)
+	core.RequireNoError(t, medium.Write("file", "payload"))
+	err := medium.EnsureDir("file")
+	core.AssertNoError(t, err)
+}
+
+func TestS3_Medium_EnsureDir_Ugly(t *core.T) {
+	medium := newS3MediumFixture(t)
+	err := medium.EnsureDir("a/b/c")
+	core.AssertNoError(t, err)
+	core.AssertFalse(t, medium.IsDir("a/b/c"))
+}
+
+func TestS3_Medium_IsFile_Good(t *core.T) {
+	medium := newS3MediumFixture(t)
+	core.RequireNoError(t, medium.Write("file.txt", "payload"))
+	got := medium.IsFile("file.txt")
+	core.AssertTrue(t, got)
+}
+
+func TestS3_Medium_IsFile_Bad(t *core.T) {
+	medium := newS3MediumFixture(t)
+	got := medium.IsFile("missing.txt")
+	core.AssertFalse(t, got)
+}
+
+func TestS3_Medium_IsFile_Ugly(t *core.T) {
+	medium := newS3MediumFixture(t)
+	core.RequireNoError(t, medium.EnsureDir("dir"))
+	got := medium.IsFile("dir")
+	core.AssertFalse(t, got)
+}
+
+func TestS3_Medium_Delete_Good(t *core.T) {
+	medium := newS3MediumFixture(t)
+	core.RequireNoError(t, medium.Write("delete.txt", "payload"))
+	err := medium.Delete("delete.txt")
+	core.AssertNoError(t, err)
+	core.AssertFalse(t, medium.Exists("delete.txt"))
+}
+
+func TestS3_Medium_Delete_Bad(t *core.T) {
+	medium := newS3MediumFixture(t)
+	err := medium.Delete("missing.txt")
+	core.AssertNoError(t, err)
+	core.AssertFalse(t, medium.Exists("missing.txt"))
+}
+
+func TestS3_Medium_Delete_Ugly(t *core.T) {
+	medium := newS3MediumFixture(t)
+	err := medium.Delete("")
+	core.AssertError(t, err)
+	core.AssertFalse(t, medium.Exists(""))
+}
+
+func TestS3_Medium_DeleteAll_Good(t *core.T) {
+	medium := newS3MediumFixture(t)
+	core.RequireNoError(t, medium.Write("tree/file.txt", "payload"))
+	err := medium.DeleteAll("tree")
+	core.AssertNoError(t, err)
+	core.AssertFalse(t, medium.Exists("tree/file.txt"))
+}
+
+func TestS3_Medium_DeleteAll_Bad(t *core.T) {
+	medium := newS3MediumFixture(t)
+	err := medium.DeleteAll("missing")
+	core.AssertNoError(t, err)
+	core.AssertFalse(t, medium.Exists("missing"))
+}
+
+func TestS3_Medium_DeleteAll_Ugly(t *core.T) {
+	medium := newS3MediumFixture(t)
+	err := medium.DeleteAll("")
+	core.AssertError(t, err)
+	core.AssertFalse(t, medium.Exists(""))
+}
+
+func TestS3_Medium_Rename_Good(t *core.T) {
+	medium := newS3MediumFixture(t)
+	core.RequireNoError(t, medium.Write("old.txt", "payload"))
+	err := medium.Rename("old.txt", "new.txt")
+	core.AssertNoError(t, err)
+	core.AssertTrue(t, medium.IsFile("new.txt"))
+}
+
+func TestS3_Medium_Rename_Bad(t *core.T) {
+	medium := newS3MediumFixture(t)
+	err := medium.Rename("missing.txt", "new.txt")
+	core.AssertError(t, err)
+	core.AssertFalse(t, medium.Exists("new.txt"))
+}
+
+func TestS3_Medium_Rename_Ugly(t *core.T) {
+	medium := newS3MediumFixture(t)
+	core.RequireNoError(t, medium.Write("old.txt", "payload"))
+	err := medium.Rename("old.txt", "nested/new.txt")
+	core.AssertNoError(t, err)
+	core.AssertTrue(t, medium.IsFile("nested/new.txt"))
+}
+
+func TestS3_Medium_List_Good(t *core.T) {
+	medium := newS3MediumFixture(t)
+	core.RequireNoError(t, medium.Write("dir/a.txt", "payload"))
+	entries, err := medium.List("dir")
+	core.AssertNoError(t, err)
+	core.AssertLen(t, entries, 1)
+}
+
+func TestS3_Medium_List_Bad(t *core.T) {
+	medium := newS3MediumFixture(t)
+	entries, err := medium.List("missing")
+	core.AssertNoError(t, err)
+	core.AssertNil(t, entries)
+}
+
+func TestS3_Medium_List_Ugly(t *core.T) {
+	medium := newS3MediumFixture(t)
+	entries, err := medium.List("")
+	core.AssertNoError(t, err)
+	core.AssertNil(t, entries)
+}
+
+func TestS3_Medium_Stat_Good(t *core.T) {
+	medium := newS3MediumFixture(t)
+	core.RequireNoError(t, medium.Write("stat.txt", "payload"))
+	info, err := medium.Stat("stat.txt")
+	core.AssertNoError(t, err)
+	core.AssertEqual(t, "stat.txt", info.Name())
+}
+
+func TestS3_Medium_Stat_Bad(t *core.T) {
+	medium := newS3MediumFixture(t)
+	info, err := medium.Stat("missing.txt")
+	core.AssertError(t, err)
+	core.AssertNil(t, info)
+}
+
+func TestS3_Medium_Stat_Ugly(t *core.T) {
+	medium := newS3MediumFixture(t)
+	info, err := medium.Stat("")
+	core.AssertError(t, err)
+	core.AssertNil(t, info)
+}
+
+func TestS3_Medium_Open_Good(t *core.T) {
+	medium := newS3MediumFixture(t)
+	core.RequireNoError(t, medium.Write("open.txt", "payload"))
+	file, err := medium.Open("open.txt")
+	core.AssertNoError(t, err)
+	core.AssertNotNil(t, file)
+	core.RequireNoError(t, file.Close())
+}
+
+func TestS3_Medium_Open_Bad(t *core.T) {
+	medium := newS3MediumFixture(t)
+	file, err := medium.Open("missing.txt")
+	core.AssertError(t, err)
+	core.AssertNil(t, file)
+}
+
+func TestS3_Medium_Open_Ugly(t *core.T) {
+	medium := newS3MediumFixture(t)
+	file, err := medium.Open("")
+	core.AssertError(t, err)
+	core.AssertNil(t, file)
+}
+
+func TestS3_Medium_Create_Good(t *core.T) {
+	medium := newS3MediumFixture(t)
+	writer, err := medium.Create("create.txt")
+	core.RequireNoError(t, err)
+	_, writeErr := writer.Write([]byte("payload"))
+	core.AssertNoError(t, writeErr)
+	core.AssertNoError(t, writer.Close())
+}
+
+func TestS3_Medium_Create_Bad(t *core.T) {
+	medium := newS3MediumFixture(t)
+	writer, err := medium.Create("")
+	core.AssertError(t, err)
+	core.AssertNil(t, writer)
+}
+
+func TestS3_Medium_Create_Ugly(t *core.T) {
+	medium := newS3MediumFixture(t)
+	writer, err := medium.Create("nested/create.txt")
+	core.RequireNoError(t, err)
+	_, writeErr := writer.Write([]byte("payload"))
+	core.AssertNoError(t, writeErr)
+	core.AssertNoError(t, writer.Close())
+}
+
+func TestS3_Medium_Append_Good(t *core.T) {
+	medium := newS3MediumFixture(t)
+	core.RequireNoError(t, medium.Write("append.txt", "a"))
+	writer, err := medium.Append("append.txt")
+	core.RequireNoError(t, err)
+	_, writeErr := writer.Write([]byte("b"))
+	core.AssertNoError(t, writeErr)
+	core.AssertNoError(t, writer.Close())
+}
+
+func TestS3_Medium_Append_Bad(t *core.T) {
+	medium := newS3MediumFixture(t)
+	writer, err := medium.Append("")
+	core.AssertError(t, err)
+	core.AssertNil(t, writer)
+}
+
+func TestS3_Medium_Append_Ugly(t *core.T) {
+	medium := newS3MediumFixture(t)
+	writer, err := medium.Append("new.txt")
+	core.RequireNoError(t, err)
+	_, writeErr := writer.Write([]byte("new"))
+	core.AssertNoError(t, writeErr)
+	core.AssertNoError(t, writer.Close())
+}
+
+func TestS3_Medium_ReadStream_Good(t *core.T) {
+	medium := newS3MediumFixture(t)
+	core.RequireNoError(t, medium.Write("stream.txt", "payload"))
+	reader, err := medium.ReadStream("stream.txt")
+	core.RequireNoError(t, err)
+	data, readErr := goio.ReadAll(reader)
+	core.AssertNoError(t, readErr)
+	core.AssertEqual(t, "payload", string(data))
+}
+
+func TestS3_Medium_ReadStream_Bad(t *core.T) {
+	medium := newS3MediumFixture(t)
+	reader, err := medium.ReadStream("missing.txt")
+	core.AssertError(t, err)
+	core.AssertNil(t, reader)
+}
+
+func TestS3_Medium_ReadStream_Ugly(t *core.T) {
+	medium := newS3MediumFixture(t)
+	reader, err := medium.ReadStream("")
+	core.AssertError(t, err)
+	core.AssertNil(t, reader)
+}
+
+func TestS3_Medium_WriteStream_Good(t *core.T) {
+	medium := newS3MediumFixture(t)
+	writer, err := medium.WriteStream("stream.txt")
+	core.RequireNoError(t, err)
+	_, writeErr := writer.Write([]byte("payload"))
+	core.AssertNoError(t, writeErr)
+	core.AssertNoError(t, writer.Close())
+}
+
+func TestS3_Medium_WriteStream_Bad(t *core.T) {
+	medium := newS3MediumFixture(t)
+	writer, err := medium.WriteStream("")
+	core.AssertError(t, err)
+	core.AssertNil(t, writer)
+}
+
+func TestS3_Medium_WriteStream_Ugly(t *core.T) {
+	medium := newS3MediumFixture(t)
+	writer, err := medium.WriteStream("nested/stream.txt")
+	core.RequireNoError(t, err)
+	_, writeErr := writer.Write([]byte("payload"))
+	core.AssertNoError(t, writeErr)
+	core.AssertNoError(t, writer.Close())
+}
+
+func TestS3_Medium_Exists_Good(t *core.T) {
+	medium := newS3MediumFixture(t)
+	core.RequireNoError(t, medium.Write("exists.txt", "payload"))
+	got := medium.Exists("exists.txt")
+	core.AssertTrue(t, got)
+}
+
+func TestS3_Medium_Exists_Bad(t *core.T) {
+	medium := newS3MediumFixture(t)
+	got := medium.Exists("missing.txt")
+	core.AssertFalse(t, got)
+}
+
+func TestS3_Medium_Exists_Ugly(t *core.T) {
+	medium := newS3MediumFixture(t)
+	got := medium.Exists("")
+	core.AssertFalse(t, got)
+}
+
+func TestS3_Medium_IsDir_Good(t *core.T) {
+	medium := newS3MediumFixture(t)
+	core.RequireNoError(t, medium.EnsureDir("dir"))
+	got := medium.IsDir("dir")
+	core.AssertFalse(t, got)
+}
+
+func TestS3_Medium_IsDir_Bad(t *core.T) {
+	medium := newS3MediumFixture(t)
+	got := medium.IsDir("missing")
+	core.AssertFalse(t, got)
+}
+
+func TestS3_Medium_IsDir_Ugly(t *core.T) {
+	medium := newS3MediumFixture(t)
+	got := medium.IsDir("")
+	core.AssertFalse(t, got)
+}
+
+func TestS3_Info_Name_Good(t *core.T) {
+	medium := newS3MediumFixture(t)
+	core.RequireNoError(t, medium.Write("info.txt", "abc"))
+	info, err := medium.Stat("info.txt")
+	core.RequireNoError(t, err)
+	core.AssertEqual(t, "info.txt", info.Name())
+}
+
+func TestS3_Info_Name_Bad(t *core.T) {
+	info := &fileInfo{}
+	got := info.Name()
+	core.AssertEqual(t, "", got)
+}
+
+func TestS3_Info_Name_Ugly(t *core.T) {
+	info := &fileInfo{name: ""}
+	got := info.Name()
+	core.AssertEqual(t, "", got)
+}
+
+func TestS3_Info_Size_Good(t *core.T) {
+	medium := newS3MediumFixture(t)
+	core.RequireNoError(t, medium.Write("size.txt", "abcd"))
+	info, err := medium.Stat("size.txt")
+	core.RequireNoError(t, err)
+	core.AssertEqual(t, int64(4), info.Size())
+}
+
+func TestS3_Info_Size_Bad(t *core.T) {
+	info := &fileInfo{}
+	got := info.Size()
+	core.AssertEqual(t, int64(0), got)
+}
+
+func TestS3_Info_Size_Ugly(t *core.T) {
+	info := &fileInfo{size: -1}
+	got := info.Size()
+	core.AssertEqual(t, int64(-1), got)
+}
+
+func TestS3_Info_Mode_Good(t *core.T) {
+	medium := newS3MediumFixture(t)
+	core.RequireNoError(t, medium.WriteMode("mode.txt", "abc", 0600))
+	info, err := medium.Stat("mode.txt")
+	core.RequireNoError(t, err)
+	core.AssertEqual(t, fs.FileMode(0644), info.Mode().Perm())
+}
+
+func TestS3_Info_Mode_Bad(t *core.T) {
+	info := &fileInfo{}
+	got := info.Mode()
+	core.AssertEqual(t, fs.FileMode(0), got)
+}
+
+func TestS3_Info_Mode_Ugly(t *core.T) {
+	info := &fileInfo{mode: fs.ModeDir | 0755}
+	got := info.Mode()
+	core.AssertTrue(t, got.IsDir())
+}
+
+func TestS3_Info_ModTime_Good(t *core.T) {
+	medium := newS3MediumFixture(t)
+	core.RequireNoError(t, medium.Write("time.txt", "abc"))
+	info, err := medium.Stat("time.txt")
+	core.RequireNoError(t, err)
+	core.AssertFalse(t, info.ModTime().IsZero())
+}
+
+func TestS3_Info_ModTime_Bad(t *core.T) {
+	info := &fileInfo{}
+	got := info.ModTime()
+	core.AssertTrue(t, got.IsZero())
+}
+
+func TestS3_Info_ModTime_Ugly(t *core.T) {
+	stamp := core.Now()
+	info := &fileInfo{modTime: stamp}
+	core.AssertEqual(t, stamp, info.ModTime())
+}
+
+func TestS3_Info_IsDir_Good(t *core.T) {
+	info := &fileInfo{name: "dir", isDir: true, mode: fs.ModeDir | 0755}
+	got := info.IsDir()
+	core.AssertTrue(t, got)
+}
+
+func TestS3_Info_IsDir_Bad(t *core.T) {
+	info := &fileInfo{}
+	got := info.IsDir()
+	core.AssertFalse(t, got)
+}
+
+func TestS3_Info_IsDir_Ugly(t *core.T) {
+	info := &fileInfo{isDir: true}
+	got := info.IsDir()
+	core.AssertTrue(t, got)
+}
+
+func TestS3_Info_Sys_Good(t *core.T) {
+	info := &fileInfo{name: "sys"}
+	got := info.Sys()
+	core.AssertNil(t, got)
+}
+
+func TestS3_Info_Sys_Bad(t *core.T) {
+	info := &fileInfo{}
+	got := info.Sys()
+	core.AssertNil(t, got)
+}
+
+func TestS3_Info_Sys_Ugly(t *core.T) {
+	var info *fileInfo = &fileInfo{}
+	got := info.Sys()
+	core.AssertNil(t, got)
+}
+
+func TestS3_Entry_Name_Good(t *core.T) {
+	medium := newS3MediumFixture(t)
+	core.RequireNoError(t, medium.Write("dir/entry.txt", "abc"))
+	entries, err := medium.List("dir")
+	core.RequireNoError(t, err)
+	core.AssertEqual(t, "entry.txt", entries[0].Name())
+}
+
+func TestS3_Entry_Name_Bad(t *core.T) {
+	entry := &dirEntry{}
+	got := entry.Name()
+	core.AssertEqual(t, "", got)
+}
+
+func TestS3_Entry_Name_Ugly(t *core.T) {
+	entry := &dirEntry{name: ""}
+	got := entry.Name()
+	core.AssertEqual(t, "", got)
+}
+
+func TestS3_Entry_IsDir_Good(t *core.T) {
+	entry := &dirEntry{name: "dir", isDir: true}
+	got := entry.IsDir()
+	core.AssertTrue(t, got)
+}
+
+func TestS3_Entry_IsDir_Bad(t *core.T) {
+	entry := &dirEntry{name: "file"}
+	got := entry.IsDir()
+	core.AssertFalse(t, got)
+}
+
+func TestS3_Entry_IsDir_Ugly(t *core.T) {
+	entry := &dirEntry{}
+	got := entry.IsDir()
+	core.AssertFalse(t, got)
+}
+
+func TestS3_Entry_Type_Good(t *core.T) {
+	entry := &dirEntry{name: "dir", isDir: true, mode: fs.ModeDir | 0755}
+	got := entry.Type()
+	core.AssertTrue(t, got.IsDir())
+}
+
+func TestS3_Entry_Type_Bad(t *core.T) {
+	entry := &dirEntry{name: "file"}
+	got := entry.Type()
+	core.AssertEqual(t, fs.FileMode(0), got)
+}
+
+func TestS3_Entry_Type_Ugly(t *core.T) {
+	entry := &dirEntry{}
+	got := entry.Type()
+	core.AssertEqual(t, fs.FileMode(0), got)
+}
+
+func TestS3_Entry_Info_Good(t *core.T) {
+	entry := &dirEntry{name: "file", info: &fileInfo{name: "file"}}
+	info, err := entry.Info()
+	core.AssertNoError(t, err)
+	core.AssertEqual(t, "file", info.Name())
+}
+
+func TestS3_Entry_Info_Bad(t *core.T) {
+	entry := &dirEntry{}
+	info, err := entry.Info()
+	core.AssertNoError(t, err)
+	core.AssertNil(t, info)
+}
+
+func TestS3_Entry_Info_Ugly(t *core.T) {
+	entry := &dirEntry{info: &fileInfo{name: ""}}
+	info, err := entry.Info()
+	core.AssertNoError(t, err)
+	core.AssertEqual(t, "", info.Name())
+}
+
+func TestS3_File_Read_Good(t *core.T) {
+	medium := newS3MediumFixture(t)
+	core.RequireNoError(t, medium.Write("file.txt", "abc"))
+	file, err := medium.Open("file.txt")
+	core.RequireNoError(t, err)
+	buf := make([]byte, 3)
+	n, readErr := file.Read(buf)
+	core.AssertNoError(t, readErr)
+	core.AssertEqual(t, 3, n)
+}
+
+func TestS3_File_Read_Bad(t *core.T) {
+	file := &s3File{}
+	buf := make([]byte, 1)
+	n, err := file.Read(buf)
+	core.AssertErrorIs(t, err, goio.EOF)
+	core.AssertEqual(t, 0, n)
+}
+
+func TestS3_File_Read_Ugly(t *core.T) {
+	file := &s3File{content: []byte("abc"), offset: 2}
+	buf := make([]byte, 4)
+	n, err := file.Read(buf)
+	core.AssertNoError(t, err)
+	core.AssertEqual(t, 1, n)
+}
+
+func TestS3_File_Stat_Good(t *core.T) {
+	file := &s3File{name: "file.txt", content: []byte("abc")}
+	info, err := file.Stat()
+	core.AssertNoError(t, err)
+	core.AssertEqual(t, "file.txt", info.Name())
+}
+
+func TestS3_File_Stat_Bad(t *core.T) {
+	file := &s3File{}
+	info, err := file.Stat()
+	core.AssertNoError(t, err)
+	core.AssertEqual(t, "", info.Name())
+}
+
+func TestS3_File_Stat_Ugly(t *core.T) {
+	file := &s3File{name: "empty", content: nil}
+	info, err := file.Stat()
+	core.AssertNoError(t, err)
+	core.AssertEqual(t, int64(0), info.Size())
+}
+
+func TestS3_File_Close_Good(t *core.T) {
+	file := &s3File{name: "file.txt"}
+	err := file.Close()
+	core.AssertNoError(t, err)
+}
+
+func TestS3_File_Close_Bad(t *core.T) {
+	file := &s3File{}
+	err := file.Close()
+	core.AssertNoError(t, err)
+}
+
+func TestS3_File_Close_Ugly(t *core.T) {
+	file := &s3File{}
+	core.AssertNoError(t, file.Close())
+	core.AssertNoError(t, file.Close())
+}
+
+func TestS3_WriteCloser_Write_Good(t *core.T) {
+	medium := newS3MediumFixture(t)
+	writer, err := medium.Create("writer.txt")
+	core.RequireNoError(t, err)
+	n, writeErr := writer.Write([]byte("abc"))
+	core.AssertNoError(t, writeErr)
+	core.AssertEqual(t, 3, n)
+}
+
+func TestS3_WriteCloser_Write_Bad(t *core.T) {
+	writer := &s3WriteCloser{}
+	n, err := writer.Write(nil)
+	core.AssertNoError(t, err)
+	core.AssertEqual(t, 0, n)
+}
+
+func TestS3_WriteCloser_Write_Ugly(t *core.T) {
+	writer := &s3WriteCloser{}
+	n, err := writer.Write([]byte{})
+	core.AssertNoError(t, err)
+	core.AssertEqual(t, 0, n)
+}
+
+func TestS3_WriteCloser_Close_Good(t *core.T) {
+	medium := newS3MediumFixture(t)
+	writer, err := medium.Create("writer-close.txt")
+	core.RequireNoError(t, err)
+	_, writeErr := writer.Write([]byte("abc"))
+	core.RequireNoError(t, writeErr)
+	core.AssertNoError(t, writer.Close())
+}
+
+func TestS3_WriteCloser_Close_Bad(t *core.T) {
+	writer := &s3WriteCloser{}
+	core.AssertPanics(t, func() {
+		_ = writer.Close()
+	})
+}
+
+func TestS3_WriteCloser_Close_Ugly(t *core.T) {
+	medium := newS3MediumFixture(t)
+	writer, err := medium.Create("empty.txt")
+	core.RequireNoError(t, err)
+	_, writeErr := writer.Write([]byte("x"))
+	core.RequireNoError(t, writeErr)
+	core.AssertNoError(t, writer.Close())
 }

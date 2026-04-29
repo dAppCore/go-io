@@ -1,19 +1,14 @@
 package webdav
 
 import (
-	"bytes"
 	"cmp"
 	"encoding/xml"
-	"errors"
-	"fmt"
 	goio "io"
 	"io/fs"
 	"net/http"
 	"net/url"
-	"path"
 	"slices"
 	"strconv"
-	"strings"
 	"time"
 
 	core "dappco.re/go"
@@ -94,16 +89,16 @@ func New(options Options) (*Medium, error) {
 }
 
 func cleanRelative(filePath string) string {
-	clean := path.Clean("/" + strings.ReplaceAll(filePath, "\\", "/"))
+	clean := core.CleanPath("/"+core.Replace(filePath, "\\", "/"), "/")
 	if clean == "/" {
 		return ""
 	}
-	return strings.TrimPrefix(clean, "/")
+	return core.TrimPrefix(clean, "/")
 }
 
 func (medium *Medium) resourceURL(filePath string) string {
 	u := *medium.baseURL
-	basePath := strings.TrimSuffix(u.Path, "/")
+	basePath := core.TrimSuffix(u.Path, "/")
 	relativePath := cleanRelative(filePath)
 	if relativePath == "" {
 		if basePath == "" {
@@ -162,7 +157,7 @@ func statusError(operation, resource string, statusCode int) error {
 	case http.StatusMethodNotAllowed:
 		return core.E(operation, core.Concat("method not allowed: ", resource), fs.ErrExist)
 	default:
-		return core.E(operation, fmt.Sprintf("unexpected HTTP status %d for %s", statusCode, resource), nil)
+		return core.E(operation, core.Sprintf("unexpected HTTP status %d for %s", statusCode, resource), nil)
 	}
 }
 
@@ -184,7 +179,7 @@ func (medium *Medium) putBytes(filePath string, data []byte) error {
 		return err
 	}
 
-	response, err := medium.do(http.MethodPut, filePath, bytes.NewReader(data))
+	response, err := medium.do(http.MethodPut, filePath, core.NewReader(string(data)))
 	if err != nil {
 		return core.E(opWriteMode, core.Concat("PUT failed: ", resource), err)
 	}
@@ -197,7 +192,7 @@ func (medium *Medium) putBytes(filePath string, data []byte) error {
 
 func (medium *Medium) ensureParent(filePath string) error {
 	relative := cleanRelative(filePath)
-	parent := path.Dir(relative)
+	parent := core.PathDir(relative)
 	if parent == "." || parent == "" {
 		return nil
 	}
@@ -244,11 +239,11 @@ func (medium *Medium) EnsureDir(filePath string) error {
 	}
 
 	current := ""
-	for _, part := range strings.Split(relative, "/") {
+	for _, part := range core.Split(relative, "/") {
 		if current == "" {
 			current = part
 		} else {
-			current = path.Join(current, part)
+			current = core.PathJoin(current, part)
 		}
 		if err := medium.mkcol(current); err != nil {
 			return err
@@ -406,7 +401,7 @@ func (medium *Medium) Stat(filePath string) (fs.FileInfo, error) {
 
 func (medium *Medium) propfind(filePath, depth string) ([]davResponse, string, error) {
 	resource := medium.resourceURL(filePath)
-	request, err := medium.newRequest("PROPFIND", filePath, strings.NewReader(propfindBody))
+	request, err := medium.newRequest("PROPFIND", filePath, core.NewReader(propfindBody))
 	if err != nil {
 		return nil, "", core.E(opPropfind, "failed to build PROPFIND request", err)
 	}
@@ -469,7 +464,7 @@ func (medium *Medium) Append(filePath string) (goio.WriteCloser, error) {
 	content, err := medium.Read(filePath)
 	if err == nil {
 		existing = []byte(content)
-	} else if !errors.Is(err, fs.ErrNotExist) {
+	} else if !core.Is(err, fs.ErrNotExist) {
 		return nil, core.E("webdav.Append", core.Concat("read existing failed: ", filePath), err)
 	}
 
@@ -543,7 +538,7 @@ type davResourceType struct {
 
 func (response davResponse) prop() davProp {
 	for _, propstat := range response.PropStats {
-		if propstat.Status == "" || strings.Contains(propstat.Status, " 200 ") {
+		if propstat.Status == "" || core.Contains(propstat.Status, " 200 ") {
 			return propstat.Prop
 		}
 	}
@@ -556,7 +551,7 @@ func (response davResponse) prop() davProp {
 func (response davResponse) fileInfo(fallbackPath string) fs.FileInfo {
 	prop := response.prop()
 	isDir := prop.ResourceType.Collection != nil
-	size, _ := strconv.ParseInt(strings.TrimSpace(prop.ContentLength), 10, 64)
+	size, _ := strconv.ParseInt(core.Trim(prop.ContentLength), 10, 64)
 	modTime := time.Time{}
 	if prop.LastModified != "" {
 		if parsedTime, err := http.ParseTime(prop.LastModified); err == nil {
@@ -566,7 +561,7 @@ func (response davResponse) fileInfo(fallbackPath string) fs.FileInfo {
 
 	name := prop.DisplayName
 	if name == "" {
-		name = path.Base(strings.TrimSuffix(fallbackPath, "/"))
+		name = core.PathBase(core.TrimSuffix(fallbackPath, "/"))
 	}
 	if name == "." || name == "/" {
 		name = ""
@@ -596,7 +591,7 @@ func hrefToPath(href string) string {
 }
 
 func sameURLPath(left, right string) bool {
-	return path.Clean("/"+left) == path.Clean("/"+right)
+	return core.CleanPath("/"+left, "/") == core.CleanPath("/"+right, "/")
 }
 
 type webdavFile struct {

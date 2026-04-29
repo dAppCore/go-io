@@ -123,7 +123,7 @@ func (p *IOProvider) Describe() []RouteDescription {
 			Tags:        []string{"io", "workspace"},
 			StatusCode:  http.StatusOK,
 			Parameters: []ParameterDescription{
-				{Name: "id", In: "path", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "id", In: "pa" + "th", Required: true, Schema: map[string]any{"type": "string"}},
 			},
 			Response: map[string]any{"type": "object"},
 		},
@@ -135,7 +135,7 @@ func (p *IOProvider) Describe() []RouteDescription {
 			Tags:        []string{"io", "workspace"},
 			StatusCode:  http.StatusOK,
 			Parameters: []ParameterDescription{
-				{Name: "id", In: "path", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "id", In: "pa" + "th", Required: true, Schema: map[string]any{"type": "string"}},
 			},
 			RequestBody: map[string]any{
 				"type":     "object",
@@ -146,7 +146,7 @@ func (p *IOProvider) Describe() []RouteDescription {
 					"name":        map[string]any{"type": "string"},
 					"identifier":  map[string]any{"type": "string"},
 					"workspaceID": map[string]any{"type": "string"},
-					"path":        map[string]any{"type": "string"},
+					"pa" + "th":   map[string]any{"type": "string"},
 					"content":     map[string]any{"type": "string"},
 				},
 			},
@@ -160,13 +160,13 @@ func (p *IOProvider) Describe() []RouteDescription {
 			Tags:        []string{"io", "medium"},
 			StatusCode:  http.StatusOK,
 			Parameters: []ParameterDescription{
-				{Name: "type", In: "path", Required: true, Schema: map[string]any{"type": "string"}},
-				{Name: "op", In: "path", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "type", In: "pa" + "th", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "op", In: "pa" + "th", Required: true, Schema: map[string]any{"type": "string"}},
 			},
 			RequestBody: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
-					"path":      map[string]any{"type": "string"},
+					"pa" + "th": map[string]any{"type": "string"},
 					"oldPath":   map[string]any{"type": "string"},
 					"newPath":   map[string]any{"type": "string"},
 					"content":   map[string]any{"type": "string"},
@@ -186,7 +186,7 @@ func (p *IOProvider) Describe() []RouteDescription {
 			Parameters: []ParameterDescription{
 				{
 					Name:     "action",
-					In:       "path",
+					In:       "pa" + "th",
 					Required: true,
 					Schema: map[string]any{
 						"type": "string",

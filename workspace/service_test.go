@@ -1,10 +1,9 @@
 package workspace
 
 import (
-	"io/fs"
-
 	core "dappco.re/go"
 	coreio "dappco.re/go/io"
+	"io/fs"
 )
 
 type testKeyPairProvider struct {
@@ -63,7 +62,7 @@ func TestService_New_CustomRootPathAndMedium_Good(t *core.T) {
 	core.AssertTrue(t, medium.Exists(core.Path(expectedWorkspacePath, "keys", "private.key")))
 }
 
-func TestService_WorkspaceFileRoundTrip_Good(t *core.T) {
+func TestService_WorkspaceFileRoundTripGood(t *core.T) {
 	service, tempHome := newWorkspaceService(t)
 
 	workspaceID, err := service.CreateWorkspace("test-user", "pass123")
@@ -120,7 +119,7 @@ func TestService_WriteWorkspaceFile_TraversalBlocked_Bad(t *core.T) {
 	core.AssertError(t, err)
 }
 
-func TestService_JoinPathWithinRoot_DefaultSeparator_Good(t *core.T) {
+func TestService_JoinPathWithinRoot_DefaultSeparatorGood(t *core.T) {
 	t.Setenv("CORE_PATH_SEPARATOR", "")
 
 	path, err := joinPathWithinRoot("/tmp/workspaces", "../workspaces2")
@@ -213,4 +212,298 @@ func TestService_HandleWorkspaceMessage_Command_Good(t *core.T) {
 
 	unknown := service.HandleWorkspaceMessage(core.New(), "noop")
 	core.AssertFalse(t, unknown.OK)
+}
+
+func newWorkspaceServiceFixture(t *core.T) (*Service, *coreio.MemoryMedium) {
+	t.Helper()
+
+	medium := coreio.NewMemoryMedium()
+	rootPath := core.Path(t.TempDir(), "workspaces")
+	service, err := New(Options{
+		KeyPairProvider: testKeyPairProvider{privateKey: "private-key"},
+		RootPath:        rootPath,
+		Medium:          medium,
+	})
+	core.RequireNoError(t, err)
+	return service, medium
+}
+
+func newScopedMediumFixture(t *core.T) (*scopedMedium, *coreio.MemoryMedium) {
+	t.Helper()
+
+	workspaceService, medium := newTestWorkspace(t)
+	scoped, err := workspaceService.CreateWorkspace("alpha")
+	core.RequireNoError(t, err)
+	return scoped.(*scopedMedium), medium
+}
+
+func TestService_New_Good(t *core.T) {
+	medium := coreio.NewMemoryMedium()
+	rootPath := core.Path(t.TempDir(), "workspaces")
+	service, err := New(Options{
+		KeyPairProvider: testKeyPairProvider{privateKey: "private-key"},
+		RootPath:        rootPath,
+		Medium:          medium,
+	})
+	core.RequireNoError(t, err)
+
+	core.AssertNotNil(t, service)
+	core.AssertEqual(t, rootPath, service.rootPath)
+	core.AssertSame(t, medium, service.medium)
+}
+
+func TestService_New_Bad(t *core.T) {
+	service, err := New(Options{RootPath: "workspaces", Medium: coreio.NewMemoryMedium()})
+	core.AssertError(t, err)
+	core.AssertNil(t, service)
+}
+
+func TestService_New_Ugly(t *core.T) {
+	c := core.New()
+	service, _ := newWorkspaceServiceFixture(t)
+	result := service.HandleWorkspaceMessage(c, "unsupported")
+	core.AssertFalse(t, result.OK)
+}
+
+func TestService_SHA256Hash_Write_Good(t *core.T) {
+	hash := &workspaceSHA256Hash{}
+	count, err := hash.Write([]byte("payload"))
+	core.AssertNoError(t, err)
+	core.AssertEqual(t, len("payload"), count)
+}
+
+func TestService_SHA256Hash_Write_Bad(t *core.T) {
+	hash := &workspaceSHA256Hash{}
+	count, err := hash.Write(nil)
+	core.AssertNoError(t, err)
+	core.AssertEqual(t, 0, count)
+}
+
+func TestService_SHA256Hash_Write_Ugly(t *core.T) {
+	hash := &workspaceSHA256Hash{}
+	_, err := hash.Write([]byte("a"))
+	core.RequireNoError(t, err)
+	_, err = hash.Write([]byte("b"))
+	core.AssertNoError(t, err)
+}
+
+func TestService_SHA256Hash_Sum_Good(t *core.T) {
+	hash := &workspaceSHA256Hash{}
+	_, err := hash.Write([]byte("payload"))
+	core.RequireNoError(t, err)
+	sum := hash.Sum(nil)
+	core.AssertLen(t, sum, 32)
+}
+
+func TestService_SHA256Hash_Sum_Bad(t *core.T) {
+	hash := &workspaceSHA256Hash{}
+	sum := hash.Sum([]byte("prefix"))
+	core.AssertLen(t, sum, len("prefix")+32)
+	core.AssertEqual(t, "prefix", string(sum[:len("prefix")]))
+}
+
+func TestService_SHA256Hash_Sum_Ugly(t *core.T) {
+	hash := &workspaceSHA256Hash{}
+	sum := hash.Sum(nil)
+	core.AssertLen(t, sum, 32)
+	core.AssertNotEmpty(t, sum)
+}
+
+func TestService_SHA256Hash_Reset_Good(t *core.T) {
+	hash := &workspaceSHA256Hash{}
+	_, err := hash.Write([]byte("payload"))
+	core.RequireNoError(t, err)
+	hash.Reset()
+	core.AssertEmpty(t, hash.data)
+}
+
+func TestService_SHA256Hash_Reset_Bad(t *core.T) {
+	hash := &workspaceSHA256Hash{}
+	hash.Reset()
+	core.AssertEmpty(t, hash.data)
+	core.AssertLen(t, hash.Sum(nil), 32)
+}
+
+func TestService_SHA256Hash_Reset_Ugly(t *core.T) {
+	hash := &workspaceSHA256Hash{data: []byte("payload")}
+	hash.Reset()
+	_, err := hash.Write([]byte("again"))
+	core.AssertNoError(t, err)
+	core.AssertEqual(t, []byte("again"), hash.data)
+}
+
+func TestService_SHA256Hash_Size_Good(t *core.T) {
+	hash := &workspaceSHA256Hash{}
+	got := hash.Size()
+	core.AssertEqual(t, 32, got)
+}
+
+func TestService_SHA256Hash_Size_Bad(t *core.T) {
+	hash := &workspaceSHA256Hash{data: []byte("payload")}
+	got := hash.Size()
+	core.AssertEqual(t, 32, got)
+}
+
+func TestService_SHA256Hash_Size_Ugly(t *core.T) {
+	hash := newWorkspaceSHA256Hash()
+	got := hash.Size()
+	core.AssertEqual(t, 32, got)
+}
+
+func TestService_SHA256Hash_BlockSize_Good(t *core.T) {
+	hash := &workspaceSHA256Hash{}
+	got := hash.BlockSize()
+	core.AssertEqual(t, 64, got)
+}
+
+func TestService_SHA256Hash_BlockSize_Bad(t *core.T) {
+	hash := &workspaceSHA256Hash{data: []byte("payload")}
+	got := hash.BlockSize()
+	core.AssertEqual(t, 64, got)
+}
+
+func TestService_SHA256Hash_BlockSize_Ugly(t *core.T) {
+	hash := newWorkspaceSHA256Hash()
+	got := hash.BlockSize()
+	core.AssertEqual(t, 64, got)
+}
+
+func TestService_Service_CreateWorkspace_Good(t *core.T) {
+	service, medium := newWorkspaceServiceFixture(t)
+	workspaceID, err := service.CreateWorkspace("alice", "pass")
+	core.AssertNoError(t, err)
+	core.AssertTrue(t, medium.IsDir(core.Path(service.rootPath, workspaceID, "files")))
+}
+
+func TestService_Service_CreateWorkspace_Bad(t *core.T) {
+	service, _ := newWorkspaceServiceFixture(t)
+	_, err := service.CreateWorkspace("alice", "pass")
+	core.RequireNoError(t, err)
+	_, err = service.CreateWorkspace("alice", "pass")
+	core.AssertError(t, err)
+}
+
+func TestService_Service_CreateWorkspace_Ugly(t *core.T) {
+	service, _ := newWorkspaceServiceFixture(t)
+	workspaceID, err := service.CreateWorkspace(" spaced user ", "pass")
+	core.AssertNoError(t, err)
+	core.AssertNotEmpty(t, workspaceID)
+}
+
+func TestService_Service_SwitchWorkspace_Good(t *core.T) {
+	service, _ := newWorkspaceServiceFixture(t)
+	workspaceID, err := service.CreateWorkspace("alice", "pass")
+	core.RequireNoError(t, err)
+	err = service.SwitchWorkspace(workspaceID)
+	core.AssertNoError(t, err)
+	core.AssertEqual(t, workspaceID, service.activeWorkspaceID)
+}
+
+func TestService_Service_SwitchWorkspace_Bad(t *core.T) {
+	service, _ := newWorkspaceServiceFixture(t)
+	err := service.SwitchWorkspace("missing")
+	core.AssertError(t, err)
+	core.AssertEqual(t, "", service.activeWorkspaceID)
+}
+
+func TestService_Service_SwitchWorkspace_Ugly(t *core.T) {
+	service, _ := newWorkspaceServiceFixture(t)
+	err := service.SwitchWorkspace("../escape")
+	core.AssertError(t, err)
+	core.AssertEqual(t, "", service.activeWorkspaceID)
+}
+
+func TestService_Service_ReadWorkspaceFile_Good(t *core.T) {
+	service, _ := newWorkspaceServiceFixture(t)
+	workspaceID, err := service.CreateWorkspace("alice", "pass")
+	core.RequireNoError(t, err)
+	core.RequireNoError(t, service.SwitchWorkspace(workspaceID))
+	core.RequireNoError(t, service.WriteWorkspaceFile("note.txt", "payload"))
+	got, err := service.ReadWorkspaceFile("note.txt")
+	core.AssertNoError(t, err)
+	core.AssertEqual(t, "payload", got)
+}
+
+func TestService_Service_ReadWorkspaceFile_Bad(t *core.T) {
+	service, _ := newWorkspaceServiceFixture(t)
+	got, err := service.ReadWorkspaceFile("note.txt")
+	core.AssertError(t, err)
+	core.AssertEqual(t, "", got)
+}
+
+func TestService_Service_ReadWorkspaceFile_Ugly(t *core.T) {
+	service, _ := newWorkspaceServiceFixture(t)
+	workspaceID, err := service.CreateWorkspace("alice", "pass")
+	core.RequireNoError(t, err)
+	core.RequireNoError(t, service.SwitchWorkspace(workspaceID))
+	got, err := service.ReadWorkspaceFile("../keys/private.key")
+	core.AssertError(t, err)
+	core.AssertEqual(t, "", got)
+}
+
+func TestService_Service_WriteWorkspaceFile_Good(t *core.T) {
+	service, _ := newWorkspaceServiceFixture(t)
+	workspaceID, err := service.CreateWorkspace("alice", "pass")
+	core.RequireNoError(t, err)
+	core.RequireNoError(t, service.SwitchWorkspace(workspaceID))
+	err = service.WriteWorkspaceFile("note.txt", "payload")
+	core.AssertNoError(t, err)
+}
+
+func TestService_Service_WriteWorkspaceFile_Bad(t *core.T) {
+	service, _ := newWorkspaceServiceFixture(t)
+	err := service.WriteWorkspaceFile("note.txt", "payload")
+	core.AssertError(t, err)
+	core.AssertEqual(t, "", service.activeWorkspaceID)
+}
+
+func TestService_Service_WriteWorkspaceFile_Ugly(t *core.T) {
+	service, _ := newWorkspaceServiceFixture(t)
+	workspaceID, err := service.CreateWorkspace("alice", "pass")
+	core.RequireNoError(t, err)
+	core.RequireNoError(t, service.SwitchWorkspace(workspaceID))
+	err = service.WriteWorkspaceFile("../escape.txt", "payload")
+	core.AssertError(t, err)
+}
+
+func TestService_Service_HandleWorkspaceCommand_Good(t *core.T) {
+	service, _ := newWorkspaceServiceFixture(t)
+	result := service.HandleWorkspaceCommand(WorkspaceCommand{Action: WorkspaceCreateAction, Identifier: "alice", Password: "pass"})
+	core.AssertTrue(t, result.OK)
+	core.AssertNotEmpty(t, result.Value)
+}
+
+func TestService_Service_HandleWorkspaceCommand_Bad(t *core.T) {
+	service, _ := newWorkspaceServiceFixture(t)
+	result := service.HandleWorkspaceCommand(WorkspaceCommand{Action: "unknown"})
+	core.AssertFalse(t, result.OK)
+	core.AssertNotNil(t, result.Value)
+}
+
+func TestService_Service_HandleWorkspaceCommand_Ugly(t *core.T) {
+	service, _ := newWorkspaceServiceFixture(t)
+	result := service.HandleWorkspaceCommand(WorkspaceCommand{Action: WorkspaceCreateAction})
+	core.AssertFalse(t, result.OK)
+	core.AssertNotNil(t, result.Value)
+}
+
+func TestService_Service_HandleWorkspaceMessage_Good(t *core.T) {
+	service, _ := newWorkspaceServiceFixture(t)
+	result := service.HandleWorkspaceMessage(core.New(), WorkspaceCommand{Action: WorkspaceCreateAction, Identifier: "alice", Password: "pass"})
+	core.AssertTrue(t, result.OK)
+	core.AssertNotEmpty(t, result.Value)
+}
+
+func TestService_Service_HandleWorkspaceMessage_Bad(t *core.T) {
+	service, _ := newWorkspaceServiceFixture(t)
+	result := service.HandleWorkspaceMessage(core.New(), "unsupported")
+	core.AssertFalse(t, result.OK)
+	core.AssertNotNil(t, result.Value)
+}
+
+func TestService_Service_HandleWorkspaceMessage_Ugly(t *core.T) {
+	service, _ := newWorkspaceServiceFixture(t)
+	result := service.HandleWorkspaceMessage(nil, WorkspaceCommand{Action: "unknown"})
+	core.AssertFalse(t, result.OK)
+	core.AssertNotNil(t, result.Value)
 }

@@ -1,11 +1,9 @@
 package sigil
 
 import (
-	"bytes"
 	"crypto/rand"
-	goio "io"
-
 	. "dappco.re/go"
+	goio "io"
 )
 
 func TestCryptoSigil_XORObfuscator_RoundTrip_Good(t *T) {
@@ -237,7 +235,7 @@ func TestCryptoSigil_NewChaChaPolySigil_CustomObfuscator_InvalidKey_Bad(t *T) {
 	AssertErrorIs(t, err, InvalidKeyError)
 }
 
-func TestCryptoSigil_ChaChaPolySigil_RoundTrip_Good(t *T) {
+func TestCryptoSigil_ChaChaPolySigil_RoundTripGood(t *T) {
 	key := make([]byte, 32)
 	_, _ = rand.Read(key)
 
@@ -255,7 +253,7 @@ func TestCryptoSigil_ChaChaPolySigil_RoundTrip_Good(t *T) {
 	AssertEqual(t, plaintext, decrypted)
 }
 
-func TestCryptoSigil_ChaChaPolySigil_CustomShuffleMask_Good(t *T) {
+func TestCryptoSigil_ChaChaPolySigil_CustomShuffleMaskGood(t *T) {
 	key := make([]byte, 32)
 	_, _ = rand.Read(key)
 
@@ -271,7 +269,7 @@ func TestCryptoSigil_ChaChaPolySigil_CustomShuffleMask_Good(t *T) {
 	AssertEqual(t, plaintext, decrypted)
 }
 
-func TestCryptoSigil_ChaChaPolySigil_NilData_Good(t *T) {
+func TestCryptoSigil_ChaChaPolySigil_NilDataGood(t *T) {
 	key := make([]byte, 32)
 	_, _ = rand.Read(key)
 
@@ -287,7 +285,7 @@ func TestCryptoSigil_ChaChaPolySigil_NilData_Good(t *T) {
 	AssertNil(t, dec)
 }
 
-func TestCryptoSigil_ChaChaPolySigil_EmptyPlaintext_Good(t *T) {
+func TestCryptoSigil_ChaChaPolySigil_EmptyPlaintextGood(t *T) {
 	key := make([]byte, 32)
 	_, _ = rand.Read(key)
 
@@ -303,14 +301,14 @@ func TestCryptoSigil_ChaChaPolySigil_EmptyPlaintext_Good(t *T) {
 	AssertEqual(t, []byte{}, decrypted)
 }
 
-func TestCryptoSigil_ChaChaPolySigil_DifferentCiphertextsPerCall_Good(t *T) {
+func TestCryptoSigil_ChaChaPolySigil_DifferentCiphertextsPerCallGood(t *T) {
 	key := make([]byte, 32)
 	_, _ = rand.Read(key)
 
 	cipherSigil, err := NewChaChaPolySigil(key, nil)
 	RequireNoError(t, err)
 	cipherSigil.randomReader = &limitReader{
-		data: append(bytes.Repeat([]byte{0x01}, 24), bytes.Repeat([]byte{0x02}, 24)...),
+		data: append(repeatByte(0x01, 24), repeatByte(0x02, 24)...),
 	}
 
 	plaintext := []byte("same input")
@@ -333,7 +331,7 @@ func TestCryptoSigil_ChaChaPolySigil_NoKey_Bad(t *T) {
 	AssertErrorIs(t, err, NoKeyConfiguredError)
 }
 
-func TestCryptoSigil_ChaChaPolySigil_WrongKey_Bad(t *T) {
+func TestCryptoSigil_ChaChaPolySigil_WrongKeyBad(t *T) {
 	key1 := make([]byte, 32)
 	key2 := make([]byte, 32)
 	_, _ = rand.Read(key1)
@@ -349,7 +347,7 @@ func TestCryptoSigil_ChaChaPolySigil_WrongKey_Bad(t *T) {
 	AssertErrorIs(t, err, DecryptionFailedError)
 }
 
-func TestCryptoSigil_ChaChaPolySigil_TruncatedCiphertext_Bad(t *T) {
+func TestCryptoSigil_ChaChaPolySigil_TruncatedCiphertextBad(t *T) {
 	key := make([]byte, 32)
 	_, _ = rand.Read(key)
 
@@ -358,7 +356,7 @@ func TestCryptoSigil_ChaChaPolySigil_TruncatedCiphertext_Bad(t *T) {
 	AssertErrorIs(t, err, CiphertextTooShortError)
 }
 
-func TestCryptoSigil_ChaChaPolySigil_TamperedCiphertext_Bad(t *T) {
+func TestCryptoSigil_ChaChaPolySigil_TamperedCiphertextBad(t *T) {
 	key := make([]byte, 32)
 	_, _ = rand.Read(key)
 
@@ -377,7 +375,7 @@ func (reader *failReader) Read([]byte) (int, error) {
 	return 0, NewError("entropy source failed")
 }
 
-func TestCryptoSigil_ChaChaPolySigil_RandomReaderFailure_Bad(t *T) {
+func TestCryptoSigil_ChaChaPolySigil_RandomReaderFailureBad(t *T) {
 	key := make([]byte, 32)
 	_, _ = rand.Read(key)
 
@@ -388,7 +386,7 @@ func TestCryptoSigil_ChaChaPolySigil_RandomReaderFailure_Bad(t *T) {
 	AssertError(t, err)
 }
 
-func TestCryptoSigil_ChaChaPolySigil_NoObfuscator_Good(t *T) {
+func TestCryptoSigil_ChaChaPolySigil_NoObfuscatorGood(t *T) {
 	key := make([]byte, 32)
 	_, _ = rand.Read(key)
 
@@ -445,7 +443,7 @@ func TestCryptoSigil_NonceFromCiphertext_Empty_Bad(t *T) {
 	AssertErrorIs(t, err, CiphertextTooShortError)
 }
 
-func TestCryptoSigil_ChaChaPolySigil_InTransmutePipeline_Good(t *T) {
+func TestCryptoSigil_ChaChaPolySigil_InTransmutePipelineGood(t *T) {
 	key := make([]byte, 32)
 	_, _ = rand.Read(key)
 
@@ -492,15 +490,23 @@ func TestCryptoSigil_Untransmute_ErrorPropagation_Bad(t *T) {
 }
 
 func TestCryptoSigil_GzipSigil_CustomOutputWriter_Good(t *T) {
-	var outputBuffer bytes.Buffer
-	gzipSigil := &GzipSigil{outputWriter: &outputBuffer}
+	outputBuffer := NewBuffer()
+	gzipSigil := &GzipSigil{outputWriter: outputBuffer}
 
 	_, err := gzipSigil.In([]byte("test data"))
 	RequireNoError(t, err)
 	AssertGreater(t, outputBuffer.Len(), 0)
 }
 
-func TestCryptoSigil_DeriveKeyStream_ExactBlockSize_Good(t *T) {
+func repeatByte(value byte, count int) []byte {
+	out := make([]byte, count)
+	for i := range out {
+		out[i] = value
+	}
+	return out
+}
+
+func TestCryptoSigil_DeriveKeyStream_ExactBlockSizeGood(t *T) {
 	ob := &XORObfuscator{}
 	data := make([]byte, 32)
 	for i := range data {
@@ -513,7 +519,7 @@ func TestCryptoSigil_DeriveKeyStream_ExactBlockSize_Good(t *T) {
 	AssertEqual(t, data, restored)
 }
 
-func TestCryptoSigil_ChaChaPolySigil_NilRandomReader_Good(t *T) {
+func TestCryptoSigil_ChaChaPolySigil_NilRandomReaderGood(t *T) {
 	key := make([]byte, 32)
 	_, _ = rand.Read(key)
 
@@ -540,4 +546,238 @@ func (l *limitReader) Read(p []byte) (int, error) {
 	bytesCopied := copy(p, l.data[l.pos:])
 	l.pos += bytesCopied
 	return bytesCopied, nil
+}
+
+var chachaExampleKey = []byte("0123456789abcdef0123456789abcdef")
+
+func TestCryptoSigil_XORObfuscator_Obfuscate_Good(t *T) {
+	obfuscator := &XORObfuscator{}
+	got := obfuscator.Obfuscate([]byte("payload"), []byte("nonce"))
+	AssertNotEqual(t, []byte("payload"), got)
+	AssertLen(t, got, len("payload"))
+}
+
+func TestCryptoSigil_XORObfuscator_Obfuscate_Bad(t *T) {
+	obfuscator := &XORObfuscator{}
+	got := obfuscator.Obfuscate(nil, []byte("nonce"))
+	AssertNil(t, got)
+}
+
+func TestCryptoSigil_XORObfuscator_Obfuscate_Ugly(t *T) {
+	obfuscator := &XORObfuscator{}
+	got := obfuscator.Obfuscate([]byte{}, []byte("nonce"))
+	AssertEqual(t, []byte{}, got)
+}
+
+func TestCryptoSigil_XORObfuscator_Deobfuscate_Good(t *T) {
+	obfuscator := &XORObfuscator{}
+	encoded := obfuscator.Obfuscate([]byte("payload"), []byte("nonce"))
+	got := obfuscator.Deobfuscate(encoded, []byte("nonce"))
+	AssertEqual(t, []byte("payload"), got)
+}
+
+func TestCryptoSigil_XORObfuscator_Deobfuscate_Bad(t *T) {
+	obfuscator := &XORObfuscator{}
+	got := obfuscator.Deobfuscate(nil, []byte("nonce"))
+	AssertNil(t, got)
+}
+
+func TestCryptoSigil_XORObfuscator_Deobfuscate_Ugly(t *T) {
+	obfuscator := &XORObfuscator{}
+	got := obfuscator.Deobfuscate([]byte{}, []byte("nonce"))
+	AssertEqual(t, []byte{}, got)
+}
+
+func TestCryptoSigil_ShuffleMaskObfuscator_Obfuscate_Good(t *T) {
+	obfuscator := &ShuffleMaskObfuscator{}
+	got := obfuscator.Obfuscate([]byte("payload"), []byte("nonce"))
+	AssertNotEqual(t, []byte("payload"), got)
+	AssertLen(t, got, len("payload"))
+}
+
+func TestCryptoSigil_ShuffleMaskObfuscator_Obfuscate_Bad(t *T) {
+	obfuscator := &ShuffleMaskObfuscator{}
+	got := obfuscator.Obfuscate(nil, []byte("nonce"))
+	AssertNil(t, got)
+}
+
+func TestCryptoSigil_ShuffleMaskObfuscator_Obfuscate_Ugly(t *T) {
+	obfuscator := &ShuffleMaskObfuscator{}
+	got := obfuscator.Obfuscate([]byte{1}, []byte("nonce"))
+	AssertLen(t, got, 1)
+}
+
+func TestCryptoSigil_ShuffleMaskObfuscator_Deobfuscate_Good(t *T) {
+	obfuscator := &ShuffleMaskObfuscator{}
+	encoded := obfuscator.Obfuscate([]byte("payload"), []byte("nonce"))
+	got := obfuscator.Deobfuscate(encoded, []byte("nonce"))
+	AssertEqual(t, []byte("payload"), got)
+}
+
+func TestCryptoSigil_ShuffleMaskObfuscator_Deobfuscate_Bad(t *T) {
+	obfuscator := &ShuffleMaskObfuscator{}
+	got := obfuscator.Deobfuscate(nil, []byte("nonce"))
+	AssertNil(t, got)
+}
+
+func TestCryptoSigil_ShuffleMaskObfuscator_Deobfuscate_Ugly(t *T) {
+	obfuscator := &ShuffleMaskObfuscator{}
+	encoded := obfuscator.Obfuscate([]byte{1}, []byte("nonce"))
+	got := obfuscator.Deobfuscate(encoded, []byte("nonce"))
+	AssertEqual(t, []byte{1}, got)
+}
+
+func TestCryptoSigil_NewChaChaPolySigil_Bad(t *T) {
+	sigilValue, err := NewChaChaPolySigil([]byte("short"), nil)
+	AssertErrorIs(t, err, InvalidKeyError)
+	AssertNil(t, sigilValue)
+}
+
+func TestCryptoSigil_NewChaChaPolySigil_Ugly(t *T) {
+	sigilValue, err := NewChaChaPolySigil(chachaExampleKey, &ShuffleMaskObfuscator{})
+	AssertNoError(t, err)
+	AssertNotNil(t, sigilValue.Obfuscator())
+}
+
+func TestCryptoSigil_ChaChaPolySigil_Key_Good(t *T) {
+	sigilValue, err := NewChaChaPolySigil(chachaExampleKey, nil)
+	RequireNoError(t, err)
+	got := sigilValue.Key()
+	AssertEqual(t, chachaExampleKey, got)
+}
+
+func TestCryptoSigil_ChaChaPolySigil_Key_Bad(t *T) {
+	sigilValue := &ChaChaPolySigil{}
+	got := sigilValue.Key()
+	AssertEmpty(t, got)
+}
+
+func TestCryptoSigil_ChaChaPolySigil_Key_Ugly(t *T) {
+	sigilValue, err := NewChaChaPolySigil(chachaExampleKey, nil)
+	RequireNoError(t, err)
+	got := sigilValue.Key()
+	got[0] ^= 0xff
+	AssertEqual(t, chachaExampleKey, sigilValue.Key())
+}
+
+func TestCryptoSigil_ChaChaPolySigil_Nonce_Good(t *T) {
+	sigilValue, err := NewChaChaPolySigil(chachaExampleKey, nil)
+	RequireNoError(t, err)
+	got := sigilValue.Nonce()
+	AssertNil(t, got)
+}
+
+func TestCryptoSigil_ChaChaPolySigil_Nonce_Bad(t *T) {
+	sigilValue := &ChaChaPolySigil{}
+	got := sigilValue.Nonce()
+	AssertNil(t, got)
+}
+
+func TestCryptoSigil_ChaChaPolySigil_Nonce_Ugly(t *T) {
+	sigilValue, err := NewChaChaPolySigil(chachaExampleKey, &ShuffleMaskObfuscator{})
+	RequireNoError(t, err)
+	got := sigilValue.Nonce()
+	AssertNil(t, got)
+}
+
+func TestCryptoSigil_ChaChaPolySigil_Obfuscator_Good(t *T) {
+	sigilValue, err := NewChaChaPolySigil(chachaExampleKey, nil)
+	RequireNoError(t, err)
+	got := sigilValue.Obfuscator()
+	AssertNotNil(t, got)
+}
+
+func TestCryptoSigil_ChaChaPolySigil_Obfuscator_Bad(t *T) {
+	sigilValue := &ChaChaPolySigil{}
+	got := sigilValue.Obfuscator()
+	AssertNil(t, got)
+}
+
+func TestCryptoSigil_ChaChaPolySigil_Obfuscator_Ugly(t *T) {
+	obfuscator := &ShuffleMaskObfuscator{}
+	sigilValue, err := NewChaChaPolySigil(chachaExampleKey, obfuscator)
+	RequireNoError(t, err)
+	AssertSame(t, obfuscator, sigilValue.Obfuscator())
+}
+
+func TestCryptoSigil_ChaChaPolySigil_SetObfuscator_Good(t *T) {
+	sigilValue, err := NewChaChaPolySigil(chachaExampleKey, nil)
+	RequireNoError(t, err)
+	obfuscator := &ShuffleMaskObfuscator{}
+	sigilValue.SetObfuscator(obfuscator)
+	AssertSame(t, obfuscator, sigilValue.Obfuscator())
+}
+
+func TestCryptoSigil_ChaChaPolySigil_SetObfuscator_Bad(t *T) {
+	sigilValue, err := NewChaChaPolySigil(chachaExampleKey, nil)
+	RequireNoError(t, err)
+	sigilValue.SetObfuscator(nil)
+	AssertNil(t, sigilValue.Obfuscator())
+}
+
+func TestCryptoSigil_ChaChaPolySigil_SetObfuscator_Ugly(t *T) {
+	sigilValue, err := NewChaChaPolySigil(chachaExampleKey, &ShuffleMaskObfuscator{})
+	RequireNoError(t, err)
+	sigilValue.SetObfuscator(&XORObfuscator{})
+	AssertNotNil(t, sigilValue.Obfuscator())
+}
+
+func TestCryptoSigil_ChaChaPolySigil_In_Good(t *T) {
+	sigilValue, err := NewChaChaPolySigil(chachaExampleKey, nil)
+	RequireNoError(t, err)
+	got, err := sigilValue.In([]byte("payload"))
+	AssertNoError(t, err)
+	AssertNotEmpty(t, got)
+}
+
+func TestCryptoSigil_ChaChaPolySigil_In_Bad(t *T) {
+	sigilValue := &ChaChaPolySigil{}
+	got, err := sigilValue.In([]byte("payload"))
+	AssertErrorIs(t, err, NoKeyConfiguredError)
+	AssertNil(t, got)
+}
+
+func TestCryptoSigil_ChaChaPolySigil_In_Ugly(t *T) {
+	sigilValue, err := NewChaChaPolySigil(chachaExampleKey, nil)
+	RequireNoError(t, err)
+	got, err := sigilValue.In(nil)
+	AssertNoError(t, err)
+	AssertNil(t, got)
+}
+
+func TestCryptoSigil_ChaChaPolySigil_Out_Good(t *T) {
+	sigilValue, err := NewChaChaPolySigil(chachaExampleKey, nil)
+	RequireNoError(t, err)
+	ciphertext, err := sigilValue.In([]byte("payload"))
+	RequireNoError(t, err)
+	got, err := sigilValue.Out(ciphertext)
+	AssertNoError(t, err)
+	AssertEqual(t, []byte("payload"), got)
+}
+
+func TestCryptoSigil_ChaChaPolySigil_Out_Bad(t *T) {
+	sigilValue := &ChaChaPolySigil{}
+	got, err := sigilValue.Out([]byte("ciphertext"))
+	AssertErrorIs(t, err, NoKeyConfiguredError)
+	AssertNil(t, got)
+}
+
+func TestCryptoSigil_ChaChaPolySigil_Out_Ugly(t *T) {
+	sigilValue, err := NewChaChaPolySigil(chachaExampleKey, nil)
+	RequireNoError(t, err)
+	got, err := sigilValue.Out(nil)
+	AssertNoError(t, err)
+	AssertNil(t, got)
+}
+
+func TestCryptoSigil_NonceFromCiphertext_Bad(t *T) {
+	nonce, err := NonceFromCiphertext([]byte("short"))
+	AssertErrorIs(t, err, CiphertextTooShortError)
+	AssertNil(t, nonce)
+}
+
+func TestCryptoSigil_NonceFromCiphertext_Ugly(t *T) {
+	nonce, err := NonceFromCiphertext(make([]byte, 24))
+	AssertNoError(t, err)
+	AssertLen(t, nonce, 24)
 }

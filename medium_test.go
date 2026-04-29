@@ -268,7 +268,7 @@ func TestMemoryMedium_IsDir_Good(t *core.T) {
 	core.AssertFalse(t, memoryMedium.IsDir("nonexistent"))
 }
 
-func TestMemoryMedium_StreamAndFSHelpers_Good(t *core.T) {
+func TestMemoryMedium_StreamAndFSHelpersGood(t *core.T) {
 	memoryMedium := NewMemoryMedium()
 	core.RequireNoError(t, memoryMedium.EnsureDir("dir"))
 	core.RequireNoError(t, memoryMedium.Write("dir/file.txt", "alpha"))
@@ -383,7 +383,7 @@ func TestIO_NewSandboxed_Good(t *core.T) {
 	core.AssertTrue(t, memoryMedium.IsDir("config"))
 }
 
-func TestIO_ReadWriteStream_Good(t *core.T) {
+func TestIO_ReadWriteStreamGood(t *core.T) {
 	memoryMedium := NewMemoryMedium()
 
 	writer, err := WriteStream(memoryMedium, "logs/run.txt")
@@ -421,7 +421,7 @@ func TestIO_Copy_Bad(t *core.T) {
 	core.AssertError(t, err)
 }
 
-func TestIO_LocalGlobal_Good(t *core.T) {
+func TestIO_LocalGlobalGood(t *core.T) {
 	core.AssertNotNil(t, Local, "io.Local should be initialised")
 
 	var localMedium = Local

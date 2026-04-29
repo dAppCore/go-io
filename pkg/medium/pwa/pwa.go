@@ -1,11 +1,8 @@
 package pwa
 
 import (
-	"errors"
 	goio "io"
 	"io/fs"
-	"path"
-	"strings"
 	"sync"
 
 	core "dappco.re/go"
@@ -23,9 +20,9 @@ const (
 )
 
 // ErrNotImplemented remains for callers that used the round-1 stub sentinel.
-var ErrNotImplemented = errors.New("pwa medium is not implemented")
+var ErrNotImplemented = core.NewError("pwa medium is not implemented")
 
-var errReadOnly = errors.New("pwa medium is read-only")
+var errReadOnly = core.NewError("pwa medium is read-only")
 
 // Medium is a Borg PWA DataNode-backed implementation of coreio.Medium.
 type Medium struct {
@@ -48,11 +45,11 @@ func New(options Options) (*Medium, error) {
 }
 
 func cleanRelative(filePath string) string {
-	clean := path.Clean("/" + strings.ReplaceAll(filePath, "\\", "/"))
+	clean := core.CleanPath("/"+core.Replace(filePath, "\\", "/"), "/")
 	if clean == "/" {
 		return ""
 	}
-	return strings.TrimPrefix(clean, "/")
+	return core.TrimPrefix(clean, "/")
 }
 
 func requiredPath(operation, filePath string) (string, error) {
@@ -77,7 +74,7 @@ func (medium *Medium) ensureDataNode() (*borgdatanode.DataNode, error) {
 		return medium.dataNode, nil
 	}
 
-	targetURL := strings.TrimSpace(medium.url)
+	targetURL := core.Trim(medium.url)
 	if targetURL == "" {
 		return nil, core.E(opEnsureDataNode, "url is required", fs.ErrInvalid)
 	}

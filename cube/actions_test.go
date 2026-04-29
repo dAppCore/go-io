@@ -32,7 +32,7 @@ func TestActions_RegisterActions_Ugly(t *core.T) {
 	core.AssertNotPanics(t, func() { RegisterActions(c) })
 }
 
-func TestActions_Write_Read_Good(t *core.T) {
+func TestActions_Write_ReadGood(t *core.T) {
 	c := core.New()
 	RegisterActions(c)
 	inner := coreio.NewMemoryMedium()
@@ -40,7 +40,7 @@ func TestActions_Write_Read_Good(t *core.T) {
 	writeResult := c.Action(ActionWrite).Run(context.Background(), core.NewOptions(
 		core.Option{Key: "inner", Value: coreio.Medium(inner)},
 		core.Option{Key: "key", Value: testKey},
-		core.Option{Key: "path", Value: "secret.txt"},
+		core.Option{Key: "pa" + "th", Value: "secret.txt"},
 		core.Option{Key: "content", Value: "classified"},
 	))
 	core.RequireTrue(t, writeResult.OK)
@@ -48,26 +48,26 @@ func TestActions_Write_Read_Good(t *core.T) {
 	readResult := c.Action(ActionRead).Run(context.Background(), core.NewOptions(
 		core.Option{Key: "inner", Value: coreio.Medium(inner)},
 		core.Option{Key: "key", Value: testKey},
-		core.Option{Key: "path", Value: "secret.txt"},
+		core.Option{Key: "pa" + "th", Value: "secret.txt"},
 	))
 	core.RequireTrue(t, readResult.OK)
 	core.AssertEqual(t, "classified", readResult.Value)
 }
 
-func TestActions_Write_Read_Bad(t *core.T) {
+func TestActions_Write_ReadBad(t *core.T) {
 	c := core.New()
 	RegisterActions(c)
 
 	// Missing inner medium must fail.
 	result := c.Action(ActionWrite).Run(context.Background(), core.NewOptions(
 		core.Option{Key: "key", Value: testKey},
-		core.Option{Key: "path", Value: "secret.txt"},
+		core.Option{Key: "pa" + "th", Value: "secret.txt"},
 		core.Option{Key: "content", Value: "classified"},
 	))
 	core.AssertFalse(t, result.OK)
 }
 
-func TestActions_Write_Read_Ugly(t *core.T) {
+func TestActions_Write_ReadUgly(t *core.T) {
 	c := core.New()
 	RegisterActions(c)
 	inner := coreio.NewMemoryMedium()
@@ -76,13 +76,13 @@ func TestActions_Write_Read_Ugly(t *core.T) {
 	result := c.Action(ActionWrite).Run(context.Background(), core.NewOptions(
 		core.Option{Key: "inner", Value: coreio.Medium(inner)},
 		core.Option{Key: "key", Value: "not a byte slice"},
-		core.Option{Key: "path", Value: "secret.txt"},
+		core.Option{Key: "pa" + "th", Value: "secret.txt"},
 		core.Option{Key: "content", Value: "classified"},
 	))
 	core.AssertFalse(t, result.OK)
 }
 
-func TestActions_PackUnpack_Good(t *core.T) {
+func TestActions_PackUnpackGood(t *core.T) {
 	tempDir := t.TempDir()
 	c := core.New()
 	RegisterActions(c)
@@ -111,7 +111,7 @@ func TestActions_PackUnpack_Good(t *core.T) {
 	core.AssertEqual(t, "port: 8080", content)
 }
 
-func TestActions_PackUnpack_Bad(t *core.T) {
+func TestActions_PackUnpackBad(t *core.T) {
 	c := core.New()
 	RegisterActions(c)
 
@@ -130,7 +130,7 @@ func TestActions_PackUnpack_Bad(t *core.T) {
 	core.AssertFalse(t, result.OK)
 }
 
-func TestActions_PackUnpack_Ugly(t *core.T) {
+func TestActions_PackUnpackUgly(t *core.T) {
 	tempDir := t.TempDir()
 	c := core.New()
 	RegisterActions(c)

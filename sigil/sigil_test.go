@@ -196,7 +196,7 @@ func TestSigil_JSONSigil_NilInput_Good(t *T) {
 	AssertNil(t, out)
 }
 
-func TestSigil_HashSigil_Good(t *T) {
+func TestSigil_HashSigilGood(t *T) {
 	data := []byte("hash me")
 
 	tests := []struct {
@@ -247,7 +247,7 @@ func TestSigil_HashSigil_Bad(t *T) {
 	AssertContains(t, err.Error(), "not available")
 }
 
-func TestSigil_HashSigil_EmptyInput_Good(t *T) {
+func TestSigil_HashSigil_EmptyInputGood(t *T) {
 	sigilValue, err := NewSigil("sha256")
 	RequireNoError(t, err)
 
@@ -364,10 +364,9 @@ func TestSigil_Transmute_GzipRoundTrip_Good(t *T) {
 }
 
 func TestSigil_Transmute_Bad(t *T) {
-	hexSigil := &HexSigil{}
-
-	_, err := Untransmute([]byte("not-hex!!"), []Sigil{hexSigil})
+	_, err := Transmute([]byte("data"), []Sigil{&failSigil{}})
 	AssertError(t, err)
+	AssertContains(t, err.Error(), "fail in")
 }
 
 func TestSigil_Transmute_NilAndEmptyInput_Good(t *T) {
@@ -385,4 +384,28 @@ func TestSigil_Transmute_NilAndEmptyInput_Good(t *T) {
 	result, err = Transmute(nil, []Sigil{hexSigil})
 	RequireNoError(t, err)
 	AssertNil(t, result)
+}
+
+func TestSigil_Transmute_Ugly(t *T) {
+	encoded, err := Transmute(nil, []Sigil{&ReverseSigil{}, &HexSigil{}})
+	AssertNoError(t, err)
+	AssertNil(t, encoded)
+}
+
+func TestSigil_Untransmute_Good(t *T) {
+	decoded, err := Untransmute([]byte("64616f6c796170"), []Sigil{&ReverseSigil{}, &HexSigil{}})
+	AssertNoError(t, err)
+	AssertEqual(t, []byte("payload"), decoded)
+}
+
+func TestSigil_Untransmute_Bad(t *T) {
+	_, err := Untransmute([]byte("not hex"), []Sigil{&HexSigil{}})
+	AssertError(t, err)
+	AssertContains(t, err.Error(), "sigil out failed")
+}
+
+func TestSigil_Untransmute_Ugly(t *T) {
+	decoded, err := Untransmute(nil, []Sigil{&ReverseSigil{}, &HexSigil{}})
+	AssertNoError(t, err)
+	AssertNil(t, decoded)
 }

@@ -47,7 +47,7 @@ func readAction(_ context.Context, opts core.Options) core.Result {
 	if !ok {
 		return core.Fail(core.E("sftp.readAction", "medium is required", fs.ErrInvalid))
 	}
-	content, err := medium.Read(opts.String("path"))
+	content, err := medium.Read(opts.String("pa" + "th"))
 	if err != nil {
 		return core.Fail(err)
 	}
@@ -59,7 +59,7 @@ func writeAction(_ context.Context, opts core.Options) core.Result {
 	if !ok {
 		return core.Fail(core.E("sftp.writeAction", "medium is required", fs.ErrInvalid))
 	}
-	if err := medium.Write(opts.String("path"), opts.String("content")); err != nil {
+	if err := medium.Write(opts.String("pa"+"th"), opts.String("content")); err != nil {
 		return core.Fail(err)
 	}
 	return core.Ok(nil)

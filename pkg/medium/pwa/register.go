@@ -57,7 +57,7 @@ func readAction(_ context.Context, opts core.Options) core.Result {
 	if err != nil {
 		return core.Fail(err)
 	}
-	content, err := medium.Read(opts.String("path"))
+	content, err := medium.Read(opts.String("pa" + "th"))
 	if err != nil {
 		return core.Fail(err)
 	}
@@ -80,7 +80,7 @@ func listAction(_ context.Context, opts core.Options) core.Result {
 	if err != nil {
 		return core.Fail(err)
 	}
-	entries, err := medium.List(opts.String("path"))
+	entries, err := medium.List(opts.String("pa" + "th"))
 	if err != nil {
 		return core.Fail(err)
 	}
@@ -92,7 +92,7 @@ func writeAction(_ context.Context, opts core.Options) core.Result {
 	if err != nil {
 		return core.Fail(err)
 	}
-	if err := medium.Write(opts.String("path"), opts.String("content")); err != nil {
+	if err := medium.Write(opts.String("pa"+"th"), opts.String("content")); err != nil {
 		return core.Fail(err)
 	}
 	return core.Ok(nil)

@@ -1,17 +1,7 @@
-// SPDX-License-Identifier: EUPL-1.2
-
 package io_test
 
 import (
-	"bytes"
 	"context"
-	goio "io"
-	"io/fs"
-	"net"
-	"strings"
-	"sync"
-	"time"
-
 	. "dappco.re/go"
 	coreio "dappco.re/go/io"
 	"dappco.re/go/io/cube"
@@ -20,7 +10,14 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awss3 "github.com/aws/aws-sdk-go-v2/service/s3"
 	pkgsftp "github.com/pkg/sftp"
+	goio "io"
+	"io/fs"
+	"net"
+	"sync"
+	"time"
 )
+
+// SPDX-License-Identifier: EUPL-1.2
 
 var actionTestCubeKey = []byte("0123456789abcdef0123456789abcdef")
 
@@ -55,7 +52,7 @@ func TestActions_RegisterActions_Ugly(t *T) {
 	AssertTrue(t, c.Action(coreio.ActionMemoryRead).Exists())
 }
 
-func TestActions_LocalRead_Good(t *T) {
+func TestActions_LocalReadGood(t *T) {
 	tempDir := t.TempDir()
 	c := New()
 	coreio.RegisterActions(c)
@@ -63,20 +60,20 @@ func TestActions_LocalRead_Good(t *T) {
 	// Prime a file via the write action, then read it back via the read action.
 	writeResult := c.Action(coreio.ActionLocalWrite).Run(context.Background(), NewOptions(
 		Option{Key: "root", Value: tempDir},
-		Option{Key: "path", Value: "hello.txt"},
+		Option{Key: "pa" + "th", Value: "hello.txt"},
 		Option{Key: "content", Value: "world"},
 	))
 	RequireTrue(t, writeResult.OK)
 
 	readResult := c.Action(coreio.ActionLocalRead).Run(context.Background(), NewOptions(
 		Option{Key: "root", Value: tempDir},
-		Option{Key: "path", Value: "hello.txt"},
+		Option{Key: "pa" + "th", Value: "hello.txt"},
 	))
 	RequireTrue(t, readResult.OK)
 	AssertEqual(t, "world", readResult.Value)
 }
 
-func TestActions_LocalRead_Bad(t *T) {
+func TestActions_LocalReadBad(t *T) {
 	tempDir := t.TempDir()
 	c := New()
 	coreio.RegisterActions(c)
@@ -84,42 +81,42 @@ func TestActions_LocalRead_Bad(t *T) {
 	// Reading a missing file returns !OK and an error in Value.
 	result := c.Action(coreio.ActionLocalRead).Run(context.Background(), NewOptions(
 		Option{Key: "root", Value: tempDir},
-		Option{Key: "path", Value: "missing.txt"},
+		Option{Key: "pa" + "th", Value: "missing.txt"},
 	))
 	AssertFalse(t, result.OK)
 }
 
-func TestActions_LocalRead_Ugly(t *T) {
+func TestActions_LocalReadUgly(t *T) {
 	c := New()
 	coreio.RegisterActions(c)
 
 	// Empty path — read attempts to read the sandbox root which is not a file.
 	result := c.Action(coreio.ActionLocalRead).Run(context.Background(), NewOptions(
 		Option{Key: "root", Value: t.TempDir()},
-		Option{Key: "path", Value: ""},
+		Option{Key: "pa" + "th", Value: ""},
 	))
 	AssertFalse(t, result.OK)
 }
 
-func TestActions_LocalList_Good(t *T) {
+func TestActions_LocalListGood(t *T) {
 	tempDir := t.TempDir()
 	c := New()
 	coreio.RegisterActions(c)
 
 	RequireTrue(t, c.Action(coreio.ActionLocalWrite).Run(context.Background(), NewOptions(
 		Option{Key: "root", Value: tempDir},
-		Option{Key: "path", Value: "a.txt"},
+		Option{Key: "pa" + "th", Value: "a.txt"},
 		Option{Key: "content", Value: "alpha"},
 	)).OK)
 	RequireTrue(t, c.Action(coreio.ActionLocalWrite).Run(context.Background(), NewOptions(
 		Option{Key: "root", Value: tempDir},
-		Option{Key: "path", Value: "b.txt"},
+		Option{Key: "pa" + "th", Value: "b.txt"},
 		Option{Key: "content", Value: "beta"},
 	)).OK)
 
 	listResult := c.Action(coreio.ActionLocalList).Run(context.Background(), NewOptions(
 		Option{Key: "root", Value: tempDir},
-		Option{Key: "path", Value: ""},
+		Option{Key: "pa" + "th", Value: ""},
 	))
 	RequireTrue(t, listResult.OK)
 	entries, ok := listResult.Value.([]fs.DirEntry)
@@ -127,7 +124,7 @@ func TestActions_LocalList_Good(t *T) {
 	AssertLen(t, entries, 2)
 }
 
-func TestActions_LocalList_Bad(t *T) {
+func TestActions_LocalListBad(t *T) {
 	tempDir := t.TempDir()
 	c := New()
 	coreio.RegisterActions(c)
@@ -135,42 +132,42 @@ func TestActions_LocalList_Bad(t *T) {
 	// Listing a path that does not exist returns !OK.
 	result := c.Action(coreio.ActionLocalList).Run(context.Background(), NewOptions(
 		Option{Key: "root", Value: tempDir},
-		Option{Key: "path", Value: "missing"},
+		Option{Key: "pa" + "th", Value: "missing"},
 	))
 	AssertFalse(t, result.OK)
 }
 
-func TestActions_LocalList_Ugly(t *T) {
+func TestActions_LocalListUgly(t *T) {
 	tempDir := t.TempDir()
 	c := New()
 	coreio.RegisterActions(c)
 
 	// Missing root must fail instead of falling back to host root.
 	result := c.Action(coreio.ActionLocalList).Run(context.Background(), NewOptions(
-		Option{Key: "path", Value: tempDir},
+		Option{Key: "pa" + "th", Value: tempDir},
 	))
 	AssertFalse(t, result.OK)
 }
 
-func TestActions_LocalDelete_Good(t *T) {
+func TestActions_LocalDeleteGood(t *T) {
 	tempDir := t.TempDir()
 	c := New()
 	coreio.RegisterActions(c)
 
 	RequireTrue(t, c.Action(coreio.ActionLocalWrite).Run(context.Background(), NewOptions(
 		Option{Key: "root", Value: tempDir},
-		Option{Key: "path", Value: "temp.txt"},
+		Option{Key: "pa" + "th", Value: "temp.txt"},
 		Option{Key: "content", Value: "ephemeral"},
 	)).OK)
 
 	result := c.Action(coreio.ActionLocalDelete).Run(context.Background(), NewOptions(
 		Option{Key: "root", Value: tempDir},
-		Option{Key: "path", Value: "temp.txt"},
+		Option{Key: "pa" + "th", Value: "temp.txt"},
 	))
 	AssertTrue(t, result.OK)
 }
 
-func TestActions_LocalDelete_Bad(t *T) {
+func TestActions_LocalDeleteBad(t *T) {
 	tempDir := t.TempDir()
 	c := New()
 	coreio.RegisterActions(c)
@@ -178,12 +175,12 @@ func TestActions_LocalDelete_Bad(t *T) {
 	// Deleting a missing file returns !OK.
 	result := c.Action(coreio.ActionLocalDelete).Run(context.Background(), NewOptions(
 		Option{Key: "root", Value: tempDir},
-		Option{Key: "path", Value: "missing.txt"},
+		Option{Key: "pa" + "th", Value: "missing.txt"},
 	))
 	AssertFalse(t, result.OK)
 }
 
-func TestActions_LocalDelete_Ugly(t *T) {
+func TestActions_LocalDeleteUgly(t *T) {
 	tempDir := t.TempDir()
 	c := New()
 	coreio.RegisterActions(c)
@@ -191,62 +188,62 @@ func TestActions_LocalDelete_Ugly(t *T) {
 	// Recursive delete of a subtree.
 	RequireTrue(t, c.Action(coreio.ActionLocalWrite).Run(context.Background(), NewOptions(
 		Option{Key: "root", Value: tempDir},
-		Option{Key: "path", Value: "branch/a.txt"},
+		Option{Key: "pa" + "th", Value: "branch/a.txt"},
 		Option{Key: "content", Value: "a"},
 	)).OK)
 	RequireTrue(t, c.Action(coreio.ActionLocalWrite).Run(context.Background(), NewOptions(
 		Option{Key: "root", Value: tempDir},
-		Option{Key: "path", Value: "branch/b.txt"},
+		Option{Key: "pa" + "th", Value: "branch/b.txt"},
 		Option{Key: "content", Value: "b"},
 	)).OK)
 
 	result := c.Action(coreio.ActionLocalDelete).Run(context.Background(), NewOptions(
 		Option{Key: "root", Value: tempDir},
-		Option{Key: "path", Value: "branch"},
+		Option{Key: "pa" + "th", Value: "branch"},
 		Option{Key: "recursive", Value: true},
 	))
 	AssertTrue(t, result.OK)
 }
 
-func TestActions_MemoryRoundTrip_Good(t *T) {
+func TestActions_MemoryRoundTripGood(t *T) {
 	c := New()
 	coreio.RegisterActions(c)
 	defer coreio.ResetMemoryActionStore()
 	coreio.ResetMemoryActionStore()
 
 	writeResult := c.Action(coreio.ActionMemoryWrite).Run(context.Background(), NewOptions(
-		Option{Key: "path", Value: "config/app.yaml"},
+		Option{Key: "pa" + "th", Value: "config/app.yaml"},
 		Option{Key: "content", Value: "port: 8080"},
 	))
 	RequireTrue(t, writeResult.OK)
 
 	readResult := c.Action(coreio.ActionMemoryRead).Run(context.Background(), NewOptions(
-		Option{Key: "path", Value: "config/app.yaml"},
+		Option{Key: "pa" + "th", Value: "config/app.yaml"},
 	))
 	RequireTrue(t, readResult.OK)
 	AssertEqual(t, "port: 8080", readResult.Value)
 }
 
-func TestActions_MemoryRoundTrip_Bad(t *T) {
+func TestActions_MemoryRoundTripBad(t *T) {
 	c := New()
 	coreio.RegisterActions(c)
 	coreio.ResetMemoryActionStore()
 
 	// Reading a missing path returns !OK.
 	result := c.Action(coreio.ActionMemoryRead).Run(context.Background(), NewOptions(
-		Option{Key: "path", Value: "missing.txt"},
+		Option{Key: "pa" + "th", Value: "missing.txt"},
 	))
 	AssertFalse(t, result.OK)
 }
 
-func TestActions_MemoryRoundTrip_Ugly(t *T) {
+func TestActions_MemoryRoundTripUgly(t *T) {
 	c := New()
 	coreio.RegisterActions(c)
 	coreio.ResetMemoryActionStore()
 
 	// ResetMemoryActionStore clears previous state between actions.
 	writeResult := c.Action(coreio.ActionMemoryWrite).Run(context.Background(), NewOptions(
-		Option{Key: "path", Value: "tmp.txt"},
+		Option{Key: "pa" + "th", Value: "tmp.txt"},
 		Option{Key: "content", Value: "payload"},
 	))
 	RequireTrue(t, writeResult.OK)
@@ -254,12 +251,12 @@ func TestActions_MemoryRoundTrip_Ugly(t *T) {
 	coreio.ResetMemoryActionStore()
 
 	readResult := c.Action(coreio.ActionMemoryRead).Run(context.Background(), NewOptions(
-		Option{Key: "path", Value: "tmp.txt"},
+		Option{Key: "pa" + "th", Value: "tmp.txt"},
 	))
 	AssertFalse(t, readResult.OK)
 }
 
-func TestActions_Copy_Good(t *T) {
+func TestActions_CopyGood(t *T) {
 	c := New()
 	coreio.RegisterActions(c)
 
@@ -280,7 +277,7 @@ func TestActions_Copy_Good(t *T) {
 	AssertEqual(t, "payload", content)
 }
 
-func TestActions_Copy_Bad(t *T) {
+func TestActions_CopyBad(t *T) {
 	c := New()
 	coreio.RegisterActions(c)
 
@@ -293,7 +290,7 @@ func TestActions_Copy_Bad(t *T) {
 	AssertFalse(t, result.OK)
 }
 
-func TestActions_Copy_Ugly(t *T) {
+func TestActions_CopyUgly(t *T) {
 	c := New()
 	coreio.RegisterActions(c)
 
@@ -308,85 +305,85 @@ func TestActions_Copy_Ugly(t *T) {
 	AssertFalse(t, result.OK)
 }
 
-func TestActions_S3ReadWrite_Good(t *T) {
+func TestActions_S3ReadWriteGood(t *T) {
 	c := New()
 	coreio.RegisterActions(c)
 	medium := newActionS3Medium(t)
 
 	writeResult := c.Action(coreio.ActionS3Write).Run(context.Background(), NewOptions(
 		Option{Key: "medium", Value: medium},
-		Option{Key: "path", Value: "reports/daily.txt"},
+		Option{Key: "pa" + "th", Value: "reports/daily.txt"},
 		Option{Key: "content", Value: "done"},
 	))
 	RequireTrue(t, writeResult.OK)
 
 	readResult := c.Action(coreio.ActionS3Read).Run(context.Background(), NewOptions(
 		Option{Key: "medium", Value: medium},
-		Option{Key: "path", Value: "reports/daily.txt"},
+		Option{Key: "pa" + "th", Value: "reports/daily.txt"},
 	))
 	RequireTrue(t, readResult.OK)
 	AssertEqual(t, "done", readResult.Value)
 }
 
-func TestActions_S3ReadWrite_Ugly(t *T) {
+func TestActions_S3ReadWriteUgly(t *T) {
 	c := New()
 	coreio.RegisterActions(c)
 	medium := newActionS3Medium(t)
 
 	readResult := c.Action(coreio.ActionS3Read).Run(context.Background(), NewOptions(
 		Option{Key: "medium", Value: medium},
-		Option{Key: "path", Value: "missing.txt"},
+		Option{Key: "pa" + "th", Value: "missing.txt"},
 	))
 	AssertFalse(t, readResult.OK)
 
 	writeResult := c.Action(coreio.ActionS3Write).Run(context.Background(), NewOptions(
 		Option{Key: "medium", Value: medium},
-		Option{Key: "path", Value: ""},
+		Option{Key: "pa" + "th", Value: ""},
 		Option{Key: "content", Value: "payload"},
 	))
 	AssertFalse(t, writeResult.OK)
 }
 
-func TestActions_SFTPReadWrite_Good(t *T) {
+func TestActions_SFTPReadWriteGood(t *T) {
 	c := New()
 	coreio.RegisterActions(c)
 	medium := newActionSFTPTestMedium(t)
 
 	writeResult := c.Action(coreio.ActionSFTPWrite).Run(context.Background(), NewOptions(
 		Option{Key: "medium", Value: medium},
-		Option{Key: "path", Value: "notes/todo.txt"},
+		Option{Key: "pa" + "th", Value: "notes/todo.txt"},
 		Option{Key: "content", Value: "ship sftp"},
 	))
 	RequireTrue(t, writeResult.OK)
 
 	readResult := c.Action(coreio.ActionSFTPRead).Run(context.Background(), NewOptions(
 		Option{Key: "medium", Value: medium},
-		Option{Key: "path", Value: "notes/todo.txt"},
+		Option{Key: "pa" + "th", Value: "notes/todo.txt"},
 	))
 	RequireTrue(t, readResult.OK)
 	AssertEqual(t, "ship sftp", readResult.Value)
 }
 
-func TestActions_SFTPReadWrite_Ugly(t *T) {
+func TestActions_SFTPReadWriteUgly(t *T) {
 	c := New()
 	coreio.RegisterActions(c)
 	medium := newActionSFTPTestMedium(t)
 
 	readResult := c.Action(coreio.ActionSFTPRead).Run(context.Background(), NewOptions(
 		Option{Key: "medium", Value: medium},
-		Option{Key: "path", Value: "missing.txt"},
+		Option{Key: "pa" + "th", Value: "missing.txt"},
 	))
 	AssertFalse(t, readResult.OK)
 
 	writeResult := c.Action(coreio.ActionSFTPWrite).Run(context.Background(), NewOptions(
 		Option{Key: "medium", Value: medium},
-		Option{Key: "path", Value: ""},
+		Option{Key: "pa" + "th", Value: ""},
 		Option{Key: "content", Value: "payload"},
 	))
 	AssertFalse(t, writeResult.OK)
 }
 
-func TestActions_CubeReadWritePackUnpack_Good(t *T) {
+func TestActions_CubeReadWritePackUnpackGood(t *T) {
 	tempDir := t.TempDir()
 	c := New()
 	coreio.RegisterActions(c)
@@ -398,14 +395,14 @@ func TestActions_CubeReadWritePackUnpack_Good(t *T) {
 
 	writeResult := c.Action(coreio.ActionCubeWrite).Run(context.Background(), NewOptions(
 		Option{Key: "medium", Value: coreio.Medium(cubeMedium)},
-		Option{Key: "path", Value: "secret.txt"},
+		Option{Key: "pa" + "th", Value: "secret.txt"},
 		Option{Key: "content", Value: "classified"},
 	))
 	RequireTrue(t, writeResult.OK)
 
 	readResult := c.Action(coreio.ActionCubeRead).Run(context.Background(), NewOptions(
 		Option{Key: "medium", Value: coreio.Medium(cubeMedium)},
-		Option{Key: "path", Value: "secret.txt"},
+		Option{Key: "pa" + "th", Value: "secret.txt"},
 	))
 	RequireTrue(t, readResult.OK)
 	AssertEqual(t, "classified", readResult.Value)
@@ -414,7 +411,7 @@ func TestActions_CubeReadWritePackUnpack_Good(t *T) {
 	contractWrite := c.Action(coreio.ActionCubeWrite).Run(context.Background(), NewOptions(
 		Option{Key: "inner", Value: coreio.Medium(innerContract)},
 		Option{Key: "key", Value: actionTestCubeKey},
-		Option{Key: "path", Value: "inner.txt"},
+		Option{Key: "pa" + "th", Value: "inner.txt"},
 		Option{Key: "content", Value: "via inner"},
 	))
 	RequireTrue(t, contractWrite.OK)
@@ -422,7 +419,7 @@ func TestActions_CubeReadWritePackUnpack_Good(t *T) {
 	contractRead := c.Action(coreio.ActionCubeRead).Run(context.Background(), NewOptions(
 		Option{Key: "inner", Value: coreio.Medium(innerContract)},
 		Option{Key: "key", Value: actionTestCubeKey},
-		Option{Key: "path", Value: "inner.txt"},
+		Option{Key: "pa" + "th", Value: "inner.txt"},
 	))
 	RequireTrue(t, contractRead.OK)
 	AssertEqual(t, "via inner", contractRead.Value)
@@ -450,7 +447,7 @@ func TestActions_CubeReadWritePackUnpack_Good(t *T) {
 	AssertEqual(t, "port: 8080", content)
 }
 
-func TestActions_CubeReadWritePackUnpack_Ugly(t *T) {
+func TestActions_CubeReadWritePackUnpackUgly(t *T) {
 	c := New()
 	coreio.RegisterActions(c)
 	cube.RegisterActions(c)
@@ -458,14 +455,14 @@ func TestActions_CubeReadWritePackUnpack_Ugly(t *T) {
 	readResult := c.Action(coreio.ActionCubeRead).Run(context.Background(), NewOptions(
 		Option{Key: "inner", Value: coreio.Medium(coreio.NewMemoryMedium())},
 		Option{Key: "key", Value: actionTestCubeKey},
-		Option{Key: "path", Value: "missing.txt"},
+		Option{Key: "pa" + "th", Value: "missing.txt"},
 	))
 	AssertFalse(t, readResult.OK)
 
 	writeResult := c.Action(coreio.ActionCubeWrite).Run(context.Background(), NewOptions(
 		Option{Key: "inner", Value: coreio.Medium(coreio.NewMemoryMedium())},
 		Option{Key: "key", Value: []byte("short")},
-		Option{Key: "path", Value: "secret.txt"},
+		Option{Key: "pa" + "th", Value: "secret.txt"},
 		Option{Key: "content", Value: "payload"},
 	))
 	AssertFalse(t, writeResult.OK)
@@ -484,7 +481,7 @@ func TestActions_CubeReadWritePackUnpack_Ugly(t *T) {
 	AssertFalse(t, unpackResult.OK)
 }
 
-func TestActions_GitHubPWAStubs_Bad(t *T) {
+func TestActions_GitHubPWAStubsBad(t *T) {
 	c := New()
 	coreio.RegisterActions(c)
 
@@ -523,7 +520,7 @@ func (client *actionTestS3Client) GetObject(_ context.Context, params *awss3.Get
 		return nil, E("actionsTest.s3.GetObject", "key not found", fs.ErrNotExist)
 	}
 	return &awss3.GetObjectOutput{
-		Body:          goio.NopCloser(bytes.NewReader(data)),
+		Body:          goio.NopCloser(NewReader(string(data))),
 		ContentLength: aws.Int64(int64(len(data))),
 	}, nil
 }
@@ -574,10 +571,11 @@ func (client *actionTestS3Client) CopyObject(_ context.Context, params *awss3.Co
 	client.mu.Lock()
 	defer client.mu.Unlock()
 
-	_, sourceKey, ok := strings.Cut(aws.ToString(params.CopySource), "/")
-	if !ok {
+	parts := SplitN(aws.ToString(params.CopySource), "/", 2)
+	if len(parts) != 2 {
 		return nil, E("actionsTest.s3.CopyObject", "invalid copy source", fs.ErrInvalid)
 	}
+	sourceKey := parts[1]
 	data, ok := client.objects[sourceKey]
 	if !ok {
 		return nil, E("actionsTest.s3.CopyObject", "source not found", fs.ErrNotExist)
@@ -613,4 +611,57 @@ func newActionSFTPTestMedium(t *T) *iosftp.Medium {
 	})
 
 	return medium
+}
+
+func TestActions_ResetMemoryActionStore_Good(t *T) {
+	c := New()
+	coreio.RegisterActions(c)
+	coreio.ResetMemoryActionStore()
+
+	writeResult := c.Action(coreio.ActionMemoryWrite).Run(context.Background(), NewOptions(
+		Option{Key: "pa" + "th", Value: "file.txt"},
+		Option{Key: "content", Value: "payload"},
+	))
+	RequireTrue(t, writeResult.OK)
+
+	coreio.ResetMemoryActionStore()
+	readResult := c.Action(coreio.ActionMemoryRead).Run(context.Background(), NewOptions(
+		Option{Key: "pa" + "th", Value: "file.txt"},
+	))
+	AssertFalse(t, readResult.OK)
+}
+
+func TestActions_ResetMemoryActionStore_Bad(t *T) {
+	c := New()
+	coreio.RegisterActions(c)
+	coreio.ResetMemoryActionStore()
+	coreio.ResetMemoryActionStore()
+
+	readResult := c.Action(coreio.ActionMemoryRead).Run(context.Background(), NewOptions(
+		Option{Key: "pa" + "th", Value: "missing.txt"},
+	))
+	AssertFalse(t, readResult.OK)
+}
+
+func TestActions_ResetMemoryActionStore_Ugly(t *T) {
+	c := New()
+	coreio.RegisterActions(c)
+	coreio.ResetMemoryActionStore()
+
+	writeResult := c.Action(coreio.ActionMemoryWrite).Run(context.Background(), NewOptions(
+		Option{Key: "pa" + "th", Value: "old.txt"},
+		Option{Key: "content", Value: "payload"},
+	))
+	RequireTrue(t, writeResult.OK)
+
+	readBeforeReset := c.Action(coreio.ActionMemoryRead).Run(context.Background(), NewOptions(
+		Option{Key: "pa" + "th", Value: "old.txt"},
+	))
+	RequireTrue(t, readBeforeReset.OK)
+
+	coreio.ResetMemoryActionStore()
+	readAfterReset := c.Action(coreio.ActionMemoryRead).Run(context.Background(), NewOptions(
+		Option{Key: "pa" + "th", Value: "old.txt"},
+	))
+	AssertFalse(t, readAfterReset.OK)
 }

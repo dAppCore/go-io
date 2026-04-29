@@ -8,7 +8,6 @@ import (
 	"cmp"
 	goio "io"
 	"io/fs"
-	"path"
 	"slices"
 	"sync" // Note: AX-6 — internal concurrency primitive; structural per RFC §5.1
 	"time"
@@ -100,7 +99,7 @@ func (medium *Medium) rebuildDirectorySetLocked() {
 		return
 	}
 	for _, name := range entries {
-		medium.ensureDirsLocked(path.Dir(name))
+		medium.ensureDirsLocked(core.PathDir(name))
 	}
 }
 
@@ -113,7 +112,7 @@ func (medium *Medium) DataNode() *borgdatanode.DataNode {
 
 func normaliseEntryPath(filePath string) string {
 	filePath = core.TrimPrefix(filePath, "/")
-	filePath = path.Clean(filePath)
+	filePath = core.CleanPath(filePath, "/")
 	if filePath == "." {
 		return ""
 	}
@@ -156,7 +155,7 @@ func (medium *Medium) Write(filePath, content string) error {
 	}
 	medium.dataNode.AddData(filePath, []byte(content))
 
-	medium.ensureDirsLocked(path.Dir(filePath))
+	medium.ensureDirsLocked(core.PathDir(filePath))
 	return nil
 }
 
@@ -179,7 +178,7 @@ func (medium *Medium) EnsureDir(filePath string) error {
 func (medium *Medium) ensureDirsLocked(directoryPath string) {
 	for directoryPath != "" && directoryPath != "." {
 		medium.directorySet[directoryPath] = true
-		directoryPath = path.Dir(directoryPath)
+		directoryPath = core.PathDir(directoryPath)
 		if directoryPath == "." {
 			break
 		}
@@ -306,7 +305,7 @@ func (medium *Medium) Rename(oldPath, newPath string) error {
 			return core.E("datanode.Rename", core.Concat("failed to read source file: ", oldPath), err)
 		}
 		medium.dataNode.AddData(newPath, data)
-		medium.ensureDirsLocked(path.Dir(newPath))
+		medium.ensureDirsLocked(core.PathDir(newPath))
 		if err := medium.removeFileLocked(oldPath); err != nil {
 			return core.E("datanode.Rename", core.Concat("failed to remove source file: ", oldPath), err)
 		}
@@ -409,7 +408,7 @@ func (medium *Medium) Stat(filePath string) (fs.FileInfo, error) {
 	}
 
 	if medium.directorySet[filePath] {
-		return &fileInfo{name: path.Base(filePath), isDir: true, mode: fs.ModeDir | 0755}, nil
+		return &fileInfo{name: core.PathBase(filePath), isDir: true, mode: fs.ModeDir | 0755}, nil
 	}
 	return nil, core.E("datanode.Stat", core.Concat("not found: ", filePath), fs.ErrNotExist)
 }
@@ -585,7 +584,7 @@ func (writer *writeCloser) Close() error {
 	defer writer.medium.lock.Unlock()
 
 	writer.medium.dataNode.AddData(writer.path, writer.buffer)
-	writer.medium.ensureDirsLocked(path.Dir(writer.path))
+	writer.medium.ensureDirsLocked(core.PathDir(writer.path))
 	return nil
 }
 
