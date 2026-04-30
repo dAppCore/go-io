@@ -4,6 +4,8 @@ import (
 	core "dappco.re/go"
 )
 
+const workspaceLegacyID = "legacy-id"
+
 func TestWorkspaceCommand_Good(t *core.T) {
 	command := WorkspaceCommand{
 		Action:    WorkspaceWriteAction,
@@ -27,11 +29,11 @@ func TestWorkspaceCommand_Bad_EmptyWorkspace(t *core.T) {
 }
 
 func TestWorkspaceCommand_Ugly_LegacyWorkspaceFields(t *core.T) {
-	core.AssertEqual(t, "legacy-id", WorkspaceCommand{WorkspaceID: "legacy-id"}.workspaceName())
+	core.AssertEqual(t, workspaceLegacyID, WorkspaceCommand{WorkspaceID: workspaceLegacyID}.workspaceName())
 	core.AssertEqual(t, "identifier", WorkspaceCommand{Identifier: "identifier"}.workspaceName())
 	core.AssertEqual(t, "workspace", WorkspaceCommand{
 		Workspace:   "workspace",
-		WorkspaceID: "legacy-id",
+		WorkspaceID: workspaceLegacyID,
 		Identifier:  "identifier",
 	}.workspaceName())
 }

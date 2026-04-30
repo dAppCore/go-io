@@ -31,9 +31,11 @@ func TestNewProvider_Bad(t *T) {
 	provider := NewProvider(nil)
 	if provider == nil {
 		t.Fatal("expected provider")
+		return
 	}
 	if provider.core == nil {
 		t.Fatal("expected provider core registry")
+		return
 	}
 	if !provider.core.Action(coreio.ActionLocalRead).Exists() {
 		t.Fatalf("expected %s to be registered on default core", coreio.ActionLocalRead)
@@ -47,6 +49,7 @@ func TestNewProvider_Ugly(t *T) {
 	provider := NewProvider(c)
 	if provider == nil {
 		t.Fatal("expected provider")
+		return
 	}
 	if !provider.core.Action(coreio.ActionCopy).Exists() {
 		t.Fatalf("expected %s to remain registered after duplicate registration", coreio.ActionCopy)

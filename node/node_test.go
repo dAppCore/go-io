@@ -10,6 +10,20 @@ import (
 	"time"
 )
 
+const (
+	nodeFooPath           = "foo.txt"
+	nodeHelloPath         = "hello.txt"
+	nodeBarBazPath        = "bar/baz.txt"
+	nodeDataPath          = "data.bin"
+	nodeBarQuxPath        = "bar/qux.txt"
+	nodeRootPath          = "root.txt"
+	nodeTestPath          = "test.txt"
+	nodeConfigContent     = "port: 8080"
+	nodeReadmePath        = "docs/readme.txt"
+	nodeGeneratedPath     = "docs/generated.txt"
+	nodeStreamRenamedPath = "docs/stream-renamed.txt"
+)
+
 func TestNode_New_Good(t *core.T) {
 	nodeTree := New()
 	core.AssertNotNil(t, nodeTree, "New() must not return nil")
@@ -18,15 +32,15 @@ func TestNode_New_Good(t *core.T) {
 
 func TestNode_AddData_Good(t *core.T) {
 	nodeTree := New()
-	nodeTree.AddData("foo.txt", []byte("foo"))
+	nodeTree.AddData(nodeFooPath, []byte("foo"))
 
-	file, ok := nodeTree.files["foo.txt"]
+	file, ok := nodeTree.files[nodeFooPath]
 	core.RequireTrue(t, ok, "file foo.txt should be present")
 	core.AssertEqual(t, []byte("foo"), file.content)
 
 	info, err := file.Stat()
 	core.RequireNoError(t, err)
-	core.AssertEqual(t, "foo.txt", info.Name())
+	core.AssertEqual(t, nodeFooPath, info.Name())
 }
 
 func TestNode_AddData_Bad(t *core.T) {
@@ -42,28 +56,28 @@ func TestNode_AddData_Bad(t *core.T) {
 func TestNode_AddData_EdgeCases_Good(t *core.T) {
 	t.Run("Overwrite", func(t *core.T) {
 		nodeTree := New()
-		nodeTree.AddData("foo.txt", []byte("foo"))
-		nodeTree.AddData("foo.txt", []byte("bar"))
+		nodeTree.AddData(nodeFooPath, []byte("foo"))
+		nodeTree.AddData(nodeFooPath, []byte("bar"))
 
-		file := nodeTree.files["foo.txt"]
+		file := nodeTree.files[nodeFooPath]
 		core.AssertEqual(t, []byte("bar"), file.content, "second AddData should overwrite")
 	})
 
 	t.Run("LeadingSlash", func(t *core.T) {
 		nodeTree := New()
 		nodeTree.AddData("/hello.txt", []byte("hi"))
-		_, ok := nodeTree.files["hello.txt"]
+		_, ok := nodeTree.files[nodeHelloPath]
 		core.AssertTrue(t, ok, "leading slash should be trimmed")
 	})
 }
 
 func TestNode_Open_Good(t *core.T) {
 	nodeTree := New()
-	nodeTree.AddData("foo.txt", []byte("foo"))
+	nodeTree.AddData(nodeFooPath, []byte("foo"))
 
-	file, err := nodeTree.Open("foo.txt")
+	file, err := nodeTree.Open(nodeFooPath)
 	core.RequireNoError(t, err)
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	readBuffer := make([]byte, 10)
 	nr, err := file.Read(readBuffer)
@@ -80,11 +94,11 @@ func TestNode_Open_Bad(t *core.T) {
 
 func TestNode_Open_Directory_Good(t *core.T) {
 	nodeTree := New()
-	nodeTree.AddData("bar/baz.txt", []byte("baz"))
+	nodeTree.AddData(nodeBarBazPath, []byte("baz"))
 
 	file, err := nodeTree.Open("bar")
 	core.RequireNoError(t, err)
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	_, err = file.Read(make([]byte, 1))
 	core.AssertError(t, err)
@@ -96,10 +110,10 @@ func TestNode_Open_Directory_Good(t *core.T) {
 
 func TestNode_Stat_Good(t *core.T) {
 	nodeTree := New()
-	nodeTree.AddData("foo.txt", []byte("foo"))
-	nodeTree.AddData("bar/baz.txt", []byte("baz"))
+	nodeTree.AddData(nodeFooPath, []byte("foo"))
+	nodeTree.AddData(nodeBarBazPath, []byte("baz"))
 
-	info, err := nodeTree.Stat("bar/baz.txt")
+	info, err := nodeTree.Stat(nodeBarBazPath)
 	core.RequireNoError(t, err)
 	core.AssertEqual(t, "baz.txt", info.Name())
 	core.AssertEqual(t, int64(3), info.Size())
@@ -120,7 +134,7 @@ func TestNode_Stat_Bad(t *core.T) {
 
 func TestNode_Stat_RootDirectory_Good(t *core.T) {
 	nodeTree := New()
-	nodeTree.AddData("foo.txt", []byte("foo"))
+	nodeTree.AddData(nodeFooPath, []byte("foo"))
 
 	info, err := nodeTree.Stat(".")
 	core.RequireNoError(t, err)
@@ -130,9 +144,9 @@ func TestNode_Stat_RootDirectory_Good(t *core.T) {
 
 func TestNode_ReadFile_Good(t *core.T) {
 	nodeTree := New()
-	nodeTree.AddData("hello.txt", []byte("hello world"))
+	nodeTree.AddData(nodeHelloPath, []byte("hello world"))
 
-	data, err := nodeTree.ReadFile("hello.txt")
+	data, err := nodeTree.ReadFile(nodeHelloPath)
 	core.RequireNoError(t, err)
 	core.AssertEqual(t, []byte("hello world"), data)
 }
@@ -146,26 +160,26 @@ func TestNode_ReadFile_Bad(t *core.T) {
 
 func TestNode_ReadFile_ReturnsCopy_Good(t *core.T) {
 	nodeTree := New()
-	nodeTree.AddData("data.bin", []byte("original"))
+	nodeTree.AddData(nodeDataPath, []byte("original"))
 
-	data, err := nodeTree.ReadFile("data.bin")
+	data, err := nodeTree.ReadFile(nodeDataPath)
 	core.RequireNoError(t, err)
 	data[0] = 'X'
 
-	data2, err := nodeTree.ReadFile("data.bin")
+	data2, err := nodeTree.ReadFile(nodeDataPath)
 	core.RequireNoError(t, err)
 	core.AssertEqual(t, []byte("original"), data2, "ReadFile must return an independent copy")
 }
 
 func TestNode_ReadDir_Good(t *core.T) {
 	nodeTree := New()
-	nodeTree.AddData("foo.txt", []byte("foo"))
-	nodeTree.AddData("bar/baz.txt", []byte("baz"))
-	nodeTree.AddData("bar/qux.txt", []byte("qux"))
+	nodeTree.AddData(nodeFooPath, []byte("foo"))
+	nodeTree.AddData(nodeBarBazPath, []byte("baz"))
+	nodeTree.AddData(nodeBarQuxPath, []byte("qux"))
 
 	entries, err := nodeTree.ReadDir(".")
 	core.RequireNoError(t, err)
-	core.AssertEqual(t, []string{"bar", "foo.txt"}, sortedNames(entries))
+	core.AssertEqual(t, []string{"bar", nodeFooPath}, sortedNames(entries))
 
 	barEntries, err := nodeTree.ReadDir("bar")
 	core.RequireNoError(t, err)
@@ -174,9 +188,9 @@ func TestNode_ReadDir_Good(t *core.T) {
 
 func TestNode_ReadDir_Bad(t *core.T) {
 	nodeTree := New()
-	nodeTree.AddData("foo.txt", []byte("foo"))
+	nodeTree.AddData(nodeFooPath, []byte("foo"))
 
-	_, err := nodeTree.ReadDir("foo.txt")
+	_, err := nodeTree.ReadDir(nodeFooPath)
 	core.AssertError(t, err)
 	var pathError *fs.PathError
 	core.RequireTrue(t, core.As(err, &pathError))
@@ -185,7 +199,7 @@ func TestNode_ReadDir_Bad(t *core.T) {
 
 func TestNode_ReadDir_IgnoresEmptyEntry_Good(t *core.T) {
 	nodeTree := New()
-	nodeTree.AddData("bar/baz.txt", []byte("baz"))
+	nodeTree.AddData(nodeBarBazPath, []byte("baz"))
 	nodeTree.AddData("empty_dir/", nil)
 
 	entries, err := nodeTree.ReadDir(".")
@@ -195,10 +209,10 @@ func TestNode_ReadDir_IgnoresEmptyEntry_Good(t *core.T) {
 
 func TestNode_Exists_Good(t *core.T) {
 	nodeTree := New()
-	nodeTree.AddData("foo.txt", []byte("foo"))
-	nodeTree.AddData("bar/baz.txt", []byte("baz"))
+	nodeTree.AddData(nodeFooPath, []byte("foo"))
+	nodeTree.AddData(nodeBarBazPath, []byte("baz"))
 
-	core.AssertTrue(t, nodeTree.Exists("foo.txt"))
+	core.AssertTrue(t, nodeTree.Exists(nodeFooPath))
 	core.AssertTrue(t, nodeTree.Exists("bar"))
 }
 
@@ -220,9 +234,9 @@ func TestNode_Exists_RootAndEmptyPath_Good(t *core.T) {
 
 func TestNode_Walk_Default_Good(t *core.T) {
 	nodeTree := New()
-	nodeTree.AddData("foo.txt", []byte("foo"))
-	nodeTree.AddData("bar/baz.txt", []byte("baz"))
-	nodeTree.AddData("bar/qux.txt", []byte("qux"))
+	nodeTree.AddData(nodeFooPath, []byte("foo"))
+	nodeTree.AddData(nodeBarBazPath, []byte("baz"))
+	nodeTree.AddData(nodeBarQuxPath, []byte("qux"))
 
 	var paths []string
 	err := nodeTree.Walk(".", func(p string, d fs.DirEntry, err error) error {
@@ -232,7 +246,7 @@ func TestNode_Walk_Default_Good(t *core.T) {
 	core.RequireNoError(t, err)
 
 	sort.Strings(paths)
-	core.AssertEqual(t, []string{".", "bar", "bar/baz.txt", "bar/qux.txt", "foo.txt"}, paths)
+	core.AssertEqual(t, []string{".", "bar", nodeBarBazPath, nodeBarQuxPath, nodeFooPath}, paths)
 }
 
 func TestNode_Walk_Default_Bad(t *core.T) {
@@ -269,7 +283,7 @@ func TestNode_Walk_CallbackError_Good(t *core.T) {
 
 func TestNode_Walk_Good(t *core.T) {
 	nodeTree := New()
-	nodeTree.AddData("root.txt", []byte("root"))
+	nodeTree.AddData(nodeRootPath, []byte("root"))
 	nodeTree.AddData("a/a1.txt", []byte("a1"))
 	nodeTree.AddData("a/b/b1.txt", []byte("b1"))
 	nodeTree.AddData("c/c1.txt", []byte("c1"))
@@ -283,7 +297,7 @@ func TestNode_Walk_Good(t *core.T) {
 		core.RequireNoError(t, err)
 
 		sort.Strings(paths)
-		core.AssertEqual(t, []string{".", "a", "c", "root.txt"}, paths)
+		core.AssertEqual(t, []string{".", "a", "c", nodeRootPath}, paths)
 	})
 
 	t.Run("Filter", func(t *core.T) {
@@ -297,7 +311,7 @@ func TestNode_Walk_Good(t *core.T) {
 		core.RequireNoError(t, err)
 
 		sort.Strings(paths)
-		core.AssertEqual(t, []string{".", "c", "c/c1.txt", "root.txt"}, paths)
+		core.AssertEqual(t, []string{".", "c", "c/c1.txt", nodeRootPath}, paths)
 	})
 
 	t.Run("SkipErrors", func(t *core.T) {
@@ -314,10 +328,10 @@ func TestNode_Walk_Good(t *core.T) {
 
 func TestNode_ExportFile_Good(t *core.T) {
 	nodeTree := New()
-	nodeTree.AddData("foo.txt", []byte("foo"))
+	nodeTree.AddData(nodeFooPath, []byte("foo"))
 
-	destinationPath := core.Path(t.TempDir(), "test.txt")
-	err := nodeTree.ExportFile("foo.txt", destinationPath, 0644)
+	destinationPath := core.Path(t.TempDir(), nodeTestPath)
+	err := nodeTree.ExportFile(nodeFooPath, destinationPath, 0644)
 	core.RequireNoError(t, err)
 
 	content, err := coreio.Local.Read(destinationPath)
@@ -327,21 +341,21 @@ func TestNode_ExportFile_Good(t *core.T) {
 
 func TestNode_ExportFile_Bad(t *core.T) {
 	nodeTree := New()
-	destinationPath := core.Path(t.TempDir(), "test.txt")
+	destinationPath := core.Path(t.TempDir(), nodeTestPath)
 
 	err := nodeTree.ExportFile("nonexistent.txt", destinationPath, 0644)
 	core.AssertError(t, err)
 
-	nodeTree.AddData("foo.txt", []byte("foo"))
-	nonExistentParent := core.Path(t.TempDir(), "nonexistent_subdir", "test.txt")
-	err = nodeTree.ExportFile("foo.txt", nonExistentParent, 0644)
+	nodeTree.AddData(nodeFooPath, []byte("foo"))
+	nonExistentParent := core.Path(t.TempDir(), "nonexistent_subdir", nodeTestPath)
+	err = nodeTree.ExportFile(nodeFooPath, nonExistentParent, 0644)
 	core.AssertError(t, err)
 }
 
 func TestNode_ExportFile_DirectorySource_Bad(t *core.T) {
 	nodeTree := New()
-	nodeTree.AddData("bar/baz.txt", []byte("baz"))
-	destinationPath := core.Path(t.TempDir(), "test.txt")
+	nodeTree.AddData(nodeBarBazPath, []byte("baz"))
+	destinationPath := core.Path(t.TempDir(), nodeTestPath)
 
 	err := nodeTree.ExportFile("bar", destinationPath, 0644)
 	core.AssertError(t, err)
@@ -349,7 +363,7 @@ func TestNode_ExportFile_DirectorySource_Bad(t *core.T) {
 
 func TestNode_CopyTo_Good(t *core.T) {
 	nodeTree := New()
-	nodeTree.AddData("config/app.yaml", []byte("port: 8080"))
+	nodeTree.AddData("config/app.yaml", []byte(nodeConfigContent))
 	nodeTree.AddData("config/env/app.env", []byte("MODE=test"))
 
 	fileTarget := coreio.NewMemoryMedium()
@@ -357,14 +371,14 @@ func TestNode_CopyTo_Good(t *core.T) {
 	core.RequireNoError(t, err)
 	content, err := fileTarget.Read("backup/app.yaml")
 	core.RequireNoError(t, err)
-	core.AssertEqual(t, "port: 8080", content)
+	core.AssertEqual(t, nodeConfigContent, content)
 
 	dirTarget := coreio.NewMemoryMedium()
 	err = nodeTree.CopyTo(dirTarget, "config", "backup/config")
 	core.RequireNoError(t, err)
 	content, err = dirTarget.Read("backup/config/app.yaml")
 	core.RequireNoError(t, err)
-	core.AssertEqual(t, "port: 8080", content)
+	core.AssertEqual(t, nodeConfigContent, content)
 	content, err = dirTarget.Read("backup/config/env/app.env")
 	core.RequireNoError(t, err)
 	core.AssertEqual(t, "MODE=test", content)
@@ -379,12 +393,12 @@ func TestNode_CopyTo_Bad(t *core.T) {
 func TestNode_MediumFacadeGood(t *core.T) {
 	nodeTree := New()
 
-	core.RequireNoError(t, nodeTree.Write("docs/readme.txt", "hello"))
+	core.RequireNoError(t, nodeTree.Write(nodeReadmePath, "hello"))
 	core.RequireNoError(t, nodeTree.WriteMode("docs/mode.txt", "mode", 0600))
 	core.RequireNoError(t, nodeTree.Write("docs/guide.txt", "guide"))
 	core.RequireNoError(t, nodeTree.EnsureDir("ignored"))
 
-	value, err := nodeTree.Read("docs/readme.txt")
+	value, err := nodeTree.Read(nodeReadmePath)
 	core.RequireNoError(t, err)
 	core.AssertEqual(t, "hello", value)
 
@@ -392,14 +406,14 @@ func TestNode_MediumFacadeGood(t *core.T) {
 	core.RequireNoError(t, err)
 	core.AssertEqual(t, "guide", value)
 
-	core.AssertTrue(t, nodeTree.IsFile("docs/readme.txt"))
+	core.AssertTrue(t, nodeTree.IsFile(nodeReadmePath))
 	core.AssertTrue(t, nodeTree.IsDir("docs"))
 
 	entries, err := nodeTree.List("docs")
 	core.RequireNoError(t, err)
 	core.AssertEqual(t, []string{"guide.txt", "mode.txt", "readme.txt"}, sortedNames(entries))
 
-	file, err := nodeTree.Open("docs/readme.txt")
+	file, err := nodeTree.Open(nodeReadmePath)
 	core.RequireNoError(t, err)
 	info, err := file.Stat()
 	core.RequireNoError(t, err)
@@ -419,19 +433,19 @@ func TestNode_MediumFacadeGood(t *core.T) {
 	core.AssertNil(t, dirInfo.Sys())
 	core.RequireNoError(t, dir.Close())
 
-	createWriter, err := nodeTree.Create("docs/generated.txt")
+	createWriter, err := nodeTree.Create(nodeGeneratedPath)
 	core.RequireNoError(t, err)
 	_, err = createWriter.Write([]byte("generated"))
 	core.RequireNoError(t, err)
 	core.RequireNoError(t, createWriter.Close())
 
-	appendWriter, err := nodeTree.Append("docs/generated.txt")
+	appendWriter, err := nodeTree.Append(nodeGeneratedPath)
 	core.RequireNoError(t, err)
 	_, err = appendWriter.Write([]byte(" content"))
 	core.RequireNoError(t, err)
 	core.RequireNoError(t, appendWriter.Close())
 
-	streamReader, err := nodeTree.ReadStream("docs/generated.txt")
+	streamReader, err := nodeTree.ReadStream(nodeGeneratedPath)
 	core.RequireNoError(t, err)
 	streamData, err := io.ReadAll(streamReader)
 	core.RequireNoError(t, err)
@@ -444,11 +458,11 @@ func TestNode_MediumFacadeGood(t *core.T) {
 	core.RequireNoError(t, err)
 	core.RequireNoError(t, writeStream.Close())
 
-	core.RequireNoError(t, nodeTree.Rename("docs/stream.txt", "docs/stream-renamed.txt"))
-	core.AssertTrue(t, nodeTree.Exists("docs/stream-renamed.txt"))
+	core.RequireNoError(t, nodeTree.Rename("docs/stream.txt", nodeStreamRenamedPath))
+	core.AssertTrue(t, nodeTree.Exists(nodeStreamRenamedPath))
 
-	core.RequireNoError(t, nodeTree.Delete("docs/stream-renamed.txt"))
-	core.AssertFalse(t, nodeTree.Exists("docs/stream-renamed.txt"))
+	core.RequireNoError(t, nodeTree.Delete(nodeStreamRenamedPath))
+	core.AssertFalse(t, nodeTree.Exists(nodeStreamRenamedPath))
 
 	core.RequireNoError(t, nodeTree.DeleteAll("docs"))
 	core.AssertFalse(t, nodeTree.Exists("docs"))
@@ -456,8 +470,8 @@ func TestNode_MediumFacadeGood(t *core.T) {
 
 func TestNode_ToTar_Good(t *core.T) {
 	nodeTree := New()
-	nodeTree.AddData("foo.txt", []byte("foo"))
-	nodeTree.AddData("bar/baz.txt", []byte("baz"))
+	nodeTree.AddData(nodeFooPath, []byte("foo"))
+	nodeTree.AddData(nodeBarBazPath, []byte("baz"))
 
 	tarball, err := nodeTree.ToTar()
 	core.RequireNoError(t, err)
@@ -476,8 +490,8 @@ func TestNode_ToTar_Good(t *core.T) {
 		files[header.Name] = string(content)
 	}
 
-	core.AssertEqual(t, "foo", files["foo.txt"])
-	core.AssertEqual(t, "baz", files["bar/baz.txt"])
+	core.AssertEqual(t, "foo", files[nodeFooPath])
+	core.AssertEqual(t, "baz", files[nodeBarBazPath])
 }
 
 func TestNode_FromTar_Good(t *core.T) {
@@ -485,8 +499,8 @@ func TestNode_FromTar_Good(t *core.T) {
 	tarWriter := tar.NewWriter(buffer)
 
 	for _, file := range []struct{ Name, Body string }{
-		{"foo.txt", "foo"},
-		{"bar/baz.txt", "baz"},
+		{nodeFooPath, "foo"},
+		{nodeBarBazPath, "baz"},
 	} {
 		hdr := &tar.Header{
 			Name:     file.Name,
@@ -503,8 +517,8 @@ func TestNode_FromTar_Good(t *core.T) {
 	nodeTree, err := FromTar(buffer.Bytes())
 	core.RequireNoError(t, err)
 
-	core.AssertTrue(t, nodeTree.Exists("foo.txt"), "foo.txt should exist")
-	core.AssertTrue(t, nodeTree.Exists("bar/baz.txt"), "bar/baz.txt should exist")
+	core.AssertTrue(t, nodeTree.Exists(nodeFooPath), "foo.txt should exist")
+	core.AssertTrue(t, nodeTree.Exists(nodeBarBazPath), "bar/baz.txt should exist")
 }
 
 func TestNode_FromTar_Bad(t *core.T) {
@@ -535,21 +549,21 @@ func TestNode_TarRoundTripGood(t *core.T) {
 
 func TestNode_FSInterfaceGood(t *core.T) {
 	nodeTree := New()
-	nodeTree.AddData("hello.txt", []byte("world"))
+	nodeTree.AddData(nodeHelloPath, []byte("world"))
 
 	var fsys fs.FS = nodeTree
-	file, err := fsys.Open("hello.txt")
+	file, err := fsys.Open(nodeHelloPath)
 	core.RequireNoError(t, err)
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	var statFS fs.StatFS = nodeTree
-	info, err := statFS.Stat("hello.txt")
+	info, err := statFS.Stat(nodeHelloPath)
 	core.RequireNoError(t, err)
-	core.AssertEqual(t, "hello.txt", info.Name())
+	core.AssertEqual(t, nodeHelloPath, info.Name())
 	core.AssertEqual(t, int64(5), info.Size())
 
 	var readFS fs.ReadFileFS = nodeTree
-	data, err := readFS.ReadFile("hello.txt")
+	data, err := readFS.ReadFile(nodeHelloPath)
 	core.RequireNoError(t, err)
 	core.AssertEqual(t, []byte("world"), data)
 }
@@ -1130,7 +1144,7 @@ func TestNode_Node_ReadStream_Good(t *core.T) {
 	nodeTree.AddData("file.txt", []byte("payload"))
 	reader, err := nodeTree.ReadStream("file.txt")
 	core.RequireNoError(t, err)
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 	data, readErr := io.ReadAll(reader)
 	core.AssertNoError(t, readErr)
 	core.AssertEqual(t, "payload", string(data))

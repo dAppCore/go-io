@@ -4,20 +4,22 @@ import (
 	"testing"
 )
 
+const benchTestPath = "test.txt"
+
 func BenchmarkMemoryMedium_Write(b *testing.B) {
 	medium := NewMemoryMedium()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = medium.Write("test.txt", "some content")
+		_ = medium.Write(benchTestPath, "some content")
 	}
 }
 
 func BenchmarkMemoryMedium_Read(b *testing.B) {
 	medium := NewMemoryMedium()
-	_ = medium.Write("test.txt", "some content")
+	_ = medium.Write(benchTestPath, "some content")
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _ = medium.Read("test.txt")
+		_, _ = medium.Read(benchTestPath)
 	}
 }
 

@@ -49,10 +49,7 @@ func (obfuscator *XORObfuscator) Obfuscate(data []byte, entropy []byte) []byte {
 }
 
 func (obfuscator *XORObfuscator) Deobfuscate(data []byte, entropy []byte) []byte {
-	if len(data) == 0 {
-		return data
-	}
-	return obfuscator.transform(data, entropy)
+	return obfuscator.Obfuscate(data, entropy)
 }
 
 func (obfuscator *XORObfuscator) transform(data []byte, entropy []byte) []byte {

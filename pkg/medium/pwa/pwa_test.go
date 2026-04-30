@@ -10,6 +10,11 @@ import (
 	"net/http/httptest"
 )
 
+const (
+	pwaIndexPath = "index.html"
+	pwaIconPath  = "icon.png"
+)
+
 func newPWATestServer(t *core.T) *httptest.Server {
 	t.Helper()
 
@@ -41,9 +46,9 @@ func TestPWAMedium_BorgDataNodeOperationsGood(t *core.T) {
 	medium, err := New(Options{URL: server.URL})
 	core.RequireNoError(t, err)
 
-	content, err := medium.Read("index.html")
+	content, err := medium.Read(pwaIndexPath)
 	core.RequireNoError(t, err)
-	core.AssertContains(t, content, "icon.png")
+	core.AssertContains(t, content, pwaIconPath)
 
 	entries, err := medium.List("")
 	core.RequireNoError(t, err)
@@ -53,15 +58,15 @@ func TestPWAMedium_BorgDataNodeOperationsGood(t *core.T) {
 	core.RequireNoError(t, err)
 	core.AssertFalse(t, info.IsDir())
 
-	reader, err := medium.ReadStream("icon.png")
+	reader, err := medium.ReadStream(pwaIconPath)
 	core.RequireNoError(t, err)
 	data, readErr := goio.ReadAll(reader)
 	core.RequireNoError(t, readErr)
 	core.RequireNoError(t, reader.Close())
 	core.AssertEqual(t, "png", string(data))
 
-	core.AssertTrue(t, medium.IsFile("icon.png"))
-	core.AssertError(t, medium.Write("index.html", "mutate"))
+	core.AssertTrue(t, medium.IsFile(pwaIconPath))
+	core.AssertError(t, medium.Write(pwaIndexPath, "mutate"))
 }
 
 func TestPWAMedium_Actions_UseBorgDataNode(t *core.T) {
@@ -81,10 +86,10 @@ func TestPWAMedium_Actions_UseBorgDataNode(t *core.T) {
 
 	read := c.Action(ActionRead).Run(context.Background(), core.NewOptions(
 		core.Option{Key: "medium", Value: medium},
-		core.Option{Key: "pa" + "th", Value: "index.html"},
+		core.Option{Key: "pa" + "th", Value: pwaIndexPath},
 	))
 	core.AssertTrue(t, read.OK)
-	core.AssertContains(t, read.Value.(string), "icon.png")
+	core.AssertContains(t, read.Value.(string), pwaIconPath)
 
 	list := c.Action(ActionList).Run(context.Background(), core.NewOptions(
 		core.Option{Key: "medium", Value: medium},
@@ -94,7 +99,7 @@ func TestPWAMedium_Actions_UseBorgDataNode(t *core.T) {
 
 	write := c.Action(ActionWrite).Run(context.Background(), core.NewOptions(
 		core.Option{Key: "medium", Value: medium},
-		core.Option{Key: "pa" + "th", Value: "index.html"},
+		core.Option{Key: "pa" + "th", Value: pwaIndexPath},
 		core.Option{Key: "content", Value: "mutate"},
 	))
 	core.AssertFalse(t, write.OK)

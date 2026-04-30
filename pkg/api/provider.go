@@ -211,19 +211,3 @@ func configuredLocalMedium() coreio.Medium {
 	}
 	return medium
 }
-
-func errorResponseSchema() map[string]any {
-	return map[string]any{
-		"type": "object",
-		"properties": map[string]any{
-			"success": map[string]any{"type": "boolean"},
-			"error": map[string]any{
-				"type": "object",
-				"properties": map[string]any{
-					"code":    map[string]any{"type": "string"},
-					"message": map[string]any{"type": "string"},
-				},
-			},
-		},
-	}
-}

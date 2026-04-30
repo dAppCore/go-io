@@ -531,12 +531,18 @@ func readBorgDataNodeFile(dataNode *borgdatanode.DataNode, filePath string) (str
 	if err != nil {
 		return "", err
 	}
-	defer file.Close()
+	defer closeGitHubDataNodeFile(file, filePath)
 	data, err := goio.ReadAll(file)
 	if err != nil {
 		return "", err
 	}
 	return string(data), nil
+}
+
+func closeGitHubDataNodeFile(file fs.File, filePath string) {
+	if err := file.Close(); err != nil {
+		core.Warn("github DataNode file close failed", "file_path", filePath, "err", err)
+	}
 }
 
 func (medium *Medium) cloneWithContentsAPI(filePath string) (map[string]string, error) {

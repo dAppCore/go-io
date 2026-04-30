@@ -7,6 +7,14 @@ import (
 	"syscall"
 )
 
+const (
+	localHomeFilePath  = "/home/user/file.txt"
+	localFilePath      = "file.txt"
+	localEtcPasswdPath = "/etc/passwd"
+	localOldPath       = "old.txt"
+	localNewPath       = "new.txt"
+)
+
 func TestLocal_New_ResolvesRoot_Good(t *core.T) {
 	root := t.TempDir()
 	localMedium, err := New(root)
@@ -19,25 +27,25 @@ func TestLocal_New_ResolvesRoot_Good(t *core.T) {
 func TestLocal_Path_SandboxedGood(t *core.T) {
 	localMedium := &Medium{filesystemRoot: "/home/user"}
 
-	core.AssertEqual(t, "/home/user/file.txt", localMedium.sandboxedPath("file.txt"))
+	core.AssertEqual(t, localHomeFilePath, localMedium.sandboxedPath(localFilePath))
 	core.AssertEqual(t, "/home/user/dir/file.txt", localMedium.sandboxedPath("dir/file.txt"))
 
 	core.AssertEqual(t, "/home/user", localMedium.sandboxedPath(""))
 
-	core.AssertEqual(t, "/home/user/file.txt", localMedium.sandboxedPath("../file.txt"))
-	core.AssertEqual(t, "/home/user/file.txt", localMedium.sandboxedPath("dir/../file.txt"))
+	core.AssertEqual(t, localHomeFilePath, localMedium.sandboxedPath("../file.txt"))
+	core.AssertEqual(t, localHomeFilePath, localMedium.sandboxedPath("dir/../file.txt"))
 
-	core.AssertEqual(t, "/home/user/etc/passwd", localMedium.sandboxedPath("/etc/passwd"))
+	core.AssertEqual(t, "/home/user/etc/passwd", localMedium.sandboxedPath(localEtcPasswdPath))
 }
 
 func TestLocal_Path_RootFilesystem_Good(t *core.T) {
 	localMedium := &Medium{filesystemRoot: "/"}
 
-	core.AssertEqual(t, "/etc/passwd", localMedium.sandboxedPath("/etc/passwd"))
-	core.AssertEqual(t, "/home/user/file.txt", localMedium.sandboxedPath("/home/user/file.txt"))
+	core.AssertEqual(t, localEtcPasswdPath, localMedium.sandboxedPath(localEtcPasswdPath))
+	core.AssertEqual(t, localHomeFilePath, localMedium.sandboxedPath(localHomeFilePath))
 
 	workingDirectory := currentWorkingDir()
-	core.AssertEqual(t, core.Path(workingDirectory, "file.txt"), localMedium.sandboxedPath("file.txt"))
+	core.AssertEqual(t, core.Path(workingDirectory, localFilePath), localMedium.sandboxedPath(localFilePath))
 }
 
 func TestLocal_ReadWrite_BasicGood(t *core.T) {
@@ -202,13 +210,13 @@ func TestLocal_Delete_Good(t *core.T) {
 	localMedium, err := New(testRoot)
 	core.AssertNoError(t, err)
 
-	err = localMedium.Write("file.txt", "content")
+	err = localMedium.Write(localFilePath, "content")
 	core.AssertNoError(t, err)
-	core.AssertTrue(t, localMedium.IsFile("file.txt"))
+	core.AssertTrue(t, localMedium.IsFile(localFilePath))
 
-	err = localMedium.Delete("file.txt")
+	err = localMedium.Delete(localFilePath)
 	core.AssertNoError(t, err)
-	core.AssertFalse(t, localMedium.IsFile("file.txt"))
+	core.AssertFalse(t, localMedium.IsFile(localFilePath))
 
 	err = localMedium.EnsureDir("emptydir")
 	core.AssertNoError(t, err)
@@ -254,14 +262,14 @@ func TestLocal_Rename_Good(t *core.T) {
 	localMedium, err := New(testRoot)
 	core.AssertNoError(t, err)
 
-	err = localMedium.Write("old.txt", "content")
+	err = localMedium.Write(localOldPath, "content")
 	core.AssertNoError(t, err)
-	err = localMedium.Rename("old.txt", "new.txt")
+	err = localMedium.Rename(localOldPath, localNewPath)
 	core.AssertNoError(t, err)
-	core.AssertFalse(t, localMedium.IsFile("old.txt"))
-	core.AssertTrue(t, localMedium.IsFile("new.txt"))
+	core.AssertFalse(t, localMedium.IsFile(localOldPath))
+	core.AssertTrue(t, localMedium.IsFile(localNewPath))
 
-	content, err := localMedium.Read("new.txt")
+	content, err := localMedium.Read(localNewPath)
 	core.AssertNoError(t, err)
 	core.AssertEqual(t, "content", content)
 }
@@ -272,12 +280,12 @@ func TestLocal_Rename_TraversalSanitised_Good(t *core.T) {
 	localMedium, err := New(testRoot)
 	core.AssertNoError(t, err)
 
-	err = localMedium.Write("file.txt", "content")
+	err = localMedium.Write(localFilePath, "content")
 	core.AssertNoError(t, err)
 
-	err = localMedium.Rename("file.txt", "../escaped.txt")
+	err = localMedium.Rename(localFilePath, "../escaped.txt")
 	core.AssertNoError(t, err)
-	core.AssertFalse(t, localMedium.Exists("file.txt"))
+	core.AssertFalse(t, localMedium.Exists(localFilePath))
 	core.AssertTrue(t, localMedium.Exists("escaped.txt"))
 }
 
@@ -313,11 +321,11 @@ func TestLocal_Stat_Good(t *core.T) {
 	localMedium, err := New(testRoot)
 	core.AssertNoError(t, err)
 
-	err = localMedium.Write("file.txt", "hello world")
+	err = localMedium.Write(localFilePath, "hello world")
 	core.AssertNoError(t, err)
-	info, err := localMedium.Stat("file.txt")
+	info, err := localMedium.Stat(localFilePath)
 	core.AssertNoError(t, err)
-	core.AssertEqual(t, "file.txt", info.Name())
+	core.AssertEqual(t, localFilePath, info.Name())
 	core.AssertEqual(t, int64(11), info.Size())
 	core.AssertFalse(t, info.IsDir())
 
@@ -337,9 +345,9 @@ func TestLocal_Exists_Good(t *core.T) {
 
 	core.AssertFalse(t, localMedium.Exists("nonexistent"))
 
-	err = localMedium.Write("file.txt", "content")
+	err = localMedium.Write(localFilePath, "content")
 	core.AssertNoError(t, err)
-	core.AssertTrue(t, localMedium.Exists("file.txt"))
+	core.AssertTrue(t, localMedium.Exists(localFilePath))
 
 	err = localMedium.EnsureDir("mydir")
 	core.AssertNoError(t, err)
@@ -352,9 +360,9 @@ func TestLocal_IsDir_Good(t *core.T) {
 	localMedium, err := New(testRoot)
 	core.AssertNoError(t, err)
 
-	err = localMedium.Write("file.txt", "content")
+	err = localMedium.Write(localFilePath, "content")
 	core.AssertNoError(t, err)
-	core.AssertFalse(t, localMedium.IsDir("file.txt"))
+	core.AssertFalse(t, localMedium.IsDir(localFilePath))
 
 	err = localMedium.EnsureDir("mydir")
 	core.AssertNoError(t, err)
@@ -373,7 +381,7 @@ func TestLocal_ReadStream_Basic_Good(t *core.T) {
 
 	reader, err := localMedium.ReadStream("stream.txt")
 	core.AssertNoError(t, err)
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 
 	limitReader := goio.LimitReader(reader, 9)
 	data, err := goio.ReadAll(limitReader)
@@ -583,8 +591,8 @@ func TestMedium_Medium_EnsureDir_Ugly(t *core.T) {
 
 func TestMedium_Medium_IsFile_Good(t *core.T) {
 	medium := newLocalMediumFixture(t)
-	core.RequireNoError(t, medium.Write("file.txt", "local"))
-	got := medium.IsFile("file.txt")
+	core.RequireNoError(t, medium.Write(localFilePath, "local"))
+	got := medium.IsFile(localFilePath)
 	core.AssertTrue(t, got)
 }
 
@@ -647,25 +655,25 @@ func TestMedium_Medium_DeleteAll_Ugly(t *core.T) {
 
 func TestMedium_Medium_Rename_Good(t *core.T) {
 	medium := newLocalMediumFixture(t)
-	core.RequireNoError(t, medium.Write("old.txt", "local"))
-	err := medium.Rename("old.txt", "new.txt")
+	core.RequireNoError(t, medium.Write(localOldPath, "local"))
+	err := medium.Rename(localOldPath, localNewPath)
 	core.AssertNoError(t, err)
-	core.AssertTrue(t, medium.IsFile("new.txt"))
+	core.AssertTrue(t, medium.IsFile(localNewPath))
 }
 
 func TestMedium_Medium_Rename_Bad(t *core.T) {
 	medium := newLocalMediumFixture(t)
-	err := medium.Rename("missing.txt", "new.txt")
+	err := medium.Rename("missing.txt", localNewPath)
 	core.AssertError(t, err)
-	core.AssertFalse(t, medium.Exists("new.txt"))
+	core.AssertFalse(t, medium.Exists(localNewPath))
 }
 
 func TestMedium_Medium_Rename_Ugly(t *core.T) {
 	medium := newLocalMediumFixture(t)
-	core.RequireNoError(t, medium.Write("old.txt", "local"))
-	err := medium.Rename("old.txt", "../new.txt")
+	core.RequireNoError(t, medium.Write(localOldPath, "local"))
+	err := medium.Rename(localOldPath, "../new.txt")
 	core.AssertNoError(t, err)
-	core.AssertTrue(t, medium.Exists("new.txt"))
+	core.AssertTrue(t, medium.Exists(localNewPath))
 }
 
 func TestMedium_Medium_List_Good(t *core.T) {
@@ -780,7 +788,7 @@ func TestMedium_Medium_Append_Bad(t *core.T) {
 
 func TestMedium_Medium_Append_Ugly(t *core.T) {
 	medium := newLocalMediumFixture(t)
-	writer, err := medium.Append("new.txt")
+	writer, err := medium.Append(localNewPath)
 	core.RequireNoError(t, err)
 	_, writeErr := writer.Write([]byte("new"))
 	core.AssertNoError(t, writeErr)

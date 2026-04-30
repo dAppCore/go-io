@@ -29,7 +29,8 @@ func TestRegister_RegisterFactory_Ugly(t *core.T) {
 }
 
 func TestRegister_FactoryFor_Good(t *core.T) {
-	RegisterFactory("ax7-github-factory", New)
+	result := RegisterFactory("ax7-github-factory", New)
+	core.AssertTrue(t, result.OK)
 	factory, ok := FactoryFor("ax7-github-factory")
 	core.AssertTrue(t, ok)
 	core.AssertNotNil(t, factory)

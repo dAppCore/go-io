@@ -23,6 +23,14 @@ type EncryptedWorkspace interface {
 	WriteWorkspaceFile(workspaceFilePath, content string) error
 }
 
+const (
+	opWorkspaceNew                    = "workspace.New"
+	opWorkspaceCreateWorkspace        = "workspace.CreateWorkspace"
+	opWorkspaceReadWorkspaceFile      = "workspace.ReadWorkspaceFile"
+	opWorkspaceWriteWorkspaceFile     = "workspace.WriteWorkspaceFile"
+	opWorkspaceHandleWorkspaceCommand = "workspace.HandleWorkspaceCommand"
+)
+
 // Example: key, _ := keyPairProvider.CreateKeyPair("alice", "pass123")
 type KeyPairProvider interface {
 	CreateKeyPair(identifier, passphrase string) (string, error)
@@ -104,13 +112,13 @@ func New(options Options) (*Service, error) {
 	if rootPath == "" {
 		home := resolveWorkspaceHomeDirectory()
 		if home == "" {
-			return nil, core.E("workspace.New", "failed to determine home directory", fs.ErrNotExist)
+			return nil, core.E(opWorkspaceNew, "failed to determine home directory", fs.ErrNotExist)
 		}
 		rootPath = core.Path(home, ".core", "workspaces")
 	}
 
 	if options.KeyPairProvider == nil {
-		return nil, core.E("workspace.New", "key pair provider is required", fs.ErrInvalid)
+		return nil, core.E(opWorkspaceNew, "key pair provider is required", fs.ErrInvalid)
 	}
 
 	medium := options.Medium
@@ -118,7 +126,7 @@ func New(options Options) (*Service, error) {
 		medium = io.Local
 	}
 	if medium == nil {
-		return nil, core.E("workspace.New", "storage medium is required", fs.ErrInvalid)
+		return nil, core.E(opWorkspaceNew, "storage medium is required", fs.ErrInvalid)
 	}
 
 	service := &Service{
@@ -128,7 +136,7 @@ func New(options Options) (*Service, error) {
 	}
 
 	if err := service.medium.EnsureDir(rootPath); err != nil {
-		return nil, core.E("workspace.New", "failed to ensure root directory", err)
+		return nil, core.E(opWorkspaceNew, "failed to ensure root directory", err)
 	}
 
 	if options.Core != nil {
@@ -144,32 +152,32 @@ func (service *Service) CreateWorkspace(identifier, passphrase string) (string, 
 	defer service.stateLock.Unlock()
 
 	if service.keyPairProvider == nil {
-		return "", core.E("workspace.CreateWorkspace", "key pair provider not available", fs.ErrInvalid)
+		return "", core.E(opWorkspaceCreateWorkspace, "key pair provider not available", fs.ErrInvalid)
 	}
 
 	workspaceID := workspaceSHA256Hex([]byte(identifier))
-	workspaceDirectory, err := service.resolveWorkspaceDirectory("workspace.CreateWorkspace", workspaceID)
+	workspaceDirectory, err := service.resolveWorkspaceDirectory(opWorkspaceCreateWorkspace, workspaceID)
 	if err != nil {
 		return "", err
 	}
 
 	if service.medium.Exists(workspaceDirectory) {
-		return "", core.E("workspace.CreateWorkspace", "workspace already exists", fs.ErrExist)
+		return "", core.E(opWorkspaceCreateWorkspace, "workspace already exists", fs.ErrExist)
 	}
 
 	for _, directoryName := range []string{"config", "lo" + "g", "data", "files", "keys"} {
 		if err := service.medium.EnsureDir(core.Path(workspaceDirectory, directoryName)); err != nil {
-			return "", core.E("workspace.CreateWorkspace", core.Concat("failed to create directory: ", directoryName), err)
+			return "", core.E(opWorkspaceCreateWorkspace, core.Concat("failed to create directory: ", directoryName), err)
 		}
 	}
 
 	privateKey, err := service.keyPairProvider.CreateKeyPair(identifier, passphrase)
 	if err != nil {
-		return "", core.E("workspace.CreateWorkspace", "failed to generate keys", err)
+		return "", core.E(opWorkspaceCreateWorkspace, "failed to generate keys", err)
 	}
 
 	if err := service.medium.WriteMode(core.Path(workspaceDirectory, "keys", "private.key"), privateKey, 0600); err != nil {
-		return "", core.E("workspace.CreateWorkspace", "failed to save private key", err)
+		return "", core.E(opWorkspaceCreateWorkspace, "failed to save private key", err)
 	}
 
 	return workspaceID, nil
@@ -236,11 +244,11 @@ func (service *Service) ReadWorkspaceFile(workspaceFilePath string) (string, err
 	service.stateLock.RLock()
 	defer service.stateLock.RUnlock()
 
-	filePath, err := service.resolveActiveWorkspaceFilePath("workspace.ReadWorkspaceFile", workspaceFilePath)
+	filePath, err := service.resolveActiveWorkspaceFilePath(opWorkspaceReadWorkspaceFile, workspaceFilePath)
 	if err != nil {
 		return "", err
 	}
-	cipherSigil, err := service.workspaceCipherSigil("workspace.ReadWorkspaceFile")
+	cipherSigil, err := service.workspaceCipherSigil(opWorkspaceReadWorkspaceFile)
 	if err != nil {
 		return "", err
 	}
@@ -250,7 +258,7 @@ func (service *Service) ReadWorkspaceFile(workspaceFilePath string) (string, err
 	}
 	plaintext, err := sigil.Untransmute([]byte(encoded), []sigil.Sigil{cipherSigil})
 	if err != nil {
-		return "", core.E("workspace.ReadWorkspaceFile", "failed to decrypt file content", err)
+		return "", core.E(opWorkspaceReadWorkspaceFile, "failed to decrypt file content", err)
 	}
 	return string(plaintext), nil
 }
@@ -260,17 +268,17 @@ func (service *Service) WriteWorkspaceFile(workspaceFilePath, content string) er
 	service.stateLock.Lock()
 	defer service.stateLock.Unlock()
 
-	filePath, err := service.resolveActiveWorkspaceFilePath("workspace.WriteWorkspaceFile", workspaceFilePath)
+	filePath, err := service.resolveActiveWorkspaceFilePath(opWorkspaceWriteWorkspaceFile, workspaceFilePath)
 	if err != nil {
 		return err
 	}
-	cipherSigil, err := service.workspaceCipherSigil("workspace.WriteWorkspaceFile")
+	cipherSigil, err := service.workspaceCipherSigil(opWorkspaceWriteWorkspaceFile)
 	if err != nil {
 		return err
 	}
 	ciphertext, err := sigil.Transmute([]byte(content), []sigil.Sigil{cipherSigil})
 	if err != nil {
-		return core.E("workspace.WriteWorkspaceFile", "failed to encrypt file content", err)
+		return core.E(opWorkspaceWriteWorkspaceFile, "failed to encrypt file content", err)
 	}
 	return service.medium.Write(filePath, string(ciphertext))
 }
@@ -281,7 +289,7 @@ func (service *Service) HandleWorkspaceCommand(command WorkspaceCommand) core.Re
 	case WorkspaceCreateAction, legacyWorkspaceCreateAction:
 		identifier := command.workspaceName()
 		if identifier == "" {
-			return core.Fail(core.E("workspace.HandleWorkspaceCommand", "workspace identifier is required", fs.ErrInvalid))
+			return core.Fail(core.E(opWorkspaceHandleWorkspaceCommand, "workspace identifier is required", fs.ErrInvalid))
 		}
 		workspaceID, err := service.CreateWorkspace(identifier, command.Password)
 		if err != nil {
@@ -291,14 +299,14 @@ func (service *Service) HandleWorkspaceCommand(command WorkspaceCommand) core.Re
 	case WorkspaceSwitchAction, legacyWorkspaceSwitchAction:
 		workspaceID := command.workspaceName()
 		if workspaceID == "" {
-			return core.Fail(core.E("workspace.HandleWorkspaceCommand", "workspace id is required", fs.ErrInvalid))
+			return core.Fail(core.E(opWorkspaceHandleWorkspaceCommand, "workspace id is required", fs.ErrInvalid))
 		}
 		if err := service.SwitchWorkspace(workspaceID); err != nil {
 			return core.Fail(err)
 		}
 		return core.Ok(nil)
 	}
-	return core.Fail(core.E("workspace.HandleWorkspaceCommand", core.Concat("unsupported action: ", command.Action), fs.ErrInvalid))
+	return core.Fail(core.E(opWorkspaceHandleWorkspaceCommand, core.Concat("unsupported action: ", command.Action), fs.ErrInvalid))
 }
 
 // Example: result := service.HandleWorkspaceMessage(core.New(), WorkspaceCommand{Action: WorkspaceSwitchAction, WorkspaceID: "f3f0d7"})

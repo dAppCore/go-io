@@ -14,6 +14,11 @@ import (
 // Example: _, err := medium.List("app/theme") // err == store.ErrNotDirectory
 var ErrNotDirectory = core.E("store", "path is a key, not a directory", fs.ErrInvalid)
 
+const (
+	msgStoreGroupKeyRequired = "path must include group/key"
+	msgStorePathRequired     = "path is required"
+)
+
 // Example: medium, _ := store.NewMedium(store.Options{Path: "config.db"})
 // Example: _ = medium.Write("app/theme", "midnight")
 // Example: entries, _ := medium.List("")
@@ -66,7 +71,7 @@ func splitGroupKeyPath(entryPath string) (group, key string) {
 func (medium *Medium) Read(entryPath string) (string, error) {
 	group, key := splitGroupKeyPath(entryPath)
 	if key == "" {
-		return "", core.E("store.Read", "path must include group/key", fs.ErrInvalid)
+		return "", core.E("store.Read", msgStoreGroupKeyRequired, fs.ErrInvalid)
 	}
 	return medium.keyValueStore.Get(group, key)
 }
@@ -74,7 +79,7 @@ func (medium *Medium) Read(entryPath string) (string, error) {
 func (medium *Medium) Write(entryPath, content string) error {
 	group, key := splitGroupKeyPath(entryPath)
 	if key == "" {
-		return core.E("store.Write", "path must include group/key", fs.ErrInvalid)
+		return core.E("store.Write", msgStoreGroupKeyRequired, fs.ErrInvalid)
 	}
 	return medium.keyValueStore.Set(group, key, content)
 }
@@ -103,7 +108,7 @@ func (medium *Medium) IsFile(entryPath string) bool {
 func (medium *Medium) Delete(entryPath string) error {
 	group, key := splitGroupKeyPath(entryPath)
 	if group == "" {
-		return core.E("store.Delete", "path is required", fs.ErrInvalid)
+		return core.E("store.Delete", msgStorePathRequired, fs.ErrInvalid)
 	}
 	if key == "" {
 		entryCount, err := medium.keyValueStore.Count(group)
@@ -121,7 +126,7 @@ func (medium *Medium) Delete(entryPath string) error {
 func (medium *Medium) DeleteAll(entryPath string) error {
 	group, key := splitGroupKeyPath(entryPath)
 	if group == "" {
-		return core.E("store.DeleteAll", "path is required", fs.ErrInvalid)
+		return core.E("store.DeleteAll", msgStorePathRequired, fs.ErrInvalid)
 	}
 	if key == "" {
 		return medium.keyValueStore.DeleteGroup(group)
@@ -189,7 +194,7 @@ func (medium *Medium) List(entryPath string) ([]fs.DirEntry, error) {
 func (medium *Medium) Stat(entryPath string) (fs.FileInfo, error) {
 	group, key := splitGroupKeyPath(entryPath)
 	if group == "" {
-		return nil, core.E("store.Stat", "path is required", fs.ErrInvalid)
+		return nil, core.E("store.Stat", msgStorePathRequired, fs.ErrInvalid)
 	}
 	if key == "" {
 		entryCount, err := medium.keyValueStore.Count(group)
@@ -211,7 +216,7 @@ func (medium *Medium) Stat(entryPath string) (fs.FileInfo, error) {
 func (medium *Medium) Open(entryPath string) (fs.File, error) {
 	group, key := splitGroupKeyPath(entryPath)
 	if key == "" {
-		return nil, core.E("store.Open", "path must include group/key", fs.ErrInvalid)
+		return nil, core.E("store.Open", msgStoreGroupKeyRequired, fs.ErrInvalid)
 	}
 	value, err := medium.keyValueStore.Get(group, key)
 	if err != nil {
@@ -223,7 +228,7 @@ func (medium *Medium) Open(entryPath string) (fs.File, error) {
 func (medium *Medium) Create(entryPath string) (goio.WriteCloser, error) {
 	group, key := splitGroupKeyPath(entryPath)
 	if key == "" {
-		return nil, core.E("store.Create", "path must include group/key", fs.ErrInvalid)
+		return nil, core.E("store.Create", msgStoreGroupKeyRequired, fs.ErrInvalid)
 	}
 	return &keyValueWriteCloser{keyValueStore: medium.keyValueStore, group: group, key: key}, nil
 }
@@ -231,7 +236,7 @@ func (medium *Medium) Create(entryPath string) (goio.WriteCloser, error) {
 func (medium *Medium) Append(entryPath string) (goio.WriteCloser, error) {
 	group, key := splitGroupKeyPath(entryPath)
 	if key == "" {
-		return nil, core.E("store.Append", "path must include group/key", fs.ErrInvalid)
+		return nil, core.E("store.Append", msgStoreGroupKeyRequired, fs.ErrInvalid)
 	}
 	existingValue, err := medium.keyValueStore.Get(group, key)
 	if err != nil && !core.Is(err, NotFoundError) {
@@ -243,7 +248,7 @@ func (medium *Medium) Append(entryPath string) (goio.WriteCloser, error) {
 func (medium *Medium) ReadStream(entryPath string) (goio.ReadCloser, error) {
 	group, key := splitGroupKeyPath(entryPath)
 	if key == "" {
-		return nil, core.E("store.ReadStream", "path must include group/key", fs.ErrInvalid)
+		return nil, core.E("store.ReadStream", msgStoreGroupKeyRequired, fs.ErrInvalid)
 	}
 	value, err := medium.keyValueStore.Get(group, key)
 	if err != nil {

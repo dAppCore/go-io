@@ -6,11 +6,17 @@ import (
 	"io/fs"
 )
 
+const (
+	storeGroupKeyPath = "group/key"
+	storeOldKeyPath   = "old/key"
+	storeHelloContent = "hello world"
+)
+
 func newKeyValueMedium(t *core.T) *Medium {
 	t.Helper()
 	keyValueMedium, err := NewMedium(Options{Path: ":memory:"})
 	core.RequireNoError(t, err)
-	t.Cleanup(func() { keyValueMedium.Close() })
+	t.Cleanup(func() { _ = keyValueMedium.Close() })
 	return keyValueMedium
 }
 
@@ -39,25 +45,25 @@ func TestKeyValueMedium_Read_NotFound_Bad(t *core.T) {
 
 func TestKeyValueMedium_IsFile_Good(t *core.T) {
 	keyValueMedium := newKeyValueMedium(t)
-	_ = keyValueMedium.Write("group/key", "val")
+	_ = keyValueMedium.Write(storeGroupKeyPath, "val")
 
-	core.AssertTrue(t, keyValueMedium.IsFile("group/key"))
+	core.AssertTrue(t, keyValueMedium.IsFile(storeGroupKeyPath))
 	core.AssertFalse(t, keyValueMedium.IsFile("group/nope"))
 	core.AssertFalse(t, keyValueMedium.IsFile("group"))
 }
 
 func TestKeyValueMedium_Delete_Good(t *core.T) {
 	keyValueMedium := newKeyValueMedium(t)
-	_ = keyValueMedium.Write("group/key", "val")
+	_ = keyValueMedium.Write(storeGroupKeyPath, "val")
 
-	err := keyValueMedium.Delete("group/key")
+	err := keyValueMedium.Delete(storeGroupKeyPath)
 	core.RequireNoError(t, err)
-	core.AssertFalse(t, keyValueMedium.IsFile("group/key"))
+	core.AssertFalse(t, keyValueMedium.IsFile(storeGroupKeyPath))
 }
 
 func TestKeyValueMedium_Delete_NonEmptyGroup_Bad(t *core.T) {
 	keyValueMedium := newKeyValueMedium(t)
-	_ = keyValueMedium.Write("group/key", "val")
+	_ = keyValueMedium.Write(storeGroupKeyPath, "val")
 
 	err := keyValueMedium.Delete("group")
 	core.AssertError(t, err)
@@ -75,15 +81,15 @@ func TestKeyValueMedium_DeleteAll_Good(t *core.T) {
 
 func TestKeyValueMedium_Rename_Good(t *core.T) {
 	keyValueMedium := newKeyValueMedium(t)
-	_ = keyValueMedium.Write("old/key", "val")
+	_ = keyValueMedium.Write(storeOldKeyPath, "val")
 
-	err := keyValueMedium.Rename("old/key", "new/key")
+	err := keyValueMedium.Rename(storeOldKeyPath, "new/key")
 	core.RequireNoError(t, err)
 
 	value, err := keyValueMedium.Read("new/key")
 	core.RequireNoError(t, err)
 	core.AssertEqual(t, "val", value)
-	core.AssertFalse(t, keyValueMedium.IsFile("old/key"))
+	core.AssertFalse(t, keyValueMedium.IsFile(storeOldKeyPath))
 }
 
 func TestKeyValueMedium_List_Groups_Good(t *core.T) {
@@ -116,13 +122,13 @@ func TestKeyValueMedium_List_Keys_Good(t *core.T) {
 
 func TestKeyValueMedium_Stat_Good(t *core.T) {
 	keyValueMedium := newKeyValueMedium(t)
-	_ = keyValueMedium.Write("group/key", "hello")
+	_ = keyValueMedium.Write(storeGroupKeyPath, "hello")
 
 	info, err := keyValueMedium.Stat("group")
 	core.RequireNoError(t, err)
 	core.AssertTrue(t, info.IsDir())
 
-	info, err = keyValueMedium.Stat("group/key")
+	info, err = keyValueMedium.Stat(storeGroupKeyPath)
 	core.RequireNoError(t, err)
 	core.AssertEqual(t, int64(5), info.Size())
 	core.AssertFalse(t, info.IsDir())
@@ -130,66 +136,66 @@ func TestKeyValueMedium_Stat_Good(t *core.T) {
 
 func TestKeyValueMedium_Exists_IsDir_Good(t *core.T) {
 	keyValueMedium := newKeyValueMedium(t)
-	_ = keyValueMedium.Write("group/key", "val")
+	_ = keyValueMedium.Write(storeGroupKeyPath, "val")
 
 	core.AssertTrue(t, keyValueMedium.Exists("group"))
-	core.AssertTrue(t, keyValueMedium.Exists("group/key"))
+	core.AssertTrue(t, keyValueMedium.Exists(storeGroupKeyPath))
 	core.AssertTrue(t, keyValueMedium.IsDir("group"))
-	core.AssertFalse(t, keyValueMedium.IsDir("group/key"))
+	core.AssertFalse(t, keyValueMedium.IsDir(storeGroupKeyPath))
 	core.AssertFalse(t, keyValueMedium.Exists("nope"))
 }
 
 func TestKeyValueMedium_Open_Read_Good(t *core.T) {
 	keyValueMedium := newKeyValueMedium(t)
-	_ = keyValueMedium.Write("group/key", "hello world")
+	_ = keyValueMedium.Write(storeGroupKeyPath, storeHelloContent)
 
-	file, err := keyValueMedium.Open("group/key")
+	file, err := keyValueMedium.Open(storeGroupKeyPath)
 	core.RequireNoError(t, err)
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	data, err := io.ReadAll(file)
 	core.RequireNoError(t, err)
-	core.AssertEqual(t, "hello world", string(data))
+	core.AssertEqual(t, storeHelloContent, string(data))
 }
 
 func TestKeyValueMedium_CreateCloseGood(t *core.T) {
 	keyValueMedium := newKeyValueMedium(t)
 
-	writer, err := keyValueMedium.Create("group/key")
+	writer, err := keyValueMedium.Create(storeGroupKeyPath)
 	core.RequireNoError(t, err)
 	_, _ = writer.Write([]byte("streamed"))
 	core.RequireNoError(t, writer.Close())
 
-	value, err := keyValueMedium.Read("group/key")
+	value, err := keyValueMedium.Read(storeGroupKeyPath)
 	core.RequireNoError(t, err)
 	core.AssertEqual(t, "streamed", value)
 }
 
 func TestKeyValueMedium_Append_Good(t *core.T) {
 	keyValueMedium := newKeyValueMedium(t)
-	_ = keyValueMedium.Write("group/key", "hello")
+	_ = keyValueMedium.Write(storeGroupKeyPath, "hello")
 
-	writer, err := keyValueMedium.Append("group/key")
+	writer, err := keyValueMedium.Append(storeGroupKeyPath)
 	core.RequireNoError(t, err)
 	_, _ = writer.Write([]byte(" world"))
 	core.RequireNoError(t, writer.Close())
 
-	value, err := keyValueMedium.Read("group/key")
+	value, err := keyValueMedium.Read(storeGroupKeyPath)
 	core.RequireNoError(t, err)
-	core.AssertEqual(t, "hello world", value)
+	core.AssertEqual(t, storeHelloContent, value)
 }
 
 func TestKeyValueMedium_AsMedium_Good(t *core.T) {
 	keyValueStore := newKeyValueStore(t)
 
 	keyValueMedium := keyValueStore.AsMedium()
-	core.RequireNoError(t, keyValueMedium.Write("group/key", "val"))
+	core.RequireNoError(t, keyValueMedium.Write(storeGroupKeyPath, "val"))
 
 	value, err := keyValueStore.Get("group", "key")
 	core.RequireNoError(t, err)
 	core.AssertEqual(t, "val", value)
 
-	value, err = keyValueMedium.Read("group/key")
+	value, err = keyValueMedium.Read(storeGroupKeyPath)
 	core.RequireNoError(t, err)
 	core.AssertEqual(t, "val", value)
 }
@@ -205,9 +211,9 @@ func TestKeyValueMedium_EnsureDir_ReadWrite_Good(t *core.T) {
 	keyValueMedium := newKeyValueMedium(t)
 
 	core.RequireNoError(t, keyValueMedium.EnsureDir("ignored"))
-	core.RequireNoError(t, keyValueMedium.Write("group/key", "value"))
+	core.RequireNoError(t, keyValueMedium.Write(storeGroupKeyPath, "value"))
 
-	value, err := keyValueMedium.Read("group/key")
+	value, err := keyValueMedium.Read(storeGroupKeyPath)
 	core.RequireNoError(t, err)
 	core.AssertEqual(t, "value", value)
 }
@@ -215,20 +221,20 @@ func TestKeyValueMedium_EnsureDir_ReadWrite_Good(t *core.T) {
 func TestKeyValueMedium_StreamHelpersGood(t *core.T) {
 	keyValueMedium := newKeyValueMedium(t)
 
-	writer, err := keyValueMedium.WriteStream("group/key")
+	writer, err := keyValueMedium.WriteStream(storeGroupKeyPath)
 	core.RequireNoError(t, err)
 	_, err = writer.Write([]byte("streamed"))
 	core.RequireNoError(t, err)
 	core.RequireNoError(t, writer.Close())
 
-	reader, err := keyValueMedium.ReadStream("group/key")
+	reader, err := keyValueMedium.ReadStream(storeGroupKeyPath)
 	core.RequireNoError(t, err)
 	data, err := io.ReadAll(reader)
 	core.RequireNoError(t, err)
 	core.AssertEqual(t, "streamed", string(data))
 	core.RequireNoError(t, reader.Close())
 
-	file, err := keyValueMedium.Open("group/key")
+	file, err := keyValueMedium.Open(storeGroupKeyPath)
 	core.RequireNoError(t, err)
 	info, err := file.Stat()
 	core.RequireNoError(t, err)
@@ -293,14 +299,14 @@ func TestMedium_KeyValueStore_AsMedium_Bad(t *core.T) {
 func TestMedium_KeyValueStore_AsMedium_Ugly(t *core.T) {
 	keyValueStore := newKeyValueStore(t)
 	medium := keyValueStore.AsMedium()
-	core.RequireNoError(t, medium.Write("group/key", "value"))
-	core.AssertTrue(t, medium.Exists("group/key"))
+	core.RequireNoError(t, medium.Write(storeGroupKeyPath, "value"))
+	core.AssertTrue(t, medium.Exists(storeGroupKeyPath))
 }
 
 func TestMedium_NewMedium_Good(t *core.T) {
 	medium, err := NewMedium(Options{Path: ":memory:"})
 	core.RequireNoError(t, err)
-	defer medium.Close()
+	defer func() { _ = medium.Close() }()
 	core.AssertNotNil(t, medium.KeyValueStore())
 }
 
@@ -331,7 +337,7 @@ func TestMedium_Medium_KeyValueStore_Bad(t *core.T) {
 
 func TestMedium_Medium_KeyValueStore_Ugly(t *core.T) {
 	medium := newStoreMediumFixture(t)
-	core.RequireNoError(t, medium.Write("group/key", "value"))
+	core.RequireNoError(t, medium.Write(storeGroupKeyPath, "value"))
 	got := medium.KeyValueStore()
 	core.AssertEqual(t, "value", mustGetStoreEntry(t, got, "group", "key"))
 }
@@ -352,14 +358,14 @@ func TestMedium_Medium_Close_Bad(t *core.T) {
 func TestMedium_Medium_Close_Ugly(t *core.T) {
 	medium, err := NewMedium(Options{Path: ":memory:"})
 	core.RequireNoError(t, err)
-	core.RequireNoError(t, medium.Write("group/key", "value"))
+	core.RequireNoError(t, medium.Write(storeGroupKeyPath, "value"))
 	core.AssertNoError(t, medium.Close())
 }
 
 func TestMedium_Medium_Read_Good(t *core.T) {
 	medium := newStoreMediumFixture(t)
-	core.RequireNoError(t, medium.Write("group/key", "value"))
-	got, err := medium.Read("group/key")
+	core.RequireNoError(t, medium.Write(storeGroupKeyPath, "value"))
+	got, err := medium.Read(storeGroupKeyPath)
 	core.AssertNoError(t, err)
 	core.AssertEqual(t, "value", got)
 }
@@ -374,16 +380,16 @@ func TestMedium_Medium_Read_Bad(t *core.T) {
 func TestMedium_Medium_Read_Ugly(t *core.T) {
 	medium := newStoreMediumFixture(t)
 	core.RequireNoError(t, medium.Write("/group/key", "value"))
-	got, err := medium.Read("group/key")
+	got, err := medium.Read(storeGroupKeyPath)
 	core.AssertNoError(t, err)
 	core.AssertEqual(t, "value", got)
 }
 
 func TestMedium_Medium_Write_Good(t *core.T) {
 	medium := newStoreMediumFixture(t)
-	err := medium.Write("group/key", "value")
+	err := medium.Write(storeGroupKeyPath, "value")
 	core.AssertNoError(t, err)
-	core.AssertTrue(t, medium.IsFile("group/key"))
+	core.AssertTrue(t, medium.IsFile(storeGroupKeyPath))
 }
 
 func TestMedium_Medium_Write_Bad(t *core.T) {
@@ -397,14 +403,14 @@ func TestMedium_Medium_Write_Ugly(t *core.T) {
 	medium := newStoreMediumFixture(t)
 	err := medium.Write("/group/key", "")
 	core.AssertNoError(t, err)
-	core.AssertTrue(t, medium.Exists("group/key"))
+	core.AssertTrue(t, medium.Exists(storeGroupKeyPath))
 }
 
 func TestMedium_Medium_WriteMode_Good(t *core.T) {
 	medium := newStoreMediumFixture(t)
-	err := medium.WriteMode("group/key", "value", 0600)
+	err := medium.WriteMode(storeGroupKeyPath, "value", 0600)
 	core.AssertNoError(t, err)
-	core.AssertTrue(t, medium.IsFile("group/key"))
+	core.AssertTrue(t, medium.IsFile(storeGroupKeyPath))
 }
 
 func TestMedium_Medium_WriteMode_Bad(t *core.T) {
@@ -416,9 +422,9 @@ func TestMedium_Medium_WriteMode_Bad(t *core.T) {
 
 func TestMedium_Medium_WriteMode_Ugly(t *core.T) {
 	medium := newStoreMediumFixture(t)
-	err := medium.WriteMode("group/key", "value", 0)
+	err := medium.WriteMode(storeGroupKeyPath, "value", 0)
 	core.AssertNoError(t, err)
-	core.AssertTrue(t, medium.Exists("group/key"))
+	core.AssertTrue(t, medium.Exists(storeGroupKeyPath))
 }
 
 func TestMedium_Medium_EnsureDir_Good(t *core.T) {
@@ -444,8 +450,8 @@ func TestMedium_Medium_EnsureDir_Ugly(t *core.T) {
 
 func TestMedium_Medium_IsFile_Good(t *core.T) {
 	medium := newStoreMediumFixture(t)
-	core.RequireNoError(t, medium.Write("group/key", "value"))
-	got := medium.IsFile("group/key")
+	core.RequireNoError(t, medium.Write(storeGroupKeyPath, "value"))
+	got := medium.IsFile(storeGroupKeyPath)
 	core.AssertTrue(t, got)
 }
 
@@ -457,17 +463,17 @@ func TestMedium_Medium_IsFile_Bad(t *core.T) {
 
 func TestMedium_Medium_IsFile_Ugly(t *core.T) {
 	medium := newStoreMediumFixture(t)
-	core.RequireNoError(t, medium.Write("group/key", "value"))
+	core.RequireNoError(t, medium.Write(storeGroupKeyPath, "value"))
 	got := medium.IsFile("/group/key")
 	core.AssertTrue(t, got)
 }
 
 func TestMedium_Medium_Delete_Good(t *core.T) {
 	medium := newStoreMediumFixture(t)
-	core.RequireNoError(t, medium.Write("group/key", "value"))
-	err := medium.Delete("group/key")
+	core.RequireNoError(t, medium.Write(storeGroupKeyPath, "value"))
+	err := medium.Delete(storeGroupKeyPath)
 	core.AssertNoError(t, err)
-	core.AssertFalse(t, medium.Exists("group/key"))
+	core.AssertFalse(t, medium.Exists(storeGroupKeyPath))
 }
 
 func TestMedium_Medium_Delete_Bad(t *core.T) {
@@ -524,15 +530,15 @@ func TestMedium_Medium_Rename_Bad(t *core.T) {
 
 func TestMedium_Medium_Rename_Ugly(t *core.T) {
 	medium := newStoreMediumFixture(t)
-	core.RequireNoError(t, medium.Write("group/key", "value"))
-	err := medium.Rename("group/key", "other/key")
+	core.RequireNoError(t, medium.Write(storeGroupKeyPath, "value"))
+	err := medium.Rename(storeGroupKeyPath, "other/key")
 	core.AssertNoError(t, err)
 	core.AssertTrue(t, medium.Exists("other/key"))
 }
 
 func TestMedium_Medium_List_Good(t *core.T) {
 	medium := newStoreMediumFixture(t)
-	core.RequireNoError(t, medium.Write("group/key", "value"))
+	core.RequireNoError(t, medium.Write(storeGroupKeyPath, "value"))
 	entries, err := medium.List("group")
 	core.AssertNoError(t, err)
 	core.AssertLen(t, entries, 1)
@@ -540,8 +546,8 @@ func TestMedium_Medium_List_Good(t *core.T) {
 
 func TestMedium_Medium_List_Bad(t *core.T) {
 	medium := newStoreMediumFixture(t)
-	core.RequireNoError(t, medium.Write("group/key", "value"))
-	entries, err := medium.List("group/key")
+	core.RequireNoError(t, medium.Write(storeGroupKeyPath, "value"))
+	entries, err := medium.List(storeGroupKeyPath)
 	core.AssertErrorIs(t, err, ErrNotDirectory)
 	core.AssertNil(t, entries)
 }
@@ -555,8 +561,8 @@ func TestMedium_Medium_List_Ugly(t *core.T) {
 
 func TestMedium_Medium_Stat_Good(t *core.T) {
 	medium := newStoreMediumFixture(t)
-	core.RequireNoError(t, medium.Write("group/key", "value"))
-	info, err := medium.Stat("group/key")
+	core.RequireNoError(t, medium.Write(storeGroupKeyPath, "value"))
+	info, err := medium.Stat(storeGroupKeyPath)
 	core.AssertNoError(t, err)
 	core.AssertEqual(t, "key", info.Name())
 }
@@ -570,7 +576,7 @@ func TestMedium_Medium_Stat_Bad(t *core.T) {
 
 func TestMedium_Medium_Stat_Ugly(t *core.T) {
 	medium := newStoreMediumFixture(t)
-	core.RequireNoError(t, medium.Write("group/key", "value"))
+	core.RequireNoError(t, medium.Write(storeGroupKeyPath, "value"))
 	info, err := medium.Stat("group")
 	core.AssertNoError(t, err)
 	core.AssertTrue(t, info.IsDir())
@@ -578,8 +584,8 @@ func TestMedium_Medium_Stat_Ugly(t *core.T) {
 
 func TestMedium_Medium_Open_Good(t *core.T) {
 	medium := newStoreMediumFixture(t)
-	core.RequireNoError(t, medium.Write("group/key", "value"))
-	file, err := medium.Open("group/key")
+	core.RequireNoError(t, medium.Write(storeGroupKeyPath, "value"))
+	file, err := medium.Open(storeGroupKeyPath)
 	core.AssertNoError(t, err)
 	core.AssertNotNil(t, file)
 	core.RequireNoError(t, file.Close())
@@ -602,7 +608,7 @@ func TestMedium_Medium_Open_Ugly(t *core.T) {
 
 func TestMedium_Medium_Create_Good(t *core.T) {
 	medium := newStoreMediumFixture(t)
-	writer, err := medium.Create("group/key")
+	writer, err := medium.Create(storeGroupKeyPath)
 	core.RequireNoError(t, err)
 	_, writeErr := writer.Write([]byte("value"))
 	core.AssertNoError(t, writeErr)
@@ -621,13 +627,13 @@ func TestMedium_Medium_Create_Ugly(t *core.T) {
 	writer, err := medium.Create("/group/key")
 	core.RequireNoError(t, err)
 	core.AssertNoError(t, writer.Close())
-	core.AssertTrue(t, medium.Exists("group/key"))
+	core.AssertTrue(t, medium.Exists(storeGroupKeyPath))
 }
 
 func TestMedium_Medium_Append_Good(t *core.T) {
 	medium := newStoreMediumFixture(t)
-	core.RequireNoError(t, medium.Write("group/key", "a"))
-	writer, err := medium.Append("group/key")
+	core.RequireNoError(t, medium.Write(storeGroupKeyPath, "a"))
+	writer, err := medium.Append(storeGroupKeyPath)
 	core.RequireNoError(t, err)
 	_, writeErr := writer.Write([]byte("b"))
 	core.RequireNoError(t, writeErr)
@@ -652,10 +658,10 @@ func TestMedium_Medium_Append_Ugly(t *core.T) {
 
 func TestMedium_Medium_ReadStream_Good(t *core.T) {
 	medium := newStoreMediumFixture(t)
-	core.RequireNoError(t, medium.Write("group/key", "value"))
-	reader, err := medium.ReadStream("group/key")
+	core.RequireNoError(t, medium.Write(storeGroupKeyPath, "value"))
+	reader, err := medium.ReadStream(storeGroupKeyPath)
 	core.RequireNoError(t, err)
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 	data, readErr := io.ReadAll(reader)
 	core.AssertNoError(t, readErr)
 	core.AssertEqual(t, "value", string(data))
@@ -678,7 +684,7 @@ func TestMedium_Medium_ReadStream_Ugly(t *core.T) {
 
 func TestMedium_Medium_WriteStream_Good(t *core.T) {
 	medium := newStoreMediumFixture(t)
-	writer, err := medium.WriteStream("group/key")
+	writer, err := medium.WriteStream(storeGroupKeyPath)
 	core.RequireNoError(t, err)
 	_, writeErr := writer.Write([]byte("value"))
 	core.AssertNoError(t, writeErr)
@@ -697,13 +703,13 @@ func TestMedium_Medium_WriteStream_Ugly(t *core.T) {
 	writer, err := medium.WriteStream("/group/key")
 	core.RequireNoError(t, err)
 	core.AssertNoError(t, writer.Close())
-	core.AssertTrue(t, medium.Exists("group/key"))
+	core.AssertTrue(t, medium.Exists(storeGroupKeyPath))
 }
 
 func TestMedium_Medium_Exists_Good(t *core.T) {
 	medium := newStoreMediumFixture(t)
-	core.RequireNoError(t, medium.Write("group/key", "value"))
-	got := medium.Exists("group/key")
+	core.RequireNoError(t, medium.Write(storeGroupKeyPath, "value"))
+	got := medium.Exists(storeGroupKeyPath)
 	core.AssertTrue(t, got)
 }
 
@@ -715,14 +721,14 @@ func TestMedium_Medium_Exists_Bad(t *core.T) {
 
 func TestMedium_Medium_Exists_Ugly(t *core.T) {
 	medium := newStoreMediumFixture(t)
-	core.RequireNoError(t, medium.Write("group/key", "value"))
+	core.RequireNoError(t, medium.Write(storeGroupKeyPath, "value"))
 	got := medium.Exists("group")
 	core.AssertTrue(t, got)
 }
 
 func TestMedium_Medium_IsDir_Good(t *core.T) {
 	medium := newStoreMediumFixture(t)
-	core.RequireNoError(t, medium.Write("group/key", "value"))
+	core.RequireNoError(t, medium.Write(storeGroupKeyPath, "value"))
 	got := medium.IsDir("group")
 	core.AssertTrue(t, got)
 }
@@ -735,8 +741,8 @@ func TestMedium_Medium_IsDir_Bad(t *core.T) {
 
 func TestMedium_Medium_IsDir_Ugly(t *core.T) {
 	medium := newStoreMediumFixture(t)
-	core.RequireNoError(t, medium.Write("group/key", "value"))
-	got := medium.IsDir("group/key")
+	core.RequireNoError(t, medium.Write(storeGroupKeyPath, "value"))
+	got := medium.IsDir(storeGroupKeyPath)
 	core.AssertFalse(t, got)
 }
 

@@ -23,6 +23,12 @@ var _ fs.FS = (*Medium)(nil)
 
 var unrestrictedFileSystem = (&core.Fs{}).NewUnrestricted()
 
+const (
+	opLocalDelete           = "local.Delete"
+	opLocalDeleteAll        = "local.DeleteAll"
+	msgUnexpectedResultType = "unexpected result type"
+)
+
 // Example: medium, _ := local.New("/srv/app")
 // Example: _ = medium.Write("config/app.yaml", "port: 8080")
 func New(root string) (*Medium, error) {
@@ -114,22 +120,7 @@ func resolveSymlinksRecursive(path string, seen map[string]struct{}) (string, er
 			continue
 		}
 
-		target, err := readlink(next)
-		if err != nil {
-			return "", err
-		}
-		target = normalisePath(target)
-		if !core.PathIsAbs(target) {
-			target = core.Path(current, target)
-		} else {
-			target = core.Path(target)
-		}
-		if _, ok := seen[target]; ok {
-			return "", core.E("local.resolveSymlinksPath", core.Concat("symlink cycle: ", target), fs.ErrInvalid)
-		}
-		seen[target] = struct{}{}
-		resolved, err := resolveSymlinksRecursive(target, seen)
-		delete(seen, target)
+		resolved, err := resolveSymlinkTarget(current, next, seen)
 		if err != nil {
 			return "", err
 		}
@@ -137,6 +128,26 @@ func resolveSymlinksRecursive(path string, seen map[string]struct{}) (string, er
 	}
 
 	return current, nil
+}
+
+func resolveSymlinkTarget(current, next string, seen map[string]struct{}) (string, error) {
+	target, err := readlink(next)
+	if err != nil {
+		return "", err
+	}
+	target = normalisePath(target)
+	if !core.PathIsAbs(target) {
+		target = core.Path(current, target)
+	} else {
+		target = core.Path(target)
+	}
+	if _, ok := seen[target]; ok {
+		return "", core.E("local.resolveSymlinksPath", core.Concat("symlink cycle: ", target), fs.ErrInvalid)
+	}
+	seen[target] = struct{}{}
+	resolved, err := resolveSymlinksRecursive(target, seen)
+	delete(seen, target)
+	return resolved, err
 }
 
 func isWithinRoot(root, target string) bool {
@@ -369,12 +380,12 @@ func (medium *Medium) Delete(path string) error {
 		return err
 	}
 	if resolvedPath == medium.filesystemRoot {
-		return core.E("local.Delete", "refusing to delete sandbox root", nil)
+		return core.E(opLocalDelete, "refusing to delete sandbox root", nil)
 	}
 	if isProtectedPath(resolvedPath) {
-		return core.E("local.Delete", core.Concat("refusing to delete protected path: ", resolvedPath), nil)
+		return core.E(opLocalDelete, core.Concat("refusing to delete protected path: ", resolvedPath), nil)
 	}
-	return resultError("local.Delete", core.Concat("delete failed: ", path), unrestrictedFileSystem.Delete(resolvedPath))
+	return resultError(opLocalDelete, core.Concat("delete failed: ", path), unrestrictedFileSystem.Delete(resolvedPath))
 }
 
 // Example: _ = medium.DeleteAll("logs/archive")
@@ -384,12 +395,12 @@ func (medium *Medium) DeleteAll(path string) error {
 		return err
 	}
 	if resolvedPath == medium.filesystemRoot {
-		return core.E("local.DeleteAll", "refusing to delete sandbox root", nil)
+		return core.E(opLocalDeleteAll, "refusing to delete sandbox root", nil)
 	}
 	if isProtectedPath(resolvedPath) {
-		return core.E("local.DeleteAll", core.Concat("refusing to delete protected path: ", resolvedPath), nil)
+		return core.E(opLocalDeleteAll, core.Concat("refusing to delete protected path: ", resolvedPath), nil)
 	}
-	return resultError("local.DeleteAll", core.Concat("delete all failed: ", path), unrestrictedFileSystem.DeleteAll(resolvedPath))
+	return resultError(opLocalDeleteAll, core.Concat("delete all failed: ", path), unrestrictedFileSystem.DeleteAll(resolvedPath))
 }
 
 // Example: _ = medium.Rename("drafts/todo.txt", "archive/todo.txt")
@@ -451,7 +462,7 @@ func resultString(operation, message string, result core.Result) (string, error)
 	}
 	value, ok := result.Value.(string)
 	if !ok {
-		return "", core.E(operation, "unexpected result type", nil)
+		return "", core.E(operation, msgUnexpectedResultType, nil)
 	}
 	return value, nil
 }
@@ -462,7 +473,7 @@ func resultDirEntries(operation, message string, result core.Result) ([]fs.DirEn
 	}
 	entries, ok := result.Value.([]fs.DirEntry)
 	if !ok {
-		return nil, core.E(operation, "unexpected result type", nil)
+		return nil, core.E(operation, msgUnexpectedResultType, nil)
 	}
 	return entries, nil
 }
@@ -473,7 +484,7 @@ func resultFileInfo(operation, message string, result core.Result) (fs.FileInfo,
 	}
 	fileInfo, ok := result.Value.(fs.FileInfo)
 	if !ok {
-		return nil, core.E(operation, "unexpected result type", nil)
+		return nil, core.E(operation, msgUnexpectedResultType, nil)
 	}
 	return fileInfo, nil
 }
@@ -484,7 +495,7 @@ func resultFile(operation, message string, result core.Result) (fs.File, error) 
 	}
 	file, ok := result.Value.(fs.File)
 	if !ok {
-		return nil, core.E(operation, "unexpected result type", nil)
+		return nil, core.E(operation, msgUnexpectedResultType, nil)
 	}
 	return file, nil
 }
@@ -495,7 +506,7 @@ func resultWriteCloser(operation, message string, result core.Result) (goio.Writ
 	}
 	writer, ok := result.Value.(goio.WriteCloser)
 	if !ok {
-		return nil, core.E(operation, "unexpected result type", nil)
+		return nil, core.E(operation, msgUnexpectedResultType, nil)
 	}
 	return writer, nil
 }

@@ -7,6 +7,8 @@ import (
 	"io/fs"
 )
 
+const workspaceNotesPath = "notes/todo.txt"
+
 func newTestWorkspace(t *core.T) (*Workspace, *coreio.MemoryMedium) {
 	t.Helper()
 
@@ -109,9 +111,9 @@ func TestWorkspace_ReadWorkspaceFile_Good(t *core.T) {
 	workspaceService, _ := newTestWorkspace(t)
 	_, err := workspaceService.CreateWorkspace("alpha")
 	core.RequireNoError(t, err)
-	core.RequireNoError(t, workspaceService.WriteWorkspaceFile("alpha", "notes/todo.txt", "hello"))
+	core.RequireNoError(t, workspaceService.WriteWorkspaceFile("alpha", workspaceNotesPath, "hello"))
 
-	content, err := workspaceService.ReadWorkspaceFile("alpha", "notes/todo.txt")
+	content, err := workspaceService.ReadWorkspaceFile("alpha", workspaceNotesPath)
 
 	core.RequireNoError(t, err)
 	core.AssertEqual(t, "hello", content)
@@ -142,7 +144,7 @@ func TestWorkspace_WriteWorkspaceFile_Good(t *core.T) {
 	_, err := workspaceService.CreateWorkspace("alpha")
 	core.RequireNoError(t, err)
 
-	err = workspaceService.WriteWorkspaceFile("alpha", "notes/todo.txt", "hello")
+	err = workspaceService.WriteWorkspaceFile("alpha", workspaceNotesPath, "hello")
 
 	core.RequireNoError(t, err)
 	content, err := medium.Read("workspaces/alpha/notes/todo.txt")
@@ -153,7 +155,7 @@ func TestWorkspace_WriteWorkspaceFile_Good(t *core.T) {
 func TestWorkspace_WriteWorkspaceFile_Bad_MissingWorkspace(t *core.T) {
 	workspaceService, _ := newTestWorkspace(t)
 
-	err := workspaceService.WriteWorkspaceFile("missing", "notes/todo.txt", "hello")
+	err := workspaceService.WriteWorkspaceFile("missing", workspaceNotesPath, "hello")
 
 	core.AssertError(t, err)
 }
@@ -183,7 +185,7 @@ func TestWorkspace_HandleWorkspaceCommand_Good(t *core.T) {
 	write := workspaceService.HandleWorkspaceCommand(WorkspaceCommand{
 		Action:    WorkspaceWriteAction,
 		Workspace: "alpha",
-		Path:      "notes/todo.txt",
+		Path:      workspaceNotesPath,
 		Content:   "hello",
 	})
 	core.RequireTrue(t, write.OK)
@@ -191,7 +193,7 @@ func TestWorkspace_HandleWorkspaceCommand_Good(t *core.T) {
 	read := workspaceService.HandleWorkspaceCommand(WorkspaceCommand{
 		Action:    WorkspaceReadAction,
 		Workspace: "alpha",
-		Path:      "notes/todo.txt",
+		Path:      workspaceNotesPath,
 	})
 	core.RequireTrue(t, read.OK)
 	core.AssertEqual(t, "hello", read.Value)
@@ -374,7 +376,7 @@ func TestWorkspace_Workspace_ListWorkspaceFiles_Good(t *core.T) {
 	workspaceService, _ := newTestWorkspace(t)
 	_, err := workspaceService.CreateWorkspace("alpha")
 	core.RequireNoError(t, err)
-	core.RequireNoError(t, workspaceService.WriteWorkspaceFile("alpha", "notes/todo.txt", "payload"))
+	core.RequireNoError(t, workspaceService.WriteWorkspaceFile("alpha", workspaceNotesPath, "payload"))
 	entries, err := workspaceService.ListWorkspaceFiles("alpha", "notes")
 	core.AssertNoError(t, err)
 	core.AssertLen(t, entries, 1)
@@ -713,7 +715,7 @@ func TestWorkspace_Medium_ReadStream_Good(t *core.T) {
 	core.RequireNoError(t, medium.Write("stream.txt", "payload"))
 	reader, err := medium.ReadStream("stream.txt")
 	core.RequireNoError(t, err)
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 	data, readErr := goio.ReadAll(reader)
 	core.AssertNoError(t, readErr)
 	core.AssertEqual(t, "payload", string(data))

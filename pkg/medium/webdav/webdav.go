@@ -170,6 +170,12 @@ func statusOK(statusCode int, allowed ...int) bool {
 	return false
 }
 
+func closeWebDAVBody(closer goio.Closer) {
+	if err := closer.Close(); err != nil {
+		core.Warn("webdav response close failed", "err", err)
+	}
+}
+
 func (medium *Medium) putBytes(filePath string, data []byte) error {
 	resource, err := medium.requiredResourceURL(opWriteMode, filePath)
 	if err != nil {
@@ -183,7 +189,7 @@ func (medium *Medium) putBytes(filePath string, data []byte) error {
 	if err != nil {
 		return core.E(opWriteMode, core.Concat("PUT failed: ", resource), err)
 	}
-	defer response.Body.Close()
+	defer closeWebDAVBody(response.Body)
 	if !statusOK(response.StatusCode, http.StatusOK, http.StatusCreated, http.StatusNoContent) {
 		return statusError(opWriteMode, resource, response.StatusCode)
 	}
@@ -209,7 +215,7 @@ func (medium *Medium) Read(filePath string) (string, error) {
 	if err != nil {
 		return "", core.E(opRead, core.Concat("GET failed: ", resource), err)
 	}
-	defer response.Body.Close()
+	defer closeWebDAVBody(response.Body)
 	if !statusOK(response.StatusCode, http.StatusOK) {
 		return "", statusError(opRead, resource, response.StatusCode)
 	}
@@ -258,7 +264,7 @@ func (medium *Medium) mkcol(filePath string) error {
 	if err != nil {
 		return core.E(opEnsureDir, core.Concat("MKCOL failed: ", resource), err)
 	}
-	defer response.Body.Close()
+	defer closeWebDAVBody(response.Body)
 	switch response.StatusCode {
 	case http.StatusCreated, http.StatusOK, http.StatusNoContent:
 		return nil
@@ -305,7 +311,7 @@ func (medium *Medium) Delete(filePath string) error {
 	if err != nil {
 		return core.E(opDelete, core.Concat("DELETE failed: ", resource), err)
 	}
-	defer response.Body.Close()
+	defer closeWebDAVBody(response.Body)
 	if !statusOK(response.StatusCode, http.StatusOK, http.StatusAccepted, http.StatusNoContent) {
 		return statusError(opDelete, resource, response.StatusCode)
 	}
@@ -322,7 +328,7 @@ func (medium *Medium) DeleteAll(filePath string) error {
 	if err != nil {
 		return core.E(opDeleteAll, core.Concat("DELETE failed: ", resource), err)
 	}
-	defer response.Body.Close()
+	defer closeWebDAVBody(response.Body)
 	if !statusOK(response.StatusCode, http.StatusOK, http.StatusAccepted, http.StatusNoContent) {
 		return statusError(opDeleteAll, resource, response.StatusCode)
 	}
@@ -354,7 +360,7 @@ func (medium *Medium) Rename(oldPath, newPath string) error {
 	if err != nil {
 		return core.E(opRename, core.Concat("MOVE failed: ", source), err)
 	}
-	defer response.Body.Close()
+	defer closeWebDAVBody(response.Body)
 	if !statusOK(response.StatusCode, http.StatusCreated, http.StatusNoContent) {
 		return statusError(opRename, source, response.StatusCode)
 	}
@@ -412,7 +418,7 @@ func (medium *Medium) propfind(filePath, depth string) ([]davResponse, string, e
 	if err != nil {
 		return nil, "", core.E(opPropfind, core.Concat("PROPFIND failed: ", resource), err)
 	}
-	defer response.Body.Close()
+	defer closeWebDAVBody(response.Body)
 	if response.StatusCode != http.StatusMultiStatus {
 		return nil, "", statusError(opPropfind, resource, response.StatusCode)
 	}
@@ -482,7 +488,7 @@ func (medium *Medium) ReadStream(filePath string) (goio.ReadCloser, error) {
 		return nil, core.E(opReadStream, core.Concat("GET failed: ", resource), err)
 	}
 	if !statusOK(response.StatusCode, http.StatusOK) {
-		response.Body.Close()
+		closeWebDAVBody(response.Body)
 		return nil, statusError(opReadStream, resource, response.StatusCode)
 	}
 	return response.Body, nil

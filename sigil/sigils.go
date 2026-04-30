@@ -14,8 +14,8 @@ import (
 	core "dappco.re/go"
 	"golang.org/x/crypto/blake2b"
 	"golang.org/x/crypto/blake2s"
-	"golang.org/x/crypto/md4"
-	"golang.org/x/crypto/ripemd160"
+	"golang.org/x/crypto/md4"       //nolint:staticcheck // Supported for legacy hash-name compatibility.
+	"golang.org/x/crypto/ripemd160" //nolint:staticcheck // Supported for legacy hash-name compatibility.
 	"golang.org/x/crypto/sha3"
 )
 
@@ -145,7 +145,7 @@ func (sigil *GzipSigil) Out(data []byte) ([]byte, error) {
 	if err != nil {
 		return nil, core.E(opGzipOut, "open gzip reader", err)
 	}
-	defer gzipReader.Close()
+	defer closeGzipReader(gzipReader)
 	out := core.ReadAll(gzipReader)
 	if !out.OK {
 		if err, ok := out.Value.(error); ok {
@@ -154,6 +154,12 @@ func (sigil *GzipSigil) Out(data []byte) ([]byte, error) {
 		return nil, core.E(opGzipOut, errReadGzipPayload, fs.ErrInvalid)
 	}
 	return []byte(out.Value.(string)), nil
+}
+
+func closeGzipReader(reader interface{ Close() error }) {
+	if err := reader.Close(); err != nil {
+		core.Warn("gzip reader close failed", "err", err)
+	}
 }
 
 // Example: jsonSigil := &sigil.JSONSigil{Indent: true}
@@ -197,6 +203,7 @@ func NewHashSigil(hashAlgorithm crypto.Hash) *HashSigil {
 
 func (sigil *HashSigil) In(data []byte) ([]byte, error) {
 	var hasher sigilHash
+	var err error
 	switch sigil.Hash {
 	case crypto.MD4:
 		hasher = md4.New()
@@ -227,15 +234,18 @@ func (sigil *HashSigil) In(data []byte) ([]byte, error) {
 	case crypto.SHA512_256:
 		hasher = sha512.New512_256()
 	case crypto.BLAKE2s_256:
-		hasher, _ = blake2s.New256(nil)
+		hasher, err = blake2s.New256(nil)
 	case crypto.BLAKE2b_256:
-		hasher, _ = blake2b.New256(nil)
+		hasher, err = blake2b.New256(nil)
 	case crypto.BLAKE2b_384:
-		hasher, _ = blake2b.New384(nil)
+		hasher, err = blake2b.New384(nil)
 	case crypto.BLAKE2b_512:
-		hasher, _ = blake2b.New512(nil)
+		hasher, err = blake2b.New512(nil)
 	default:
 		return nil, core.E("sigil.HashSigil.In", "hash algorithm not available", fs.ErrInvalid)
+	}
+	if err != nil {
+		return nil, core.E("sigil.HashSigil.In", "create hash", err)
 	}
 
 	if _, err := hasher.Write(data); err != nil {
@@ -324,58 +334,93 @@ func indentJSON(compact string) string {
 	inString := false
 	escaped := false
 
-	writeIndent := func(level int) {
-		for i := 0; i < level; i++ {
-			builder.WriteString("  ")
-		}
-	}
-
 	for i := 0; i < len(compact); i++ {
 		ch := compact[i]
 		if inString {
-			builder.WriteByte(ch)
-			if escaped {
-				escaped = false
-				continue
-			}
-			if ch == '\\' {
-				escaped = true
-				continue
-			}
-			if ch == '"' {
-				inString = false
-			}
+			inString, escaped = writeJSONStringByte(builder, ch, escaped)
 			continue
 		}
 
-		switch ch {
-		case '"':
-			inString = true
-			builder.WriteByte(ch)
-		case '{', '[':
-			builder.WriteByte(ch)
-			if i+1 < len(compact) && compact[i+1] != '}' && compact[i+1] != ']' {
-				indent++
-				builder.WriteByte('\n')
-				writeIndent(indent)
-			}
-		case '}', ']':
-			if i > 0 && compact[i-1] != '{' && compact[i-1] != '[' {
-				indent--
-				builder.WriteByte('\n')
-				writeIndent(indent)
-			}
-			builder.WriteByte(ch)
-		case ',':
-			builder.WriteByte(ch)
-			builder.WriteByte('\n')
-			writeIndent(indent)
-		case ':':
-			builder.WriteString(": ")
-		default:
-			builder.WriteByte(ch)
-		}
+		indent, inString = writeJSONStructuralByte(builder, compact, i, indent)
 	}
 
 	return builder.String()
+}
+
+type jsonIndentWriter interface {
+	WriteByte(byte) error
+	WriteString(string) (int, error)
+}
+
+func writeJSONByte(builder jsonIndentWriter, ch byte) {
+	if err := builder.WriteByte(ch); err != nil {
+		core.Warn("json indent byte write failed", "err", err)
+	}
+}
+
+func writeJSONString(builder jsonIndentWriter, text string) {
+	if _, err := builder.WriteString(text); err != nil {
+		core.Warn("json indent string write failed", "err", err)
+	}
+}
+
+func writeJSONIndent(builder jsonIndentWriter, level int) {
+	for i := 0; i < level; i++ {
+		writeJSONString(builder, "  ")
+	}
+}
+
+func writeJSONStringByte(builder jsonIndentWriter, ch byte, escaped bool) (bool, bool) {
+	writeJSONByte(builder, ch)
+	if escaped {
+		return true, false
+	}
+	if ch == '\\' {
+		return true, true
+	}
+	return ch != '"', false
+}
+
+func writeJSONStructuralByte(builder jsonIndentWriter, compact string, index, indent int) (int, bool) {
+	ch := compact[index]
+	switch ch {
+	case '"':
+		writeJSONByte(builder, ch)
+		return indent, true
+	case '{', '[':
+		writeJSONByte(builder, ch)
+		return writeJSONOpenContainer(builder, compact, index, indent), false
+	case '}', ']':
+		indent = writeJSONCloseContainer(builder, compact, index, indent)
+		writeJSONByte(builder, ch)
+	case ',':
+		writeJSONByte(builder, ch)
+		writeJSONByte(builder, '\n')
+		writeJSONIndent(builder, indent)
+	case ':':
+		writeJSONString(builder, ": ")
+	default:
+		writeJSONByte(builder, ch)
+	}
+	return indent, false
+}
+
+func writeJSONOpenContainer(builder jsonIndentWriter, compact string, index, indent int) int {
+	if index+1 >= len(compact) || compact[index+1] == '}' || compact[index+1] == ']' {
+		return indent
+	}
+	indent++
+	writeJSONByte(builder, '\n')
+	writeJSONIndent(builder, indent)
+	return indent
+}
+
+func writeJSONCloseContainer(builder jsonIndentWriter, compact string, index, indent int) int {
+	if index == 0 || compact[index-1] == '{' || compact[index-1] == '[' {
+		return indent
+	}
+	indent--
+	writeJSONByte(builder, '\n')
+	writeJSONIndent(builder, indent)
+	return indent
 }

@@ -5,10 +5,9 @@
 package cube
 
 import (
-	"archive/tar" // AX-6-exception: tar archive transport has no core equivalent.
-	goio "io"     // AX-6-exception: io interface types have no core equivalent; io.EOF preserves stream semantics.
-	"io/fs"       // AX-6-exception: fs interface types have no core equivalent.
-	"time"        // AX-6-exception: filesystem metadata timestamps have no core equivalent.
+	goio "io" // AX-6-exception: io interface types have no core equivalent; io.EOF preserves stream semantics.
+	"io/fs"   // AX-6-exception: fs interface types have no core equivalent.
+	"time"    // AX-6-exception: filesystem metadata timestamps have no core equivalent.
 
 	core "dappco.re/go"
 	coreio "dappco.re/go/io"
@@ -19,13 +18,14 @@ import (
 )
 
 const (
-	opCubeNew       = "cube.New"
-	opCubeOpen      = "cube.Open"
-	opCubePack      = "cube.Pack"
-	opCubeUnpack    = "cube.Unpack"
-	opCubeArchive   = "cube.archive"
-	opCubeExtract   = "cube.extract"
-	errCreateCipher = "failed to create cipher"
+	opCubeNew             = "cube.New"
+	opCubeOpen            = "cube.Open"
+	opCubePack            = "cube.Pack"
+	opCubeUnpack          = "cube.Unpack"
+	opCubeArchive         = "cube.archive"
+	opCubeExtract         = "cube.extract"
+	errCreateCipher       = "failed to create cipher"
+	msgCubeInvalidTarPath = "invalid tar entry path: "
 )
 
 // Example: medium, _ := cube.New(cube.Options{Inner: inner, Key: key})
@@ -220,6 +220,16 @@ func (file *cubeFile) Close() error {
 	return nil
 }
 
+// cubeArchiveBuffer is the minimal intrinsic writer used by cube archive tests.
+type cubeArchiveBuffer struct {
+	data []byte
+}
+
+func (buffer *cubeArchiveBuffer) Write(data []byte) (int, error) {
+	buffer.data = append(buffer.data, data...)
+	return len(data), nil
+}
+
 // cubeWriteCloser buffers writes and commits them (encrypted) on Close.
 type cubeWriteCloser struct {
 	medium *Medium
@@ -239,17 +249,6 @@ func (writer *cubeWriteCloser) Close() error {
 		mode = 0644
 	}
 	return writer.medium.WriteMode(writer.path, string(writer.data), mode)
-}
-
-// AX-6-exception: core.NewBuffer is unavailable in the pinned core module; this is
-// the minimal intrinsic writer needed by archive/tar.
-type cubeArchiveBuffer struct {
-	data []byte
-}
-
-func (buffer *cubeArchiveBuffer) Write(data []byte) (int, error) {
-	buffer.data = append(buffer.data, data...)
-	return len(data), nil
 }
 
 // Example: _ = cube.Pack("app.cube", workspaceMedium, key)
@@ -384,43 +383,6 @@ func sandboxedLocalForPath(operation, filePath string) (coreio.Medium, string, e
 	return medium, relativePath, nil
 }
 
-// archiveMediumToTar walks source and serialises all files into a tar archive.
-func archiveMediumToTar(source coreio.Medium) ([]byte, error) {
-	buffer := &cubeArchiveBuffer{}
-	tarWriter := tar.NewWriter(buffer)
-
-	if err := walkAndArchive(source, "", tarWriter); err != nil {
-		tarWriter.Close()
-		return nil, err
-	}
-
-	if err := tarWriter.Close(); err != nil {
-		return nil, core.E(opCubeArchive, "failed to close tar writer", err)
-	}
-	return buffer.data, nil
-}
-
-// walkAndArchive recursively walks the source and appends every file.
-func walkAndArchive(source coreio.Medium, path string, tarWriter *tar.Writer) error {
-	entries, err := source.List(path)
-	if err != nil {
-		return core.E(opCubeArchive, core.Concat("failed to list: ", path), err)
-	}
-	for _, entry := range entries {
-		childPath := archiveChildPath(path, entry.Name())
-		if entry.IsDir() {
-			if err := walkAndArchive(source, childPath, tarWriter); err != nil {
-				return err
-			}
-			continue
-		}
-		if err := writeTarFileEntry(source, childPath, tarWriter); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func archiveChildPath(parent, name string) string {
 	name = core.CleanPath(name, "/")
 	name = core.TrimPrefix(name, "/")
@@ -502,7 +464,7 @@ func writeBorgDataNodeFile(dataNode *borgdatanode.DataNode, filePath string, des
 	if err != nil {
 		return core.E(opCubeExtract, core.Concat("failed to open Borg DataNode file: ", filePath), err)
 	}
-	defer file.Close()
+	defer closeBorgDataNodeFile(file, filePath)
 	content, err := goio.ReadAll(file)
 	if err != nil {
 		return core.E(opCubeExtract, core.Concat("failed to read Borg DataNode file: ", filePath), err)
@@ -513,86 +475,10 @@ func writeBorgDataNodeFile(dataNode *borgdatanode.DataNode, filePath string, des
 	return nil
 }
 
-func writeTarFileEntry(source coreio.Medium, filePath string, tarWriter *tar.Writer) error {
-	content, err := source.Read(filePath)
-	if err != nil {
-		return core.E(opCubeArchive, core.Concat("failed to read: ", filePath), err)
+func closeBorgDataNodeFile(file fs.File, filePath string) {
+	if err := file.Close(); err != nil {
+		core.Warn("cube DataNode file close failed", "file_path", filePath, "err", err)
 	}
-	mode, modTime := archiveEntryMetadata(source, filePath)
-	header := &tar.Header{
-		Name:    filePath,
-		Mode:    int64(mode.Perm()),
-		Size:    int64(len(content)),
-		ModTime: modTime,
-	}
-	if err := tarWriter.WriteHeader(header); err != nil {
-		return core.E(opCubeArchive, core.Concat("failed to write header: ", filePath), err)
-	}
-	if _, err := tarWriter.Write([]byte(content)); err != nil {
-		return core.E(opCubeArchive, core.Concat("failed to write content: ", filePath), err)
-	}
-	return nil
-}
-
-func archiveEntryMetadata(source coreio.Medium, filePath string) (fs.FileMode, time.Time) {
-	if info, err := source.Stat(filePath); err == nil {
-		return info.Mode(), info.ModTime()
-	}
-	return 0600, time.Now()
-}
-
-// extractTarToMedium reads a tar archive and writes each entry to destination.
-func extractTarToMedium(archiveBytes []byte, destination coreio.Medium) error {
-	tarReader := tar.NewReader(&cubeFile{content: archiveBytes})
-	for {
-		header, err := tarReader.Next()
-		if err == goio.EOF {
-			return nil
-		}
-		if err != nil {
-			return core.E(opCubeExtract, "failed to read tar entry", err)
-		}
-		if header.Typeflag != tar.TypeReg {
-			continue
-		}
-		if err := extractTarFileEntry(tarReader, header, destination); err != nil {
-			return err
-		}
-	}
-}
-
-func extractTarFileEntry(tarReader *tar.Reader, header *tar.Header, destination coreio.Medium) error {
-	content, err := readTarEntryContent(tarReader, header.Name)
-	if err != nil {
-		return err
-	}
-	name, ok, err := validatedTarEntryName(header.Name)
-	if err != nil || !ok {
-		return err
-	}
-	mode := fs.FileMode(header.Mode)
-	if mode == 0 {
-		mode = 0644
-	}
-	if err := destination.WriteMode(name, content, mode); err != nil {
-		return core.E(opCubeExtract, core.Concat("failed to write entry: ", name), err)
-	}
-	return nil
-}
-
-func readTarEntryContent(tarReader *tar.Reader, name string) (string, error) {
-	contentResult := core.ReadAll(tarReader)
-	if contentResult.OK {
-		content, ok := contentResult.Value.(string)
-		if !ok {
-			return "", core.E(opCubeExtract, core.Concat("failed to read entry: ", name), fs.ErrInvalid)
-		}
-		return content, nil
-	}
-	if err, ok := contentResult.Value.(error); ok {
-		return "", core.E(opCubeExtract, core.Concat("failed to read entry: ", name), err)
-	}
-	return "", core.E(opCubeExtract, core.Concat("failed to read entry: ", name), fs.ErrInvalid)
 }
 
 func validatedTarEntryName(rawName string) (string, bool, error) {
@@ -600,18 +486,18 @@ func validatedTarEntryName(rawName string) (string, bool, error) {
 		return "", false, nil
 	}
 	if core.HasPrefix(rawName, "/") || core.Contains(rawName, "\\") {
-		return "", false, core.E(opCubeExtract, core.Concat("invalid tar entry path: ", rawName), fs.ErrInvalid)
+		return "", false, core.E(opCubeExtract, core.Concat(msgCubeInvalidTarPath, rawName), fs.ErrInvalid)
 	}
 	name := core.TrimPrefix(rawName, "/")
 	if name == "" || core.HasSuffix(name, "/") {
 		return "", false, nil
 	}
 	if hasParentPathSegment(name) {
-		return "", false, core.E(opCubeExtract, core.Concat("invalid tar entry path: ", name), fs.ErrInvalid)
+		return "", false, core.E(opCubeExtract, core.Concat(msgCubeInvalidTarPath, name), fs.ErrInvalid)
 	}
 	clean := core.CleanPath(name, "/")
 	if clean == "." || clean == "" || clean == ".." || core.HasPrefix(clean, "../") {
-		return "", false, core.E(opCubeExtract, core.Concat("invalid tar entry path: ", name), fs.ErrInvalid)
+		return "", false, core.E(opCubeExtract, core.Concat(msgCubeInvalidTarPath, name), fs.ErrInvalid)
 	}
 	return clean, true, nil
 }

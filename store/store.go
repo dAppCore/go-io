@@ -15,6 +15,25 @@ import (
 // Example: _, err := keyValueStore.Get("app", "theme"); core.Is(err, store.NotFoundError)
 var NotFoundError = core.NewError("store: key not found")
 
+const (
+	opStoreNew        = "store.New"
+	opStoreListGroups = "store.ListGroups"
+	opStoreGetAll     = "store.GetAll"
+	opStoreRender     = "store.Render"
+)
+
+func closeStoreDatabase(database *sql.DB, operation string) {
+	if err := database.Close(); err != nil {
+		core.Warn("store database close failed", "op", operation, "err", err)
+	}
+}
+
+func closeStoreRows(rows *sql.Rows, operation string) {
+	if err := rows.Close(); err != nil {
+		core.Warn("store rows close failed", "op", operation, "err", err)
+	}
+}
+
 // Example: keyValueStore, _ := store.New(store.Options{Path: ":memory:"})
 type KeyValueStore struct {
 	database *sql.DB
@@ -29,16 +48,16 @@ type Options struct {
 // Example: _ = keyValueStore.Set("app", "theme", "midnight")
 func New(options Options) (*KeyValueStore, error) {
 	if options.Path == "" {
-		return nil, core.E("store.New", "database path is required", fs.ErrInvalid)
+		return nil, core.E(opStoreNew, "database path is required", fs.ErrInvalid)
 	}
 
 	database, err := sql.Open("sqlite", options.Path)
 	if err != nil {
-		return nil, core.E("store.New", "open db", err)
+		return nil, core.E(opStoreNew, "open db", err)
 	}
 	if _, err := database.Exec("PRAGMA journal_mode=WAL"); err != nil {
-		database.Close()
-		return nil, core.E("store.New", "WAL mode", err)
+		closeStoreDatabase(database, opStoreNew)
+		return nil, core.E(opStoreNew, "WAL mode", err)
 	}
 	if _, err := database.Exec(`CREATE TABLE IF NOT EXISTS entries (
 		group_name TEXT NOT NULL,
@@ -46,8 +65,8 @@ func New(options Options) (*KeyValueStore, error) {
 		entry_value TEXT NOT NULL,
 		PRIMARY KEY (group_name, entry_key)
 	)`); err != nil {
-		database.Close()
-		return nil, core.E("store.New", "create schema", err)
+		closeStoreDatabase(database, opStoreNew)
+		return nil, core.E(opStoreNew, "create schema", err)
 	}
 	return &KeyValueStore{database: database}, nil
 }
@@ -115,20 +134,20 @@ func (keyValueStore *KeyValueStore) DeleteGroup(group string) error {
 func (keyValueStore *KeyValueStore) ListGroups() ([]string, error) {
 	rows, err := keyValueStore.database.Query("SELECT DISTINCT group_name FROM entries ORDER BY group_name")
 	if err != nil {
-		return nil, core.E("store.ListGroups", "query groups", err)
+		return nil, core.E(opStoreListGroups, "query groups", err)
 	}
-	defer rows.Close()
+	defer closeStoreRows(rows, opStoreListGroups)
 
 	var groups []string
 	for rows.Next() {
 		var groupName string
 		if err := rows.Scan(&groupName); err != nil {
-			return nil, core.E("store.ListGroups", "scan", err)
+			return nil, core.E(opStoreListGroups, "scan", err)
 		}
 		groups = append(groups, groupName)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, core.E("store.ListGroups", "rows", err)
+		return nil, core.E(opStoreListGroups, "rows", err)
 	}
 	return groups, nil
 }
@@ -137,20 +156,20 @@ func (keyValueStore *KeyValueStore) ListGroups() ([]string, error) {
 func (keyValueStore *KeyValueStore) GetAll(group string) (map[string]string, error) {
 	rows, err := keyValueStore.database.Query("SELECT entry_key, entry_value FROM entries WHERE group_name = ?", group)
 	if err != nil {
-		return nil, core.E("store.GetAll", "query", err)
+		return nil, core.E(opStoreGetAll, "query", err)
 	}
-	defer rows.Close()
+	defer closeStoreRows(rows, opStoreGetAll)
 
 	result := make(map[string]string)
 	for rows.Next() {
 		var key, value string
 		if err := rows.Scan(&key, &value); err != nil {
-			return nil, core.E("store.GetAll", "scan", err)
+			return nil, core.E(opStoreGetAll, "scan", err)
 		}
 		result[key] = value
 	}
 	if err := rows.Err(); err != nil {
-		return nil, core.E("store.GetAll", "rows", err)
+		return nil, core.E(opStoreGetAll, "rows", err)
 	}
 	return result, nil
 }
@@ -161,29 +180,29 @@ func (keyValueStore *KeyValueStore) GetAll(group string) (map[string]string, err
 func (keyValueStore *KeyValueStore) Render(templateText, group string) (string, error) {
 	rows, err := keyValueStore.database.Query("SELECT entry_key, entry_value FROM entries WHERE group_name = ?", group)
 	if err != nil {
-		return "", core.E("store.Render", "query", err)
+		return "", core.E(opStoreRender, "query", err)
 	}
-	defer rows.Close()
+	defer closeStoreRows(rows, opStoreRender)
 
 	templateValues := make(map[string]string)
 	for rows.Next() {
 		var key, value string
 		if err := rows.Scan(&key, &value); err != nil {
-			return "", core.E("store.Render", "scan", err)
+			return "", core.E(opStoreRender, "scan", err)
 		}
 		templateValues[key] = value
 	}
 	if err := rows.Err(); err != nil {
-		return "", core.E("store.Render", "rows", err)
+		return "", core.E(opStoreRender, "rows", err)
 	}
 
 	renderTemplate, err := template.New("render").Parse(templateText)
 	if err != nil {
-		return "", core.E("store.Render", "parse template", err)
+		return "", core.E(opStoreRender, "parse template", err)
 	}
 	builder := core.NewBuilder()
 	if err := renderTemplate.Execute(builder, templateValues); err != nil {
-		return "", core.E("store.Render", "execute template", err)
+		return "", core.E(opStoreRender, "execute template", err)
 	}
 	return builder.String(), nil
 }

@@ -1,3 +1,4 @@
+---
 version: "3"
 
 tasks:
@@ -25,7 +26,9 @@ tasks:
     dir: ../../..
     cmds:
       - |
-        if [ -z "${S3_ENDPOINT:-}" ] && [ -z "${AWS_ENDPOINT_URL_S3:-}" ] && [ -z "${AWS_ENDPOINT_URL:-}" ]; then
+        if [ -z "${S3_ENDPOINT:-}" ] &&
+          [ -z "${AWS_ENDPOINT_URL_S3:-}" ] &&
+          [ -z "${AWS_ENDPOINT_URL:-}" ]; then
           echo "Skipping integration tests: S3 endpoint not set"
           exit 0
         fi

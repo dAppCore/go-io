@@ -9,6 +9,8 @@ import (
 	coreio "dappco.re/go/io"
 )
 
+const cubeActionSecretPath = "secret.txt"
+
 func TestActions_RegisterActions_Good(t *core.T) {
 	c := core.New()
 	RegisterActions(c)
@@ -40,7 +42,7 @@ func TestActions_Write_ReadGood(t *core.T) {
 	writeResult := c.Action(ActionWrite).Run(context.Background(), core.NewOptions(
 		core.Option{Key: "inner", Value: coreio.Medium(inner)},
 		core.Option{Key: "key", Value: testKey},
-		core.Option{Key: "pa" + "th", Value: "secret.txt"},
+		core.Option{Key: "pa" + "th", Value: cubeActionSecretPath},
 		core.Option{Key: "content", Value: "classified"},
 	))
 	core.RequireTrue(t, writeResult.OK)
@@ -48,7 +50,7 @@ func TestActions_Write_ReadGood(t *core.T) {
 	readResult := c.Action(ActionRead).Run(context.Background(), core.NewOptions(
 		core.Option{Key: "inner", Value: coreio.Medium(inner)},
 		core.Option{Key: "key", Value: testKey},
-		core.Option{Key: "pa" + "th", Value: "secret.txt"},
+		core.Option{Key: "pa" + "th", Value: cubeActionSecretPath},
 	))
 	core.RequireTrue(t, readResult.OK)
 	core.AssertEqual(t, "classified", readResult.Value)
@@ -61,7 +63,7 @@ func TestActions_Write_ReadBad(t *core.T) {
 	// Missing inner medium must fail.
 	result := c.Action(ActionWrite).Run(context.Background(), core.NewOptions(
 		core.Option{Key: "key", Value: testKey},
-		core.Option{Key: "pa" + "th", Value: "secret.txt"},
+		core.Option{Key: "pa" + "th", Value: cubeActionSecretPath},
 		core.Option{Key: "content", Value: "classified"},
 	))
 	core.AssertFalse(t, result.OK)
@@ -76,7 +78,7 @@ func TestActions_Write_ReadUgly(t *core.T) {
 	result := c.Action(ActionWrite).Run(context.Background(), core.NewOptions(
 		core.Option{Key: "inner", Value: coreio.Medium(inner)},
 		core.Option{Key: "key", Value: "not a byte slice"},
-		core.Option{Key: "pa" + "th", Value: "secret.txt"},
+		core.Option{Key: "pa" + "th", Value: cubeActionSecretPath},
 		core.Option{Key: "content", Value: "classified"},
 	))
 	core.AssertFalse(t, result.OK)

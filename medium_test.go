@@ -7,6 +7,22 @@ import (
 	"time"
 )
 
+const (
+	mediumAppPath      = "app.yaml"
+	mediumHelloContent = "hello world"
+	mediumTestPath     = "test.txt"
+	mediumMissingPath  = "nonexistent.txt"
+	mediumSecurePath   = "secure.txt"
+	mediumExistsPath   = "exists.txt"
+	mediumNestedPath   = "mydir/file.txt"
+	mediumOldPath      = "old.txt"
+	mediumNewPath      = "new.txt"
+	mediumFilePath     = "file.txt"
+	mediumDirFilePath  = "dir/file.txt"
+	mediumCreatedPath  = "created.txt"
+	mediumStreamedPath = "streamed.txt"
+)
+
 func TestMemoryMedium_NewMemoryMedium_Good(t *core.T) {
 	memoryMedium := NewMemoryMedium()
 	core.AssertNotNil(t, memoryMedium)
@@ -17,9 +33,9 @@ func TestMemoryMedium_NewMemoryMedium_Good(t *core.T) {
 }
 
 func TestMemoryMedium_NewFileInfo_Good(t *core.T) {
-	info := NewFileInfo("app.yaml", 8, 0644, time.Unix(0, 0), false)
+	info := NewFileInfo(mediumAppPath, 8, 0644, time.Unix(0, 0), false)
 
-	core.AssertEqual(t, "app.yaml", info.Name())
+	core.AssertEqual(t, mediumAppPath, info.Name())
 	core.AssertEqual(t, int64(8), info.Size())
 	core.AssertEqual(t, fs.FileMode(0644), info.Mode())
 	core.AssertTrue(t, info.ModTime().Equal(time.Unix(0, 0)))
@@ -28,59 +44,59 @@ func TestMemoryMedium_NewFileInfo_Good(t *core.T) {
 }
 
 func TestMemoryMedium_NewDirEntry_Good(t *core.T) {
-	info := NewFileInfo("app.yaml", 8, 0644, time.Unix(0, 0), false)
-	entry := NewDirEntry("app.yaml", false, 0644, info)
+	info := NewFileInfo(mediumAppPath, 8, 0644, time.Unix(0, 0), false)
+	entry := NewDirEntry(mediumAppPath, false, 0644, info)
 
-	core.AssertEqual(t, "app.yaml", entry.Name())
+	core.AssertEqual(t, mediumAppPath, entry.Name())
 	core.AssertFalse(t, entry.IsDir())
 	core.AssertEqual(t, fs.FileMode(0), entry.Type())
 
 	entryInfo, err := entry.Info()
 	core.RequireNoError(t, err)
-	core.AssertEqual(t, "app.yaml", entryInfo.Name())
+	core.AssertEqual(t, mediumAppPath, entryInfo.Name())
 	core.AssertEqual(t, int64(8), entryInfo.Size())
 }
 
 func TestMemoryMedium_Read_Good(t *core.T) {
 	memoryMedium := NewMemoryMedium()
-	memoryMedium.fileContents["test.txt"] = "hello world"
-	content, err := memoryMedium.Read("test.txt")
+	memoryMedium.fileContents[mediumTestPath] = mediumHelloContent
+	content, err := memoryMedium.Read(mediumTestPath)
 	core.AssertNoError(t, err)
-	core.AssertEqual(t, "hello world", content)
+	core.AssertEqual(t, mediumHelloContent, content)
 }
 
 func TestMemoryMedium_Read_Bad(t *core.T) {
 	memoryMedium := NewMemoryMedium()
-	_, err := memoryMedium.Read("nonexistent.txt")
+	_, err := memoryMedium.Read(mediumMissingPath)
 	core.AssertError(t, err)
 }
 
 func TestMemoryMedium_Write_Good(t *core.T) {
 	memoryMedium := NewMemoryMedium()
-	err := memoryMedium.Write("test.txt", "content")
+	err := memoryMedium.Write(mediumTestPath, "content")
 	core.AssertNoError(t, err)
-	core.AssertEqual(t, "content", memoryMedium.fileContents["test.txt"])
+	core.AssertEqual(t, "content", memoryMedium.fileContents[mediumTestPath])
 
-	err = memoryMedium.Write("test.txt", "new content")
+	err = memoryMedium.Write(mediumTestPath, "new content")
 	core.AssertNoError(t, err)
-	core.AssertEqual(t, "new content", memoryMedium.fileContents["test.txt"])
+	core.AssertEqual(t, "new content", memoryMedium.fileContents[mediumTestPath])
 }
 
 func TestMemoryMedium_WriteMode_Good(t *core.T) {
 	memoryMedium := NewMemoryMedium()
 
-	err := memoryMedium.WriteMode("secure.txt", "secret", 0600)
+	err := memoryMedium.WriteMode(mediumSecurePath, "secret", 0600)
 	core.RequireNoError(t, err)
 
-	content, err := memoryMedium.Read("secure.txt")
+	content, err := memoryMedium.Read(mediumSecurePath)
 	core.RequireNoError(t, err)
 	core.AssertEqual(t, "secret", content)
 
-	info, err := memoryMedium.Stat("secure.txt")
+	info, err := memoryMedium.Stat(mediumSecurePath)
 	core.RequireNoError(t, err)
 	core.AssertEqual(t, fs.FileMode(0600), info.Mode())
 
-	file, err := memoryMedium.Open("secure.txt")
+	file, err := memoryMedium.Open(mediumSecurePath)
 	core.RequireNoError(t, err)
 	fileInfo, err := file.Stat()
 	core.RequireNoError(t, err)
@@ -106,10 +122,10 @@ func TestMemoryMedium_EnsureDir_CreatesParents_Good(t *core.T) {
 
 func TestMemoryMedium_IsFile_Good(t *core.T) {
 	memoryMedium := NewMemoryMedium()
-	memoryMedium.fileContents["exists.txt"] = "content"
+	memoryMedium.fileContents[mediumExistsPath] = "content"
 
-	core.AssertTrue(t, memoryMedium.IsFile("exists.txt"))
-	core.AssertFalse(t, memoryMedium.IsFile("nonexistent.txt"))
+	core.AssertTrue(t, memoryMedium.IsFile(mediumExistsPath))
+	core.AssertFalse(t, memoryMedium.IsFile(mediumMissingPath))
 }
 
 func TestMemoryMedium_Write_CreatesParentDirectories_Good(t *core.T) {
@@ -125,23 +141,23 @@ func TestMemoryMedium_Write_CreatesParentDirectories_Good(t *core.T) {
 
 func TestMemoryMedium_Delete_Good(t *core.T) {
 	memoryMedium := NewMemoryMedium()
-	memoryMedium.fileContents["test.txt"] = "content"
+	memoryMedium.fileContents[mediumTestPath] = "content"
 
-	err := memoryMedium.Delete("test.txt")
+	err := memoryMedium.Delete(mediumTestPath)
 	core.AssertNoError(t, err)
-	core.AssertFalse(t, memoryMedium.IsFile("test.txt"))
+	core.AssertFalse(t, memoryMedium.IsFile(mediumTestPath))
 }
 
 func TestMemoryMedium_Delete_NotFound_Bad(t *core.T) {
 	memoryMedium := NewMemoryMedium()
-	err := memoryMedium.Delete("nonexistent.txt")
+	err := memoryMedium.Delete(mediumMissingPath)
 	core.AssertError(t, err)
 }
 
 func TestMemoryMedium_Delete_DirNotEmpty_Bad(t *core.T) {
 	memoryMedium := NewMemoryMedium()
 	memoryMedium.directories["mydir"] = true
-	memoryMedium.fileContents["mydir/file.txt"] = "content"
+	memoryMedium.fileContents[mediumNestedPath] = "content"
 
 	err := memoryMedium.Delete("mydir")
 	core.AssertError(t, err)
@@ -150,7 +166,7 @@ func TestMemoryMedium_Delete_DirNotEmpty_Bad(t *core.T) {
 func TestMemoryMedium_Delete_InferredDirNotEmpty_Bad(t *core.T) {
 	memoryMedium := NewMemoryMedium()
 
-	core.RequireNoError(t, memoryMedium.Write("mydir/file.txt", "content"))
+	core.RequireNoError(t, memoryMedium.Write(mediumNestedPath, "content"))
 
 	err := memoryMedium.Delete("mydir")
 	core.AssertError(t, err)
@@ -160,7 +176,7 @@ func TestMemoryMedium_DeleteAll_Good(t *core.T) {
 	memoryMedium := NewMemoryMedium()
 	memoryMedium.directories["mydir"] = true
 	memoryMedium.directories["mydir/subdir"] = true
-	memoryMedium.fileContents["mydir/file.txt"] = "content"
+	memoryMedium.fileContents[mediumNestedPath] = "content"
 	memoryMedium.fileContents["mydir/subdir/nested.txt"] = "nested"
 
 	err := memoryMedium.DeleteAll("mydir")
@@ -171,13 +187,13 @@ func TestMemoryMedium_DeleteAll_Good(t *core.T) {
 
 func TestMemoryMedium_Rename_Good(t *core.T) {
 	memoryMedium := NewMemoryMedium()
-	memoryMedium.fileContents["old.txt"] = "content"
+	memoryMedium.fileContents[mediumOldPath] = "content"
 
-	err := memoryMedium.Rename("old.txt", "new.txt")
+	err := memoryMedium.Rename(mediumOldPath, mediumNewPath)
 	core.AssertNoError(t, err)
-	core.AssertFalse(t, memoryMedium.IsFile("old.txt"))
-	core.AssertTrue(t, memoryMedium.IsFile("new.txt"))
-	core.AssertEqual(t, "content", memoryMedium.fileContents["new.txt"])
+	core.AssertFalse(t, memoryMedium.IsFile(mediumOldPath))
+	core.AssertTrue(t, memoryMedium.IsFile(mediumNewPath))
+	core.AssertEqual(t, "content", memoryMedium.fileContents[mediumNewPath])
 }
 
 func TestMemoryMedium_Rename_Dir_Good(t *core.T) {
@@ -229,11 +245,11 @@ func TestMemoryMedium_List_Good(t *core.T) {
 
 func TestMemoryMedium_Stat_Good(t *core.T) {
 	memoryMedium := NewMemoryMedium()
-	memoryMedium.fileContents["test.txt"] = "hello world"
+	memoryMedium.fileContents[mediumTestPath] = mediumHelloContent
 
-	info, err := memoryMedium.Stat("test.txt")
+	info, err := memoryMedium.Stat(mediumTestPath)
 	core.AssertNoError(t, err)
-	core.AssertEqual(t, "test.txt", info.Name())
+	core.AssertEqual(t, mediumTestPath, info.Name())
 	core.AssertEqual(t, int64(11), info.Size())
 	core.AssertFalse(t, info.IsDir())
 }
@@ -250,20 +266,20 @@ func TestMemoryMedium_Stat_Dir_Good(t *core.T) {
 
 func TestMemoryMedium_Exists_Good(t *core.T) {
 	memoryMedium := NewMemoryMedium()
-	memoryMedium.fileContents["file.txt"] = "content"
+	memoryMedium.fileContents[mediumFilePath] = "content"
 	memoryMedium.directories["mydir"] = true
 
-	core.AssertTrue(t, memoryMedium.Exists("file.txt"))
+	core.AssertTrue(t, memoryMedium.Exists(mediumFilePath))
 	core.AssertTrue(t, memoryMedium.Exists("mydir"))
 	core.AssertFalse(t, memoryMedium.Exists("nonexistent"))
 }
 
 func TestMemoryMedium_IsDir_Good(t *core.T) {
 	memoryMedium := NewMemoryMedium()
-	memoryMedium.fileContents["file.txt"] = "content"
+	memoryMedium.fileContents[mediumFilePath] = "content"
 	memoryMedium.directories["mydir"] = true
 
-	core.AssertFalse(t, memoryMedium.IsDir("file.txt"))
+	core.AssertFalse(t, memoryMedium.IsDir(mediumFilePath))
 	core.AssertTrue(t, memoryMedium.IsDir("mydir"))
 	core.AssertFalse(t, memoryMedium.IsDir("nonexistent"))
 }
@@ -271,17 +287,17 @@ func TestMemoryMedium_IsDir_Good(t *core.T) {
 func TestMemoryMedium_StreamAndFSHelpersGood(t *core.T) {
 	memoryMedium := NewMemoryMedium()
 	core.RequireNoError(t, memoryMedium.EnsureDir("dir"))
-	core.RequireNoError(t, memoryMedium.Write("dir/file.txt", "alpha"))
+	core.RequireNoError(t, memoryMedium.Write(mediumDirFilePath, "alpha"))
 
-	statInfo, err := memoryMedium.Stat("dir/file.txt")
+	statInfo, err := memoryMedium.Stat(mediumDirFilePath)
 	core.RequireNoError(t, err)
 
-	file, err := memoryMedium.Open("dir/file.txt")
+	file, err := memoryMedium.Open(mediumDirFilePath)
 	core.RequireNoError(t, err)
 
 	info, err := file.Stat()
 	core.RequireNoError(t, err)
-	core.AssertEqual(t, "file.txt", info.Name())
+	core.AssertEqual(t, mediumFilePath, info.Name())
 	core.AssertEqual(t, int64(5), info.Size())
 	core.AssertEqual(t, fs.FileMode(0644), info.Mode())
 	core.AssertEqual(t, statInfo.ModTime(), info.ModTime())
@@ -296,44 +312,44 @@ func TestMemoryMedium_StreamAndFSHelpersGood(t *core.T) {
 	entries, err := memoryMedium.List("dir")
 	core.RequireNoError(t, err)
 	core.AssertLen(t, entries, 1)
-	core.AssertEqual(t, "file.txt", entries[0].Name())
+	core.AssertEqual(t, mediumFilePath, entries[0].Name())
 	core.AssertFalse(t, entries[0].IsDir())
 	core.AssertEqual(t, fs.FileMode(0), entries[0].Type())
 
 	entryInfo, err := entries[0].Info()
 	core.RequireNoError(t, err)
-	core.AssertEqual(t, "file.txt", entryInfo.Name())
+	core.AssertEqual(t, mediumFilePath, entryInfo.Name())
 	core.AssertEqual(t, int64(5), entryInfo.Size())
 	core.AssertEqual(t, fs.FileMode(0644), entryInfo.Mode())
 	core.AssertEqual(t, statInfo.ModTime(), entryInfo.ModTime())
 
-	writer, err := memoryMedium.Create("created.txt")
+	writer, err := memoryMedium.Create(mediumCreatedPath)
 	core.RequireNoError(t, err)
 	_, err = writer.Write([]byte("created"))
 	core.RequireNoError(t, err)
 	core.RequireNoError(t, writer.Close())
 
-	appendWriter, err := memoryMedium.Append("created.txt")
+	appendWriter, err := memoryMedium.Append(mediumCreatedPath)
 	core.RequireNoError(t, err)
 	_, err = appendWriter.Write([]byte(" later"))
 	core.RequireNoError(t, err)
 	core.RequireNoError(t, appendWriter.Close())
 
-	reader, err := memoryMedium.ReadStream("created.txt")
+	reader, err := memoryMedium.ReadStream(mediumCreatedPath)
 	core.RequireNoError(t, err)
 	streamed, err := goio.ReadAll(reader)
 	core.RequireNoError(t, err)
 	core.AssertEqual(t, "created later", string(streamed))
 	core.RequireNoError(t, reader.Close())
 
-	writeStream, err := memoryMedium.WriteStream("streamed.txt")
+	writeStream, err := memoryMedium.WriteStream(mediumStreamedPath)
 	core.RequireNoError(t, err)
 	_, err = writeStream.Write([]byte("stream output"))
 	core.RequireNoError(t, err)
 	core.RequireNoError(t, writeStream.Close())
 
-	core.AssertEqual(t, "stream output", memoryMedium.fileContents["streamed.txt"])
-	statInfo, err = memoryMedium.Stat("streamed.txt")
+	core.AssertEqual(t, "stream output", memoryMedium.fileContents[mediumStreamedPath])
+	statInfo, err = memoryMedium.Stat(mediumStreamedPath)
 	core.RequireNoError(t, err)
 	core.AssertEqual(t, fs.FileMode(0644), statInfo.Mode())
 	core.AssertFalse(t, statInfo.ModTime().IsZero())
@@ -341,17 +357,17 @@ func TestMemoryMedium_StreamAndFSHelpersGood(t *core.T) {
 
 func TestIO_Read_Good(t *core.T) {
 	memoryMedium := NewMemoryMedium()
-	memoryMedium.fileContents["test.txt"] = "hello"
-	content, err := Read(memoryMedium, "test.txt")
+	memoryMedium.fileContents[mediumTestPath] = "hello"
+	content, err := Read(memoryMedium, mediumTestPath)
 	core.AssertNoError(t, err)
 	core.AssertEqual(t, "hello", content)
 }
 
 func TestIO_Write_Good(t *core.T) {
 	memoryMedium := NewMemoryMedium()
-	err := Write(memoryMedium, "test.txt", "hello")
+	err := Write(memoryMedium, mediumTestPath, "hello")
 	core.AssertNoError(t, err)
-	core.AssertEqual(t, "hello", memoryMedium.fileContents["test.txt"])
+	core.AssertEqual(t, "hello", memoryMedium.fileContents[mediumTestPath])
 }
 
 func TestIO_EnsureDir_Good(t *core.T) {
@@ -363,10 +379,10 @@ func TestIO_EnsureDir_Good(t *core.T) {
 
 func TestIO_IsFile_Good(t *core.T) {
 	memoryMedium := NewMemoryMedium()
-	memoryMedium.fileContents["exists.txt"] = "content"
+	memoryMedium.fileContents[mediumExistsPath] = "content"
 
-	core.AssertTrue(t, IsFile(memoryMedium, "exists.txt"))
-	core.AssertFalse(t, IsFile(memoryMedium, "nonexistent.txt"))
+	core.AssertTrue(t, IsFile(memoryMedium, mediumExistsPath))
+	core.AssertFalse(t, IsFile(memoryMedium, mediumMissingPath))
 }
 
 func TestIO_NewSandboxed_Good(t *core.T) {
@@ -403,10 +419,10 @@ func TestIO_ReadWriteStreamGood(t *core.T) {
 func TestIO_Copy_Good(t *core.T) {
 	source := NewMemoryMedium()
 	dest := NewMemoryMedium()
-	source.fileContents["test.txt"] = "hello"
-	err := Copy(source, "test.txt", dest, "test.txt")
+	source.fileContents[mediumTestPath] = "hello"
+	err := Copy(source, mediumTestPath, dest, mediumTestPath)
 	core.AssertNoError(t, err)
-	core.AssertEqual(t, "hello", dest.fileContents["test.txt"])
+	core.AssertEqual(t, "hello", dest.fileContents[mediumTestPath])
 
 	source.fileContents["original.txt"] = "content"
 	err = Copy(source, "original.txt", dest, "copied.txt")
@@ -417,7 +433,7 @@ func TestIO_Copy_Good(t *core.T) {
 func TestIO_Copy_Bad(t *core.T) {
 	source := NewMemoryMedium()
 	dest := NewMemoryMedium()
-	err := Copy(source, "nonexistent.txt", dest, "dest.txt")
+	err := Copy(source, mediumMissingPath, dest, "dest.txt")
 	core.AssertError(t, err)
 }
 

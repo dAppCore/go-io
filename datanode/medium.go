@@ -29,6 +29,17 @@ var (
 	}
 )
 
+const (
+	opDatanodeRead      = "datanode.Read"
+	opDatanodeDelete    = "datanode.Delete"
+	opDatanodeDeleteAll = "datanode.DeleteAll"
+	opDatanodeRename    = "datanode.Rename"
+
+	msgDatanodeNotFound         = "not found: "
+	msgDatanodeEmptyPath        = "empty path"
+	msgDatanodeDeleteFileFailed = "failed to delete file: "
+)
+
 var _ coreio.Medium = (*Medium)(nil)
 var _ fs.FS = (*Medium)(nil)
 
@@ -119,6 +130,12 @@ func normaliseEntryPath(filePath string) string {
 	return filePath
 }
 
+func closeDataNodeFile(file fs.File, filePath string) {
+	if err := file.Close(); err != nil {
+		core.Warn("datanode file close failed", "file_path", filePath, "err", err)
+	}
+}
+
 func (medium *Medium) Read(filePath string) (string, error) {
 	medium.lock.RLock()
 	defer medium.lock.RUnlock()
@@ -126,21 +143,21 @@ func (medium *Medium) Read(filePath string) (string, error) {
 	filePath = normaliseEntryPath(filePath)
 	file, err := medium.dataNode.Open(filePath)
 	if err != nil {
-		return "", core.E("datanode.Read", core.Concat("not found: ", filePath), fs.ErrNotExist)
+		return "", core.E(opDatanodeRead, core.Concat(msgDatanodeNotFound, filePath), fs.ErrNotExist)
 	}
-	defer file.Close()
+	defer closeDataNodeFile(file, filePath)
 
 	info, err := file.Stat()
 	if err != nil {
-		return "", core.E("datanode.Read", core.Concat("stat failed: ", filePath), err)
+		return "", core.E(opDatanodeRead, core.Concat("stat failed: ", filePath), err)
 	}
 	if info.IsDir() {
-		return "", core.E("datanode.Read", core.Concat("is a directory: ", filePath), fs.ErrInvalid)
+		return "", core.E(opDatanodeRead, core.Concat("is a directory: ", filePath), fs.ErrInvalid)
 	}
 
 	data, err := goio.ReadAll(file)
 	if err != nil {
-		return "", core.E("datanode.Read", core.Concat("read failed: ", filePath), err)
+		return "", core.E(opDatanodeRead, core.Concat("read failed: ", filePath), err)
 	}
 	return string(data), nil
 }
@@ -151,7 +168,7 @@ func (medium *Medium) Write(filePath, content string) error {
 
 	filePath = normaliseEntryPath(filePath)
 	if filePath == "" {
-		return core.E("datanode.Write", "empty path", fs.ErrInvalid)
+		return core.E("datanode.Write", msgDatanodeEmptyPath, fs.ErrInvalid)
 	}
 	medium.dataNode.AddData(filePath, []byte(content))
 
@@ -204,40 +221,40 @@ func (medium *Medium) Delete(filePath string) error {
 
 	filePath = normaliseEntryPath(filePath)
 	if filePath == "" {
-		return core.E("datanode.Delete", "cannot delete root", fs.ErrPermission)
+		return core.E(opDatanodeDelete, "cannot delete root", fs.ErrPermission)
 	}
 
 	info, err := medium.dataNode.Stat(filePath)
 	if err != nil {
-		if medium.directorySet[filePath] {
-			hasChildren, err := medium.hasPrefixLocked(filePath + "/")
-			if err != nil {
-				return core.E("datanode.Delete", core.Concat("failed to inspect directory: ", filePath), err)
-			}
-			if hasChildren {
-				return core.E("datanode.Delete", core.Concat("directory not empty: ", filePath), fs.ErrExist)
-			}
-			delete(medium.directorySet, filePath)
-			return nil
-		}
-		return core.E("datanode.Delete", core.Concat("not found: ", filePath), fs.ErrNotExist)
+		return medium.deleteDirectoryFallbackLocked(filePath)
 	}
 
 	if info.IsDir() {
-		hasChildren, err := medium.hasPrefixLocked(filePath + "/")
-		if err != nil {
-			return core.E("datanode.Delete", core.Concat("failed to inspect directory: ", filePath), err)
-		}
-		if hasChildren {
-			return core.E("datanode.Delete", core.Concat("directory not empty: ", filePath), fs.ErrExist)
-		}
-		delete(medium.directorySet, filePath)
-		return nil
+		return medium.deleteDirectoryLocked(filePath)
 	}
 
 	if err := medium.removeFileLocked(filePath); err != nil {
-		return core.E("datanode.Delete", core.Concat("failed to delete file: ", filePath), err)
+		return core.E(opDatanodeDelete, core.Concat(msgDatanodeDeleteFileFailed, filePath), err)
 	}
+	return nil
+}
+
+func (medium *Medium) deleteDirectoryFallbackLocked(filePath string) error {
+	if medium.directorySet[filePath] {
+		return medium.deleteDirectoryLocked(filePath)
+	}
+	return core.E(opDatanodeDelete, core.Concat(msgDatanodeNotFound, filePath), fs.ErrNotExist)
+}
+
+func (medium *Medium) deleteDirectoryLocked(filePath string) error {
+	hasChildren, err := medium.hasPrefixLocked(filePath + "/")
+	if err != nil {
+		return core.E(opDatanodeDelete, core.Concat("failed to inspect directory: ", filePath), err)
+	}
+	if hasChildren {
+		return core.E(opDatanodeDelete, core.Concat("directory not empty: ", filePath), fs.ErrExist)
+	}
+	delete(medium.directorySet, filePath)
 	return nil
 }
 
@@ -247,44 +264,70 @@ func (medium *Medium) DeleteAll(filePath string) error {
 
 	filePath = normaliseEntryPath(filePath)
 	if filePath == "" {
-		return core.E("datanode.DeleteAll", "cannot delete root", fs.ErrPermission)
+		return core.E(opDatanodeDeleteAll, "cannot delete root", fs.ErrPermission)
 	}
 
 	prefix := filePath + "/"
 	found := false
 
-	info, err := medium.dataNode.Stat(filePath)
-	if err == nil && !info.IsDir() {
-		if err := medium.removeFileLocked(filePath); err != nil {
-			return core.E("datanode.DeleteAll", core.Concat("failed to delete file: ", filePath), err)
-		}
-		found = true
+	deleted, err := medium.deleteFileIfPresentLocked(filePath)
+	if err != nil {
+		return err
 	}
+	found = found || deleted
 
 	entries, err := medium.collectAllLocked()
 	if err != nil {
-		return core.E("datanode.DeleteAll", core.Concat("failed to inspect tree: ", filePath), err)
+		return core.E(opDatanodeDeleteAll, core.Concat("failed to inspect tree: ", filePath), err)
 	}
-	for _, name := range entries {
-		if name == filePath || core.HasPrefix(name, prefix) {
-			if err := medium.removeFileLocked(name); err != nil {
-				return core.E("datanode.DeleteAll", core.Concat("failed to delete file: ", name), err)
-			}
-			found = true
-		}
+	deleted, err = medium.deleteEntriesMatchingLocked(entries, filePath, prefix)
+	if err != nil {
+		return err
 	}
+	found = found || deleted
 
+	found = medium.deleteDirectoriesMatchingLocked(filePath, prefix) || found
+
+	if !found {
+		return core.E(opDatanodeDeleteAll, core.Concat(msgDatanodeNotFound, filePath), fs.ErrNotExist)
+	}
+	return nil
+}
+
+func (medium *Medium) deleteFileIfPresentLocked(filePath string) (bool, error) {
+	info, err := medium.dataNode.Stat(filePath)
+	if err != nil || info.IsDir() {
+		return false, nil
+	}
+	if err := medium.removeFileLocked(filePath); err != nil {
+		return false, core.E(opDatanodeDeleteAll, core.Concat(msgDatanodeDeleteFileFailed, filePath), err)
+	}
+	return true, nil
+}
+
+func (medium *Medium) deleteEntriesMatchingLocked(entries []string, filePath, prefix string) (bool, error) {
+	found := false
+	for _, name := range entries {
+		if name != filePath && !core.HasPrefix(name, prefix) {
+			continue
+		}
+		if err := medium.removeFileLocked(name); err != nil {
+			return false, core.E(opDatanodeDeleteAll, core.Concat(msgDatanodeDeleteFileFailed, name), err)
+		}
+		found = true
+	}
+	return found, nil
+}
+
+func (medium *Medium) deleteDirectoriesMatchingLocked(filePath, prefix string) bool {
+	found := false
 	for directoryPath := range medium.directorySet {
 		if directoryPath == filePath || core.HasPrefix(directoryPath, prefix) {
 			delete(medium.directorySet, directoryPath)
 			found = true
 		}
 	}
-
-	if !found {
-		return core.E("datanode.DeleteAll", core.Concat("not found: ", filePath), fs.ErrNotExist)
-	}
-	return nil
+	return found
 }
 
 func (medium *Medium) Rename(oldPath, newPath string) error {
@@ -296,39 +339,47 @@ func (medium *Medium) Rename(oldPath, newPath string) error {
 
 	info, err := medium.dataNode.Stat(oldPath)
 	if err != nil {
-		return core.E("datanode.Rename", core.Concat("not found: ", oldPath), fs.ErrNotExist)
+		return core.E(opDatanodeRename, core.Concat(msgDatanodeNotFound, oldPath), fs.ErrNotExist)
 	}
 
 	if !info.IsDir() {
-		data, err := medium.readFileLocked(oldPath)
-		if err != nil {
-			return core.E("datanode.Rename", core.Concat("failed to read source file: ", oldPath), err)
-		}
-		medium.dataNode.AddData(newPath, data)
-		medium.ensureDirsLocked(core.PathDir(newPath))
-		if err := medium.removeFileLocked(oldPath); err != nil {
-			return core.E("datanode.Rename", core.Concat("failed to remove source file: ", oldPath), err)
-		}
-		return nil
+		return medium.renameFileLocked(oldPath, newPath)
 	}
 
+	return medium.renameDirectoryLocked(oldPath, newPath)
+}
+
+func (medium *Medium) renameFileLocked(oldPath, newPath string) error {
+	data, err := medium.readFileLocked(oldPath)
+	if err != nil {
+		return core.E(opDatanodeRename, core.Concat("failed to read source file: ", oldPath), err)
+	}
+	medium.dataNode.AddData(newPath, data)
+	medium.ensureDirsLocked(core.PathDir(newPath))
+	if err := medium.removeFileLocked(oldPath); err != nil {
+		return core.E(opDatanodeRename, core.Concat("failed to remove source file: ", oldPath), err)
+	}
+	return nil
+}
+
+func (medium *Medium) renameDirectoryLocked(oldPath, newPath string) error {
 	oldPrefix := oldPath + "/"
 	newPrefix := newPath + "/"
 
 	entries, err := medium.collectAllLocked()
 	if err != nil {
-		return core.E("datanode.Rename", core.Concat("failed to inspect tree: ", oldPath), err)
+		return core.E(opDatanodeRename, core.Concat("failed to inspect tree: ", oldPath), err)
 	}
 	for _, name := range entries {
 		if core.HasPrefix(name, oldPrefix) {
 			newName := core.Concat(newPrefix, core.TrimPrefix(name, oldPrefix))
 			data, err := medium.readFileLocked(name)
 			if err != nil {
-				return core.E("datanode.Rename", core.Concat("failed to read source file: ", name), err)
+				return core.E(opDatanodeRename, core.Concat("failed to read source file: ", name), err)
 			}
 			medium.dataNode.AddData(newName, data)
 			if err := medium.removeFileLocked(name); err != nil {
-				return core.E("datanode.Rename", core.Concat("failed to remove source file: ", name), err)
+				return core.E(opDatanodeRename, core.Concat("failed to remove source file: ", name), err)
 			}
 		}
 	}
@@ -359,7 +410,7 @@ func (medium *Medium) List(filePath string) ([]fs.DirEntry, error) {
 		if filePath == "" || medium.directorySet[filePath] {
 			return []fs.DirEntry{}, nil
 		}
-		return nil, core.E("datanode.List", core.Concat("not found: ", filePath), fs.ErrNotExist)
+		return nil, core.E("datanode.List", core.Concat(msgDatanodeNotFound, filePath), fs.ErrNotExist)
 	}
 
 	prefix := filePath
@@ -410,7 +461,7 @@ func (medium *Medium) Stat(filePath string) (fs.FileInfo, error) {
 	if medium.directorySet[filePath] {
 		return &fileInfo{name: core.PathBase(filePath), isDir: true, mode: fs.ModeDir | 0755}, nil
 	}
-	return nil, core.E("datanode.Stat", core.Concat("not found: ", filePath), fs.ErrNotExist)
+	return nil, core.E("datanode.Stat", core.Concat(msgDatanodeNotFound, filePath), fs.ErrNotExist)
 }
 
 func (medium *Medium) Open(filePath string) (fs.File, error) {
@@ -424,7 +475,7 @@ func (medium *Medium) Open(filePath string) (fs.File, error) {
 func (medium *Medium) Create(filePath string) (goio.WriteCloser, error) {
 	filePath = normaliseEntryPath(filePath)
 	if filePath == "" {
-		return nil, core.E("datanode.Create", "empty path", fs.ErrInvalid)
+		return nil, core.E("datanode.Create", msgDatanodeEmptyPath, fs.ErrInvalid)
 	}
 	return &writeCloser{medium: medium, path: filePath}, nil
 }
@@ -432,7 +483,7 @@ func (medium *Medium) Create(filePath string) (goio.WriteCloser, error) {
 func (medium *Medium) Append(filePath string) (goio.WriteCloser, error) {
 	filePath = normaliseEntryPath(filePath)
 	if filePath == "" {
-		return nil, core.E("datanode.Append", "empty path", fs.ErrInvalid)
+		return nil, core.E("datanode.Append", msgDatanodeEmptyPath, fs.ErrInvalid)
 	}
 
 	var existing []byte
@@ -457,7 +508,7 @@ func (medium *Medium) ReadStream(filePath string) (goio.ReadCloser, error) {
 	filePath = normaliseEntryPath(filePath)
 	file, err := medium.dataNode.Open(filePath)
 	if err != nil {
-		return nil, core.E("datanode.ReadStream", core.Concat("not found: ", filePath), fs.ErrNotExist)
+		return nil, core.E("datanode.ReadStream", core.Concat(msgDatanodeNotFound, filePath), fs.ErrNotExist)
 	}
 	return file.(goio.ReadCloser), nil
 }

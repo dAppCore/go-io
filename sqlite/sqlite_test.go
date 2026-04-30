@@ -6,25 +6,36 @@ import (
 	"io/fs"
 )
 
+const (
+	sqliteMemoryPath     = ":memory:"
+	sqliteFilePath       = "file.txt"
+	sqliteMissingPath    = "nonexistent.txt"
+	sqliteDeletePath     = "to-delete.txt"
+	sqliteDirFileOnePath = "dir/file1.txt"
+	sqliteOldPath        = "old.txt"
+	sqliteNewPath        = "new.txt"
+	sqliteAppendPath     = "append.txt"
+)
+
 func newSqliteMedium(t *core.T) *Medium {
 	t.Helper()
-	sqliteMedium, err := New(Options{Path: ":memory:"})
+	sqliteMedium, err := New(Options{Path: sqliteMemoryPath})
 	core.RequireNoError(t, err)
-	t.Cleanup(func() { sqliteMedium.Close() })
+	t.Cleanup(func() { _ = sqliteMedium.Close() })
 	return sqliteMedium
 }
 
 func TestSqlite_New_Good(t *core.T) {
-	sqliteMedium, err := New(Options{Path: ":memory:"})
+	sqliteMedium, err := New(Options{Path: sqliteMemoryPath})
 	core.RequireNoError(t, err)
-	defer sqliteMedium.Close()
+	defer func() { _ = sqliteMedium.Close() }()
 	core.AssertEqual(t, "files", sqliteMedium.table)
 }
 
 func TestSqlite_New_Options_Good(t *core.T) {
-	sqliteMedium, err := New(Options{Path: ":memory:", Table: "custom"})
+	sqliteMedium, err := New(Options{Path: sqliteMemoryPath, Table: "custom"})
 	core.RequireNoError(t, err)
-	defer sqliteMedium.Close()
+	defer func() { _ = sqliteMedium.Close() }()
 	core.AssertEqual(t, "custom", sqliteMedium.table)
 }
 
@@ -48,10 +59,10 @@ func TestSqlite_ReadWriteGood(t *core.T) {
 func TestSqlite_ReadWrite_OverwriteGood(t *core.T) {
 	sqliteMedium := newSqliteMedium(t)
 
-	core.RequireNoError(t, sqliteMedium.Write("file.txt", "first"))
-	core.RequireNoError(t, sqliteMedium.Write("file.txt", "second"))
+	core.RequireNoError(t, sqliteMedium.Write(sqliteFilePath, "first"))
+	core.RequireNoError(t, sqliteMedium.Write(sqliteFilePath, "second"))
 
-	content, err := sqliteMedium.Read("file.txt")
+	content, err := sqliteMedium.Read(sqliteFilePath)
 	core.RequireNoError(t, err)
 	core.AssertEqual(t, "second", content)
 }
@@ -70,7 +81,7 @@ func TestSqlite_ReadWrite_NestedPathGood(t *core.T) {
 func TestSqlite_Read_NotFound_Bad(t *core.T) {
 	sqliteMedium := newSqliteMedium(t)
 
-	_, err := sqliteMedium.Read("nonexistent.txt")
+	_, err := sqliteMedium.Read(sqliteMissingPath)
 	core.AssertError(t, err)
 }
 
@@ -121,10 +132,10 @@ func TestSqlite_EnsureDir_Idempotent_Good(t *core.T) {
 func TestSqlite_IsFile_Good(t *core.T) {
 	sqliteMedium := newSqliteMedium(t)
 
-	core.RequireNoError(t, sqliteMedium.Write("file.txt", "content"))
+	core.RequireNoError(t, sqliteMedium.Write(sqliteFilePath, "content"))
 	core.RequireNoError(t, sqliteMedium.EnsureDir("mydir"))
 
-	core.AssertTrue(t, sqliteMedium.IsFile("file.txt"))
+	core.AssertTrue(t, sqliteMedium.IsFile(sqliteFilePath))
 	core.AssertFalse(t, sqliteMedium.IsFile("mydir"))
 	core.AssertFalse(t, sqliteMedium.IsFile("nonexistent"))
 	core.AssertFalse(t, sqliteMedium.IsFile(""))
@@ -133,12 +144,12 @@ func TestSqlite_IsFile_Good(t *core.T) {
 func TestSqlite_Delete_Good(t *core.T) {
 	sqliteMedium := newSqliteMedium(t)
 
-	core.RequireNoError(t, sqliteMedium.Write("to-delete.txt", "content"))
-	core.AssertTrue(t, sqliteMedium.Exists("to-delete.txt"))
+	core.RequireNoError(t, sqliteMedium.Write(sqliteDeletePath, "content"))
+	core.AssertTrue(t, sqliteMedium.Exists(sqliteDeletePath))
 
-	err := sqliteMedium.Delete("to-delete.txt")
+	err := sqliteMedium.Delete(sqliteDeletePath)
 	core.RequireNoError(t, err)
-	core.AssertFalse(t, sqliteMedium.Exists("to-delete.txt"))
+	core.AssertFalse(t, sqliteMedium.Exists(sqliteDeletePath))
 }
 
 func TestSqlite_Delete_EmptyDir_Good(t *core.T) {
@@ -179,14 +190,14 @@ func TestSqlite_Delete_NotEmpty_Bad(t *core.T) {
 func TestSqlite_DeleteAll_Good(t *core.T) {
 	sqliteMedium := newSqliteMedium(t)
 
-	core.RequireNoError(t, sqliteMedium.Write("dir/file1.txt", "a"))
+	core.RequireNoError(t, sqliteMedium.Write(sqliteDirFileOnePath, "a"))
 	core.RequireNoError(t, sqliteMedium.Write("dir/sub/file2.txt", "b"))
 	core.RequireNoError(t, sqliteMedium.Write("other.txt", "c"))
 
 	err := sqliteMedium.DeleteAll("dir")
 	core.RequireNoError(t, err)
 
-	core.AssertFalse(t, sqliteMedium.Exists("dir/file1.txt"))
+	core.AssertFalse(t, sqliteMedium.Exists(sqliteDirFileOnePath))
 	core.AssertFalse(t, sqliteMedium.Exists("dir/sub/file2.txt"))
 	core.AssertTrue(t, sqliteMedium.Exists("other.txt"))
 }
@@ -194,11 +205,11 @@ func TestSqlite_DeleteAll_Good(t *core.T) {
 func TestSqlite_DeleteAll_SingleFile_Good(t *core.T) {
 	sqliteMedium := newSqliteMedium(t)
 
-	core.RequireNoError(t, sqliteMedium.Write("file.txt", "content"))
+	core.RequireNoError(t, sqliteMedium.Write(sqliteFilePath, "content"))
 
-	err := sqliteMedium.DeleteAll("file.txt")
+	err := sqliteMedium.DeleteAll(sqliteFilePath)
 	core.RequireNoError(t, err)
-	core.AssertFalse(t, sqliteMedium.Exists("file.txt"))
+	core.AssertFalse(t, sqliteMedium.Exists(sqliteFilePath))
 }
 
 func TestSqlite_DeleteAll_NotFound_Bad(t *core.T) {
@@ -218,15 +229,15 @@ func TestSqlite_DeleteAll_EmptyPath_Bad(t *core.T) {
 func TestSqlite_Rename_Good(t *core.T) {
 	sqliteMedium := newSqliteMedium(t)
 
-	core.RequireNoError(t, sqliteMedium.Write("old.txt", "content"))
+	core.RequireNoError(t, sqliteMedium.Write(sqliteOldPath, "content"))
 
-	err := sqliteMedium.Rename("old.txt", "new.txt")
+	err := sqliteMedium.Rename(sqliteOldPath, sqliteNewPath)
 	core.RequireNoError(t, err)
 
-	core.AssertFalse(t, sqliteMedium.Exists("old.txt"))
-	core.AssertTrue(t, sqliteMedium.IsFile("new.txt"))
+	core.AssertFalse(t, sqliteMedium.Exists(sqliteOldPath))
+	core.AssertTrue(t, sqliteMedium.IsFile(sqliteNewPath))
 
-	content, err := sqliteMedium.Read("new.txt")
+	content, err := sqliteMedium.Read(sqliteNewPath)
 	core.RequireNoError(t, err)
 	core.AssertEqual(t, "content", content)
 }
@@ -270,7 +281,7 @@ func TestSqlite_Rename_EmptyPath_Bad(t *core.T) {
 func TestSqlite_List_Good(t *core.T) {
 	sqliteMedium := newSqliteMedium(t)
 
-	core.RequireNoError(t, sqliteMedium.Write("dir/file1.txt", "a"))
+	core.RequireNoError(t, sqliteMedium.Write(sqliteDirFileOnePath, "a"))
 	core.RequireNoError(t, sqliteMedium.Write("dir/file2.txt", "b"))
 	core.RequireNoError(t, sqliteMedium.Write("dir/sub/file3.txt", "c"))
 
@@ -326,11 +337,11 @@ func TestSqlite_List_DirectoryEntry_Good(t *core.T) {
 func TestSqlite_Stat_Good(t *core.T) {
 	sqliteMedium := newSqliteMedium(t)
 
-	core.RequireNoError(t, sqliteMedium.Write("file.txt", "hello world"))
+	core.RequireNoError(t, sqliteMedium.Write(sqliteFilePath, "hello world"))
 
-	info, err := sqliteMedium.Stat("file.txt")
+	info, err := sqliteMedium.Stat(sqliteFilePath)
 	core.RequireNoError(t, err)
-	core.AssertEqual(t, "file.txt", info.Name())
+	core.AssertEqual(t, sqliteFilePath, info.Name())
 	core.AssertEqual(t, int64(11), info.Size())
 	core.AssertFalse(t, info.IsDir())
 }
@@ -363,11 +374,11 @@ func TestSqlite_Stat_EmptyPath_Bad(t *core.T) {
 func TestSqlite_Open_Good(t *core.T) {
 	sqliteMedium := newSqliteMedium(t)
 
-	core.RequireNoError(t, sqliteMedium.Write("file.txt", "open me"))
+	core.RequireNoError(t, sqliteMedium.Write(sqliteFilePath, "open me"))
 
-	file, err := sqliteMedium.Open("file.txt")
+	file, err := sqliteMedium.Open(sqliteFilePath)
 	core.RequireNoError(t, err)
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	data, err := goio.ReadAll(file.(goio.Reader))
 	core.RequireNoError(t, err)
@@ -375,13 +386,13 @@ func TestSqlite_Open_Good(t *core.T) {
 
 	stat, err := file.Stat()
 	core.RequireNoError(t, err)
-	core.AssertEqual(t, "file.txt", stat.Name())
+	core.AssertEqual(t, sqliteFilePath, stat.Name())
 }
 
 func TestSqlite_Open_NotFound_Bad(t *core.T) {
 	sqliteMedium := newSqliteMedium(t)
 
-	_, err := sqliteMedium.Open("nonexistent.txt")
+	_, err := sqliteMedium.Open(sqliteMissingPath)
 	core.AssertError(t, err)
 }
 
@@ -396,7 +407,7 @@ func TestSqlite_Open_IsDirectory_Bad(t *core.T) {
 func TestSqlite_Create_Good(t *core.T) {
 	sqliteMedium := newSqliteMedium(t)
 
-	writer, err := sqliteMedium.Create("new.txt")
+	writer, err := sqliteMedium.Create(sqliteNewPath)
 	core.RequireNoError(t, err)
 
 	bytesWritten, err := writer.Write([]byte("created"))
@@ -406,7 +417,7 @@ func TestSqlite_Create_Good(t *core.T) {
 	err = writer.Close()
 	core.RequireNoError(t, err)
 
-	content, err := sqliteMedium.Read("new.txt")
+	content, err := sqliteMedium.Read(sqliteNewPath)
 	core.RequireNoError(t, err)
 	core.AssertEqual(t, "created", content)
 }
@@ -414,15 +425,15 @@ func TestSqlite_Create_Good(t *core.T) {
 func TestSqlite_Create_Overwrite_Good(t *core.T) {
 	sqliteMedium := newSqliteMedium(t)
 
-	core.RequireNoError(t, sqliteMedium.Write("file.txt", "old content"))
+	core.RequireNoError(t, sqliteMedium.Write(sqliteFilePath, "old content"))
 
-	writer, err := sqliteMedium.Create("file.txt")
+	writer, err := sqliteMedium.Create(sqliteFilePath)
 	core.RequireNoError(t, err)
 	_, err = writer.Write([]byte("new"))
 	core.RequireNoError(t, err)
 	core.RequireNoError(t, writer.Close())
 
-	content, err := sqliteMedium.Read("file.txt")
+	content, err := sqliteMedium.Read(sqliteFilePath)
 	core.RequireNoError(t, err)
 	core.AssertEqual(t, "new", content)
 }
@@ -437,16 +448,16 @@ func TestSqlite_Create_EmptyPath_Bad(t *core.T) {
 func TestSqlite_Append_Good(t *core.T) {
 	sqliteMedium := newSqliteMedium(t)
 
-	core.RequireNoError(t, sqliteMedium.Write("append.txt", "hello"))
+	core.RequireNoError(t, sqliteMedium.Write(sqliteAppendPath, "hello"))
 
-	writer, err := sqliteMedium.Append("append.txt")
+	writer, err := sqliteMedium.Append(sqliteAppendPath)
 	core.RequireNoError(t, err)
 
 	_, err = writer.Write([]byte(" world"))
 	core.RequireNoError(t, err)
 	core.RequireNoError(t, writer.Close())
 
-	content, err := sqliteMedium.Read("append.txt")
+	content, err := sqliteMedium.Read(sqliteAppendPath)
 	core.RequireNoError(t, err)
 	core.AssertEqual(t, "hello world", content)
 }
@@ -454,14 +465,14 @@ func TestSqlite_Append_Good(t *core.T) {
 func TestSqlite_Append_NewFile_Good(t *core.T) {
 	sqliteMedium := newSqliteMedium(t)
 
-	writer, err := sqliteMedium.Append("new.txt")
+	writer, err := sqliteMedium.Append(sqliteNewPath)
 	core.RequireNoError(t, err)
 
 	_, err = writer.Write([]byte("fresh"))
 	core.RequireNoError(t, err)
 	core.RequireNoError(t, writer.Close())
 
-	content, err := sqliteMedium.Read("new.txt")
+	content, err := sqliteMedium.Read(sqliteNewPath)
 	core.RequireNoError(t, err)
 	core.AssertEqual(t, "fresh", content)
 }
@@ -480,7 +491,7 @@ func TestSqlite_ReadStream_Good(t *core.T) {
 
 	reader, err := sqliteMedium.ReadStream("stream.txt")
 	core.RequireNoError(t, err)
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 
 	data, err := goio.ReadAll(reader)
 	core.RequireNoError(t, err)
@@ -490,7 +501,7 @@ func TestSqlite_ReadStream_Good(t *core.T) {
 func TestSqlite_ReadStream_NotFound_Bad(t *core.T) {
 	sqliteMedium := newSqliteMedium(t)
 
-	_, err := sqliteMedium.ReadStream("nonexistent.txt")
+	_, err := sqliteMedium.ReadStream(sqliteMissingPath)
 	core.AssertError(t, err)
 }
 
@@ -522,8 +533,8 @@ func TestSqlite_Exists_Good(t *core.T) {
 
 	core.AssertFalse(t, sqliteMedium.Exists("nonexistent"))
 
-	core.RequireNoError(t, sqliteMedium.Write("file.txt", "content"))
-	core.AssertTrue(t, sqliteMedium.Exists("file.txt"))
+	core.RequireNoError(t, sqliteMedium.Write(sqliteFilePath, "content"))
+	core.AssertTrue(t, sqliteMedium.Exists(sqliteFilePath))
 
 	core.RequireNoError(t, sqliteMedium.EnsureDir("mydir"))
 	core.AssertTrue(t, sqliteMedium.Exists("mydir"))
@@ -539,21 +550,21 @@ func TestSqlite_Exists_EmptyPath_Good(t *core.T) {
 func TestSqlite_IsDir_Good(t *core.T) {
 	sqliteMedium := newSqliteMedium(t)
 
-	core.RequireNoError(t, sqliteMedium.Write("file.txt", "content"))
+	core.RequireNoError(t, sqliteMedium.Write(sqliteFilePath, "content"))
 	core.RequireNoError(t, sqliteMedium.EnsureDir("mydir"))
 
 	core.AssertTrue(t, sqliteMedium.IsDir("mydir"))
-	core.AssertFalse(t, sqliteMedium.IsDir("file.txt"))
+	core.AssertFalse(t, sqliteMedium.IsDir(sqliteFilePath))
 	core.AssertFalse(t, sqliteMedium.IsDir("nonexistent"))
 	core.AssertFalse(t, sqliteMedium.IsDir(""))
 }
 
 func TestSqlite_NormaliseEntryPathGood(t *core.T) {
-	core.AssertEqual(t, "file.txt", normaliseEntryPath("file.txt"))
+	core.AssertEqual(t, sqliteFilePath, normaliseEntryPath(sqliteFilePath))
 	core.AssertEqual(t, "dir/file.txt", normaliseEntryPath("dir/file.txt"))
-	core.AssertEqual(t, "file.txt", normaliseEntryPath("/file.txt"))
-	core.AssertEqual(t, "file.txt", normaliseEntryPath("../file.txt"))
-	core.AssertEqual(t, "file.txt", normaliseEntryPath("dir/../file.txt"))
+	core.AssertEqual(t, sqliteFilePath, normaliseEntryPath("/file.txt"))
+	core.AssertEqual(t, sqliteFilePath, normaliseEntryPath("../file.txt"))
+	core.AssertEqual(t, sqliteFilePath, normaliseEntryPath("dir/../file.txt"))
 	core.AssertEqual(t, "", normaliseEntryPath(""))
 	core.AssertEqual(t, "", normaliseEntryPath("."))
 	core.AssertEqual(t, "", normaliseEntryPath("/"))
@@ -583,13 +594,13 @@ func TestSqlite_InterfaceComplianceGood(t *core.T) {
 }
 
 func TestSqlite_CustomTableGood(t *core.T) {
-	sqliteMedium, err := New(Options{Path: ":memory:", Table: "my_files"})
+	sqliteMedium, err := New(Options{Path: sqliteMemoryPath, Table: "my_files"})
 	core.RequireNoError(t, err)
-	defer sqliteMedium.Close()
+	defer func() { _ = sqliteMedium.Close() }()
 
-	core.RequireNoError(t, sqliteMedium.Write("file.txt", "content"))
+	core.RequireNoError(t, sqliteMedium.Write(sqliteFilePath, "content"))
 
-	content, err := sqliteMedium.Read("file.txt")
+	content, err := sqliteMedium.Read(sqliteFilePath)
 	core.RequireNoError(t, err)
 	core.AssertEqual(t, "content", content)
 }
@@ -683,8 +694,8 @@ func TestSqlite_Medium_EnsureDir_Ugly(t *core.T) {
 
 func TestSqlite_Medium_IsFile_Good(t *core.T) {
 	medium := newSqliteMedium(t)
-	core.RequireNoError(t, medium.Write("file.txt", "payload"))
-	got := medium.IsFile("file.txt")
+	core.RequireNoError(t, medium.Write(sqliteFilePath, "payload"))
+	got := medium.IsFile(sqliteFilePath)
 	core.AssertTrue(t, got)
 }
 
@@ -747,23 +758,23 @@ func TestSqlite_Medium_DeleteAll_Ugly(t *core.T) {
 
 func TestSqlite_Medium_Rename_Good(t *core.T) {
 	medium := newSqliteMedium(t)
-	core.RequireNoError(t, medium.Write("old.txt", "payload"))
-	err := medium.Rename("old.txt", "new.txt")
+	core.RequireNoError(t, medium.Write(sqliteOldPath, "payload"))
+	err := medium.Rename(sqliteOldPath, sqliteNewPath)
 	core.AssertNoError(t, err)
-	core.AssertTrue(t, medium.IsFile("new.txt"))
+	core.AssertTrue(t, medium.IsFile(sqliteNewPath))
 }
 
 func TestSqlite_Medium_Rename_Bad(t *core.T) {
 	medium := newSqliteMedium(t)
-	err := medium.Rename("missing.txt", "new.txt")
+	err := medium.Rename("missing.txt", sqliteNewPath)
 	core.AssertError(t, err)
-	core.AssertFalse(t, medium.Exists("new.txt"))
+	core.AssertFalse(t, medium.Exists(sqliteNewPath))
 }
 
 func TestSqlite_Medium_Rename_Ugly(t *core.T) {
 	medium := newSqliteMedium(t)
-	core.RequireNoError(t, medium.Write("old.txt", "payload"))
-	err := medium.Rename("old.txt", "nested/new.txt")
+	core.RequireNoError(t, medium.Write(sqliteOldPath, "payload"))
+	err := medium.Rename(sqliteOldPath, "nested/new.txt")
 	core.AssertNoError(t, err)
 	core.AssertTrue(t, medium.IsFile("nested/new.txt"))
 }
@@ -862,8 +873,8 @@ func TestSqlite_Medium_Create_Ugly(t *core.T) {
 
 func TestSqlite_Medium_Append_Good(t *core.T) {
 	medium := newSqliteMedium(t)
-	core.RequireNoError(t, medium.Write("append.txt", "a"))
-	writer, err := medium.Append("append.txt")
+	core.RequireNoError(t, medium.Write(sqliteAppendPath, "a"))
+	writer, err := medium.Append(sqliteAppendPath)
 	core.RequireNoError(t, err)
 	_, writeErr := writer.Write([]byte("b"))
 	core.AssertNoError(t, writeErr)
@@ -879,7 +890,7 @@ func TestSqlite_Medium_Append_Bad(t *core.T) {
 
 func TestSqlite_Medium_Append_Ugly(t *core.T) {
 	medium := newSqliteMedium(t)
-	writer, err := medium.Append("new.txt")
+	writer, err := medium.Append(sqliteNewPath)
 	core.RequireNoError(t, err)
 	_, writeErr := writer.Write([]byte("new"))
 	core.AssertNoError(t, writeErr)
@@ -980,14 +991,14 @@ func TestSqlite_New_Bad(t *core.T) {
 }
 
 func TestSqlite_New_Ugly(t *core.T) {
-	medium, err := New(Options{Path: ":memory:", Table: "ax7_files"})
+	medium, err := New(Options{Path: sqliteMemoryPath, Table: "ax7_files"})
 	core.RequireNoError(t, err)
-	defer medium.Close()
+	defer func() { _ = medium.Close() }()
 	core.AssertEqual(t, "ax7_files", medium.table)
 }
 
 func TestSqlite_Medium_Close_Good(t *core.T) {
-	medium, err := New(Options{Path: ":memory:"})
+	medium, err := New(Options{Path: sqliteMemoryPath})
 	core.RequireNoError(t, err)
 	err = medium.Close()
 	core.AssertNoError(t, err)
@@ -1000,7 +1011,7 @@ func TestSqlite_Medium_Close_Bad(t *core.T) {
 }
 
 func TestSqlite_Medium_Close_Ugly(t *core.T) {
-	medium, err := New(Options{Path: ":memory:"})
+	medium, err := New(Options{Path: sqliteMemoryPath})
 	core.RequireNoError(t, err)
 	core.AssertNoError(t, medium.Close())
 	core.AssertNoError(t, medium.Close())
@@ -1119,7 +1130,7 @@ func TestSqlite_Info_Sys_Bad(t *core.T) {
 }
 
 func TestSqlite_Info_Sys_Ugly(t *core.T) {
-	var info *fileInfo = &fileInfo{}
+	var info *fileInfo
 	got := info.Sys()
 	core.AssertNil(t, got)
 }
@@ -1203,8 +1214,8 @@ func TestSqlite_Entry_Info_Ugly(t *core.T) {
 
 func TestSqlite_File_Read_Good(t *core.T) {
 	medium := newSqliteMedium(t)
-	core.RequireNoError(t, medium.Write("file.txt", "abc"))
-	file, err := medium.Open("file.txt")
+	core.RequireNoError(t, medium.Write(sqliteFilePath, "abc"))
+	file, err := medium.Open(sqliteFilePath)
 	core.RequireNoError(t, err)
 	buf := make([]byte, 3)
 	n, readErr := file.Read(buf)
@@ -1229,10 +1240,10 @@ func TestSqlite_File_Read_Ugly(t *core.T) {
 }
 
 func TestSqlite_File_Stat_Good(t *core.T) {
-	file := &sqliteFile{name: "file.txt", content: []byte("abc"), mode: 0644}
+	file := &sqliteFile{name: sqliteFilePath, content: []byte("abc"), mode: 0644}
 	info, err := file.Stat()
 	core.AssertNoError(t, err)
-	core.AssertEqual(t, "file.txt", info.Name())
+	core.AssertEqual(t, sqliteFilePath, info.Name())
 }
 
 func TestSqlite_File_Stat_Bad(t *core.T) {
@@ -1250,7 +1261,7 @@ func TestSqlite_File_Stat_Ugly(t *core.T) {
 }
 
 func TestSqlite_File_Close_Good(t *core.T) {
-	file := &sqliteFile{name: "file.txt"}
+	file := &sqliteFile{name: sqliteFilePath}
 	err := file.Close()
 	core.AssertNoError(t, err)
 }

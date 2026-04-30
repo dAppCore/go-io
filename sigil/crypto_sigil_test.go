@@ -465,7 +465,7 @@ func TestCryptoSigil_ChaChaPolySigil_InTransmutePipelineGood(t *T) {
 
 func isHex(data []byte) bool {
 	for _, b := range data {
-		if !((b >= '0' && b <= '9') || (b >= 'a' && b <= 'f')) {
+		if (b < '0' || b > '9') && (b < 'a' || b > 'f') {
 			return false
 		}
 	}

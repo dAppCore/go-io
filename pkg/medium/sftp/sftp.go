@@ -83,7 +83,7 @@ func New(options Options) (*Medium, error) {
 
 	client, err := pkgsftp.NewClient(sshClient)
 	if err != nil {
-		sshClient.Close()
+		closeSFTPCloser(sshClient, opNew, options.Address)
 		return nil, core.E(opNew, "failed to create SFTP client", err)
 	}
 
@@ -163,6 +163,12 @@ func (medium *Medium) requiredRemotePath(operation, filePath string) (string, er
 	return medium.remotePath(filePath), nil
 }
 
+func closeSFTPCloser(closer goio.Closer, operation, target string) {
+	if err := closer.Close(); err != nil {
+		core.Warn("sftp close failed", "op", operation, "target", target, "err", err)
+	}
+}
+
 func (medium *Medium) ensureParent(remotePath string) error {
 	parent := core.PathDir(remotePath)
 	if parent == "." || parent == "/" {
@@ -195,7 +201,7 @@ func (medium *Medium) Read(filePath string) (string, error) {
 	if err != nil {
 		return "", core.E(opRead, core.Concat(errOpenFailed, remotePath), err)
 	}
-	defer file.Close()
+	defer closeSFTPCloser(file, opRead, remotePath)
 
 	data, err := goio.ReadAll(file)
 	if err != nil {
@@ -225,7 +231,7 @@ func (medium *Medium) WriteMode(filePath, content string, mode fs.FileMode) erro
 		return core.E(opWriteMode, core.Concat(errOpenFailed, remotePath), err)
 	}
 	if _, err := file.Write([]byte(content)); err != nil {
-		file.Close()
+		closeSFTPCloser(file, opWriteMode, remotePath)
 		return core.E(opWriteMode, core.Concat("write failed: ", remotePath), err)
 	}
 	if closeErr := file.Close(); closeErr != nil {

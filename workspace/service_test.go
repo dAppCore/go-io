@@ -6,6 +6,11 @@ import (
 	"io/fs"
 )
 
+const (
+	workspacePrivateKey     = "private-key"
+	workspacePrivateKeyPath = "private.key"
+)
+
 type testKeyPairProvider struct {
 	privateKey string
 	err        error
@@ -24,7 +29,7 @@ func newWorkspaceService(t *core.T) (*Service, string) {
 	tempHome := t.TempDir()
 	t.Setenv("HOME", tempHome)
 
-	service, err := New(Options{KeyPairProvider: testKeyPairProvider{privateKey: "private-key"}})
+	service, err := New(Options{KeyPairProvider: testKeyPairProvider{privateKey: workspacePrivateKey}})
 	core.RequireNoError(t, err)
 	return service, tempHome
 }
@@ -44,7 +49,7 @@ func TestService_New_CustomRootPathAndMedium_Good(t *core.T) {
 	rootPath := core.Path(t.TempDir(), "custom", "workspaces")
 
 	service, err := New(Options{
-		KeyPairProvider: testKeyPairProvider{privateKey: "private-key"},
+		KeyPairProvider: testKeyPairProvider{privateKey: workspacePrivateKey},
 		RootPath:        rootPath,
 		Medium:          medium,
 	})
@@ -59,7 +64,7 @@ func TestService_New_CustomRootPathAndMedium_Good(t *core.T) {
 	expectedWorkspacePath := core.Path(rootPath, workspaceID)
 	core.AssertTrue(t, medium.IsDir(rootPath))
 	core.AssertTrue(t, medium.IsDir(core.Path(expectedWorkspacePath, "keys")))
-	core.AssertTrue(t, medium.Exists(core.Path(expectedWorkspacePath, "keys", "private.key")))
+	core.AssertTrue(t, medium.Exists(core.Path(expectedWorkspacePath, "keys", workspacePrivateKeyPath)))
 }
 
 func TestService_WorkspaceFileRoundTripGood(t *core.T) {
@@ -72,7 +77,7 @@ func TestService_WorkspaceFileRoundTripGood(t *core.T) {
 	workspacePath := core.Path(tempHome, ".core", "workspaces", workspaceID)
 	core.AssertTrue(t, service.medium.IsDir(workspacePath))
 	core.AssertTrue(t, service.medium.IsDir(core.Path(workspacePath, "keys")))
-	core.AssertTrue(t, service.medium.IsFile(core.Path(workspacePath, "keys", "private.key")))
+	core.AssertTrue(t, service.medium.IsFile(core.Path(workspacePath, "keys", workspacePrivateKeyPath)))
 
 	err = service.SwitchWorkspace(workspaceID)
 	core.RequireNoError(t, err)
@@ -104,7 +109,7 @@ func TestService_WriteWorkspaceFile_TraversalBlocked_Bad(t *core.T) {
 	core.RequireNoError(t, err)
 	core.RequireNoError(t, service.SwitchWorkspace(workspaceID))
 
-	keyPath := core.Path(tempHome, ".core", "workspaces", workspaceID, "keys", "private.key")
+	keyPath := core.Path(tempHome, ".core", "workspaces", workspaceID, "keys", workspacePrivateKeyPath)
 	before, err := service.medium.Read(keyPath)
 	core.RequireNoError(t, err)
 
@@ -134,7 +139,7 @@ func TestService_New_IPCAutoRegistration_Good(t *core.T) {
 
 	c := core.New()
 	service, err := New(Options{
-		KeyPairProvider: testKeyPairProvider{privateKey: "private-key"},
+		KeyPairProvider: testKeyPairProvider{privateKey: workspacePrivateKey},
 		Core:            c,
 	})
 	core.RequireNoError(t, err)
@@ -144,10 +149,11 @@ func TestService_New_IPCAutoRegistration_Good(t *core.T) {
 	core.RequireNoError(t, err)
 
 	// Dispatching workspace.switch via ACTION must reach the auto-registered handler.
-	c.ACTION(WorkspaceCommand{
+	result := c.ACTION(WorkspaceCommand{
 		Action:      WorkspaceSwitchAction,
 		WorkspaceID: workspaceID,
 	})
+	core.AssertTrue(t, result.OK)
 	core.AssertEqual(t, workspaceID, service.activeWorkspaceID)
 }
 
@@ -157,17 +163,18 @@ func TestService_New_IPCCreate_Good(t *core.T) {
 
 	c := core.New()
 	service, err := New(Options{
-		KeyPairProvider: testKeyPairProvider{privateKey: "private-key"},
+		KeyPairProvider: testKeyPairProvider{privateKey: workspacePrivateKey},
 		Core:            c,
 	})
 	core.RequireNoError(t, err)
 
 	// workspace.create dispatched via the bus must create the workspace on the medium.
-	c.ACTION(WorkspaceCommand{
+	result := c.ACTION(WorkspaceCommand{
 		Action:     WorkspaceCreateAction,
 		Identifier: "ipc-create-user",
 		Password:   "pass123",
 	})
+	core.AssertTrue(t, result.OK)
 
 	// A duplicate create must fail — proves the first create succeeded.
 	_, err = service.CreateWorkspace("ipc-create-user", "pass123")
@@ -180,7 +187,7 @@ func TestService_New_NoCoreOption_NoRegistration_Good(t *core.T) {
 
 	// Without Core in Options, New must succeed and no IPC handler is registered.
 	service, err := New(Options{
-		KeyPairProvider: testKeyPairProvider{privateKey: "private-key"},
+		KeyPairProvider: testKeyPairProvider{privateKey: workspacePrivateKey},
 	})
 	core.RequireNoError(t, err)
 	core.AssertNotNil(t, service)
@@ -220,7 +227,7 @@ func newWorkspaceServiceFixture(t *core.T) (*Service, *coreio.MemoryMedium) {
 	medium := coreio.NewMemoryMedium()
 	rootPath := core.Path(t.TempDir(), "workspaces")
 	service, err := New(Options{
-		KeyPairProvider: testKeyPairProvider{privateKey: "private-key"},
+		KeyPairProvider: testKeyPairProvider{privateKey: workspacePrivateKey},
 		RootPath:        rootPath,
 		Medium:          medium,
 	})
@@ -241,7 +248,7 @@ func TestService_New_Good(t *core.T) {
 	medium := coreio.NewMemoryMedium()
 	rootPath := core.Path(t.TempDir(), "workspaces")
 	service, err := New(Options{
-		KeyPairProvider: testKeyPairProvider{privateKey: "private-key"},
+		KeyPairProvider: testKeyPairProvider{privateKey: workspacePrivateKey},
 		RootPath:        rootPath,
 		Medium:          medium,
 	})

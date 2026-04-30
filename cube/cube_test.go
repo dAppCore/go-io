@@ -11,6 +11,18 @@ import (
 // testKey is a fixed 32-byte key used across cube tests.
 var testKey = []byte("0123456789abcdef0123456789abcdef")
 
+const (
+	cubeMissingPath     = "missing.txt"
+	cubeSecretPath      = "secret.txt"
+	cubeLogPath         = "log.txt"
+	cubeLineOneContent  = "line one\n"
+	cubeDataOnePath     = "data/one.txt"
+	cubeAppOutputSuffix = "/app.cube"
+	cubeConfigPath      = "config/app.yaml"
+	cubeConfigContent   = "port: 8080"
+	cubeUserPath        = "data/user.json"
+)
+
 func TestCube_New_Good(t *core.T) {
 	inner := coreio.NewMemoryMedium()
 	medium, err := New(Options{Inner: inner, Key: testKey})
@@ -56,7 +68,7 @@ func TestCube_WriteReadBad(t *core.T) {
 	core.RequireNoError(t, err)
 
 	// Read of missing file should return an error.
-	_, err = medium.Read("missing.txt")
+	_, err = medium.Read(cubeMissingPath)
 	core.AssertError(t, err)
 }
 
@@ -66,8 +78,8 @@ func TestCube_WriteReadUgly(t *core.T) {
 	core.RequireNoError(t, err)
 
 	// Underlying storage must contain ciphertext, not plaintext.
-	core.RequireNoError(t, medium.Write("secret.txt", "sensitive payload"))
-	raw, err := inner.Read("secret.txt")
+	core.RequireNoError(t, medium.Write(cubeSecretPath, "sensitive payload"))
+	raw, err := inner.Read(cubeSecretPath)
 	core.RequireNoError(t, err)
 	core.AssertNotEqual(t, "sensitive payload", raw, "cube must persist ciphertext, never plaintext")
 
@@ -75,7 +87,7 @@ func TestCube_WriteReadUgly(t *core.T) {
 	otherKey := []byte("fedcba9876543210fedcba9876543210")
 	otherMedium, err := New(Options{Inner: inner, Key: otherKey})
 	core.RequireNoError(t, err)
-	_, err = otherMedium.Read("secret.txt")
+	_, err = otherMedium.Read(cubeSecretPath)
 	core.AssertError(t, err)
 }
 
@@ -118,18 +130,18 @@ func TestCube_StreamingGood(t *core.T) {
 	medium, err := New(Options{Inner: inner, Key: testKey})
 	core.RequireNoError(t, err)
 
-	writer, err := medium.Create("log.txt")
+	writer, err := medium.Create(cubeLogPath)
 	core.RequireNoError(t, err)
-	_, err = writer.Write([]byte("line one\n"))
+	_, err = writer.Write([]byte(cubeLineOneContent))
 	core.RequireNoError(t, err)
 	core.RequireNoError(t, writer.Close())
 
-	reader, err := medium.ReadStream("log.txt")
+	reader, err := medium.ReadStream(cubeLogPath)
 	core.RequireNoError(t, err)
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 	content, err := goio.ReadAll(reader)
 	core.RequireNoError(t, err)
-	core.AssertEqual(t, "line one\n", string(content))
+	core.AssertEqual(t, cubeLineOneContent, string(content))
 }
 
 func TestCube_StreamingBad(t *core.T) {
@@ -138,7 +150,7 @@ func TestCube_StreamingBad(t *core.T) {
 	core.RequireNoError(t, err)
 
 	// Reading a stream that does not exist returns an error.
-	_, err = medium.ReadStream("missing.txt")
+	_, err = medium.ReadStream(cubeMissingPath)
 	core.AssertError(t, err)
 }
 
@@ -148,14 +160,14 @@ func TestCube_StreamingUgly(t *core.T) {
 	core.RequireNoError(t, err)
 
 	// Append must decrypt the existing payload, then append.
-	core.RequireNoError(t, medium.Write("log.txt", "line one\n"))
-	writer, err := medium.Append("log.txt")
+	core.RequireNoError(t, medium.Write(cubeLogPath, cubeLineOneContent))
+	writer, err := medium.Append(cubeLogPath)
 	core.RequireNoError(t, err)
 	_, err = writer.Write([]byte("line two\n"))
 	core.RequireNoError(t, err)
 	core.RequireNoError(t, writer.Close())
 
-	plaintext, err := medium.Read("log.txt")
+	plaintext, err := medium.Read(cubeLogPath)
 	core.RequireNoError(t, err)
 	core.AssertEqual(t, "line one\nline two\n", plaintext)
 }
@@ -168,7 +180,7 @@ func TestCube_Open_Good(t *core.T) {
 
 	file, err := medium.Open("notes.txt")
 	core.RequireNoError(t, err)
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	buffer := core.NewBuffer()
 	_, err = goio.Copy(buffer, file)
@@ -181,7 +193,7 @@ func TestCube_Open_Bad(t *core.T) {
 	medium, err := New(Options{Inner: inner, Key: testKey})
 	core.RequireNoError(t, err)
 
-	_, err = medium.Open("missing.txt")
+	_, err = medium.Open(cubeMissingPath)
 	core.AssertError(t, err)
 }
 
@@ -191,8 +203,8 @@ func TestCube_Open_Ugly(t *core.T) {
 	core.RequireNoError(t, err)
 
 	// Write directly to the inner Medium (plaintext) — cube.Open must fail to decrypt.
-	core.RequireNoError(t, inner.Write("secret.txt", "not ciphertext"))
-	_, err = medium.Open("secret.txt")
+	core.RequireNoError(t, inner.Write(cubeSecretPath, "not ciphertext"))
+	_, err = medium.Open(cubeSecretPath)
 	core.AssertError(t, err)
 }
 
@@ -203,17 +215,17 @@ func TestCube_PassthroughOperationsGood(t *core.T) {
 
 	// Exists / IsFile / IsDir / List / Stat pass through to inner.
 	core.RequireNoError(t, medium.EnsureDir("data"))
-	core.RequireNoError(t, medium.Write("data/one.txt", "alpha"))
+	core.RequireNoError(t, medium.Write(cubeDataOnePath, "alpha"))
 
-	core.AssertTrue(t, medium.Exists("data/one.txt"))
-	core.AssertTrue(t, medium.IsFile("data/one.txt"))
+	core.AssertTrue(t, medium.Exists(cubeDataOnePath))
+	core.AssertTrue(t, medium.IsFile(cubeDataOnePath))
 	core.AssertTrue(t, medium.IsDir("data"))
 
 	entries, err := medium.List("data")
 	core.RequireNoError(t, err)
 	core.AssertNotEmpty(t, entries)
 
-	info, err := medium.Stat("data/one.txt")
+	info, err := medium.Stat(cubeDataOnePath)
 	core.RequireNoError(t, err)
 	core.AssertFalse(t, info.IsDir())
 }
@@ -224,7 +236,7 @@ func TestCube_PassthroughOperationsBad(t *core.T) {
 	core.RequireNoError(t, err)
 
 	// Deleting a missing file surfaces the underlying Medium's error.
-	err = medium.Delete("missing.txt")
+	err = medium.Delete(cubeMissingPath)
 	core.AssertError(t, err)
 }
 
@@ -251,11 +263,11 @@ func TestCube_Pack_Good(t *core.T) {
 	tempDir := t.TempDir()
 	sandbox, err := coreio.NewSandboxed(tempDir)
 	core.RequireNoError(t, err)
-	outputPath := tempDir + "/app.cube"
+	outputPath := tempDir + cubeAppOutputSuffix
 
 	source := coreio.NewMemoryMedium()
-	core.RequireNoError(t, source.Write("config/app.yaml", "port: 8080"))
-	core.RequireNoError(t, source.Write("data/user.json", `{"name":"alice"}`))
+	core.RequireNoError(t, source.Write(cubeConfigPath, cubeConfigContent))
+	core.RequireNoError(t, source.Write(cubeUserPath, `{"name":"alice"}`))
 
 	core.RequireNoError(t, Pack(outputPath, source, testKey))
 	core.AssertTrue(t, sandbox.Exists("app.cube"))
@@ -284,22 +296,22 @@ func TestCube_Pack_Ugly(t *core.T) {
 
 func TestCube_Unpack_Good(t *core.T) {
 	tempDir := t.TempDir()
-	outputPath := tempDir + "/app.cube"
+	outputPath := tempDir + cubeAppOutputSuffix
 
 	source := coreio.NewMemoryMedium()
-	core.RequireNoError(t, source.Write("config/app.yaml", "port: 8080"))
-	core.RequireNoError(t, source.Write("data/user.json", `{"name":"alice"}`))
+	core.RequireNoError(t, source.Write(cubeConfigPath, cubeConfigContent))
+	core.RequireNoError(t, source.Write(cubeUserPath, `{"name":"alice"}`))
 
 	core.RequireNoError(t, Pack(outputPath, source, testKey))
 
 	restored := coreio.NewMemoryMedium()
 	core.RequireNoError(t, Unpack(outputPath, restored, testKey))
 
-	config, err := restored.Read("config/app.yaml")
+	config, err := restored.Read(cubeConfigPath)
 	core.RequireNoError(t, err)
-	core.AssertEqual(t, "port: 8080", config)
+	core.AssertEqual(t, cubeConfigContent, config)
 
-	user, err := restored.Read("data/user.json")
+	user, err := restored.Read(cubeUserPath)
 	core.RequireNoError(t, err)
 	core.AssertEqual(t, `{"name":"alice"}`, user)
 }
@@ -317,10 +329,10 @@ func TestCube_Unpack_Bad(t *core.T) {
 
 func TestCube_Unpack_Ugly(t *core.T) {
 	tempDir := t.TempDir()
-	outputPath := tempDir + "/app.cube"
+	outputPath := tempDir + cubeAppOutputSuffix
 
 	source := coreio.NewMemoryMedium()
-	core.RequireNoError(t, source.Write("secret.txt", "classified"))
+	core.RequireNoError(t, source.Write(cubeSecretPath, "classified"))
 	core.RequireNoError(t, Pack(outputPath, source, testKey))
 
 	// Attempting to unpack with a different key must fail.
@@ -331,18 +343,18 @@ func TestCube_Unpack_Ugly(t *core.T) {
 
 func TestCube_Open_Packed_Good(t *core.T) {
 	tempDir := t.TempDir()
-	outputPath := tempDir + "/app.cube"
+	outputPath := tempDir + cubeAppOutputSuffix
 
 	source := coreio.NewMemoryMedium()
-	core.RequireNoError(t, source.Write("config/app.yaml", "port: 8080"))
+	core.RequireNoError(t, source.Write(cubeConfigPath, cubeConfigContent))
 	core.RequireNoError(t, Pack(outputPath, source, testKey))
 
 	cubeMedium, err := Open(outputPath, testKey)
 	core.RequireNoError(t, err)
 
-	content, err := cubeMedium.Read("config/app.yaml")
+	content, err := cubeMedium.Read(cubeConfigPath)
 	core.RequireNoError(t, err)
-	core.AssertEqual(t, "port: 8080", content)
+	core.AssertEqual(t, cubeConfigContent, content)
 }
 
 func TestCube_Open_Packed_Bad(t *core.T) {
@@ -355,7 +367,7 @@ func TestCube_Open_Packed_Bad(t *core.T) {
 
 func TestCube_Open_Packed_Ugly(t *core.T) {
 	tempDir := t.TempDir()
-	outputPath := tempDir + "/app.cube"
+	outputPath := tempDir + cubeAppOutputSuffix
 
 	source := coreio.NewMemoryMedium()
 	core.RequireNoError(t, source.Write("a.txt", "alpha"))
@@ -377,13 +389,13 @@ func TestCube_DoubleEncryptionGood(t *core.T) {
 	outerCube, err := New(Options{Inner: userCube, Key: transportKey})
 	core.RequireNoError(t, err)
 
-	core.RequireNoError(t, outerCube.Write("secret.txt", "classified"))
-	plaintext, err := outerCube.Read("secret.txt")
+	core.RequireNoError(t, outerCube.Write(cubeSecretPath, "classified"))
+	plaintext, err := outerCube.Read(cubeSecretPath)
 	core.RequireNoError(t, err)
 	core.AssertEqual(t, "classified", plaintext)
 
 	// The underlying inner Medium holds a double-encrypted payload.
-	raw, err := inner.Read("secret.txt")
+	raw, err := inner.Read(cubeSecretPath)
 	core.RequireNoError(t, err)
 	core.AssertNotEqual(t, "classified", raw)
 }
@@ -398,10 +410,10 @@ func TestCube_DoubleEncryptionBad(t *core.T) {
 	outerCube, err := New(Options{Inner: userCube, Key: transportKey})
 	core.RequireNoError(t, err)
 
-	core.RequireNoError(t, outerCube.Write("secret.txt", "classified"))
+	core.RequireNoError(t, outerCube.Write(cubeSecretPath, "classified"))
 
 	// Reading through the inner userCube alone returns ciphertext, not plaintext.
-	stillEncrypted, err := userCube.Read("secret.txt")
+	stillEncrypted, err := userCube.Read(cubeSecretPath)
 	core.RequireNoError(t, err)
 	core.AssertNotEqual(t, "classified", stillEncrypted)
 }
@@ -416,12 +428,12 @@ func TestCube_DoubleEncryptionUgly(t *core.T) {
 	outerCube, err := New(Options{Inner: userCube, Key: transportKey})
 	core.RequireNoError(t, err)
 
-	core.RequireNoError(t, outerCube.Write("secret.txt", "classified"))
+	core.RequireNoError(t, outerCube.Write(cubeSecretPath, "classified"))
 
 	// Swapping key order must fail to decrypt.
 	wrongOrder, err := New(Options{Inner: inner, Key: transportKey})
 	core.RequireNoError(t, err)
-	_, err = wrongOrder.Read("secret.txt")
+	_, err = wrongOrder.Read(cubeSecretPath)
 	core.AssertError(t, err)
 }
 
@@ -463,7 +475,7 @@ func TestCube_Medium_Read_Good(t *core.T) {
 
 func TestCube_Medium_Read_Bad(t *core.T) {
 	medium, _ := newCubeMediumFixture(t)
-	got, err := medium.Read("missing.txt")
+	got, err := medium.Read(cubeMissingPath)
 	core.AssertError(t, err)
 	core.AssertEqual(t, "", got)
 }
@@ -550,7 +562,7 @@ func TestCube_Medium_IsFile_Good(t *core.T) {
 
 func TestCube_Medium_IsFile_Bad(t *core.T) {
 	medium, _ := newCubeMediumFixture(t)
-	got := medium.IsFile("missing.txt")
+	got := medium.IsFile(cubeMissingPath)
 	core.AssertFalse(t, got)
 }
 
@@ -571,9 +583,9 @@ func TestCube_Medium_Delete_Good(t *core.T) {
 
 func TestCube_Medium_Delete_Bad(t *core.T) {
 	medium, _ := newCubeMediumFixture(t)
-	err := medium.Delete("missing.txt")
+	err := medium.Delete(cubeMissingPath)
 	core.AssertError(t, err)
-	core.AssertFalse(t, medium.Exists("missing.txt"))
+	core.AssertFalse(t, medium.Exists(cubeMissingPath))
 }
 
 func TestCube_Medium_Delete_Ugly(t *core.T) {
@@ -616,7 +628,7 @@ func TestCube_Medium_Rename_Good(t *core.T) {
 
 func TestCube_Medium_Rename_Bad(t *core.T) {
 	medium, _ := newCubeMediumFixture(t)
-	err := medium.Rename("missing.txt", "new.txt")
+	err := medium.Rename(cubeMissingPath, "new.txt")
 	core.AssertError(t, err)
 	core.AssertFalse(t, medium.Exists("new.txt"))
 }
@@ -661,7 +673,7 @@ func TestCube_Medium_Stat_Good(t *core.T) {
 
 func TestCube_Medium_Stat_Bad(t *core.T) {
 	medium, _ := newCubeMediumFixture(t)
-	info, err := medium.Stat("missing.txt")
+	info, err := medium.Stat(cubeMissingPath)
 	core.AssertError(t, err)
 	core.AssertNil(t, info)
 }
@@ -685,7 +697,7 @@ func TestCube_Medium_Open_Good(t *core.T) {
 
 func TestCube_Medium_Open_Bad(t *core.T) {
 	medium, _ := newCubeMediumFixture(t)
-	file, err := medium.Open("missing.txt")
+	file, err := medium.Open(cubeMissingPath)
 	core.AssertError(t, err)
 	core.AssertNil(t, file)
 }
@@ -754,7 +766,7 @@ func TestCube_Medium_ReadStream_Good(t *core.T) {
 	core.RequireNoError(t, medium.Write("stream.txt", "payload"))
 	reader, err := medium.ReadStream("stream.txt")
 	core.RequireNoError(t, err)
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 	data, readErr := goio.ReadAll(reader)
 	core.AssertNoError(t, readErr)
 	core.AssertEqual(t, "payload", string(data))
@@ -762,7 +774,7 @@ func TestCube_Medium_ReadStream_Good(t *core.T) {
 
 func TestCube_Medium_ReadStream_Bad(t *core.T) {
 	medium, _ := newCubeMediumFixture(t)
-	reader, err := medium.ReadStream("missing.txt")
+	reader, err := medium.ReadStream(cubeMissingPath)
 	core.AssertError(t, err)
 	core.AssertNil(t, reader)
 }
@@ -808,7 +820,7 @@ func TestCube_Medium_Exists_Good(t *core.T) {
 
 func TestCube_Medium_Exists_Bad(t *core.T) {
 	medium, _ := newCubeMediumFixture(t)
-	got := medium.Exists("missing.txt")
+	got := medium.Exists(cubeMissingPath)
 	core.AssertFalse(t, got)
 }
 

@@ -18,7 +18,10 @@ type Factory func(Options) (*Medium, error)
 var Registry = core.NewRegistry[Factory]()
 
 func init() {
-	RegisterFactory(Scheme, New)
+	result := RegisterFactory(Scheme, New)
+	if !result.OK {
+		core.Warn("github factory registration failed", "err", result.Error())
+	}
 }
 
 func RegisterFactory(name string, factory Factory) core.Result {

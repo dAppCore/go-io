@@ -200,32 +200,31 @@ func TestSigil_HashSigilGood(t *T) {
 	data := []byte("hash me")
 
 	tests := []struct {
-		name      string
 		sigilName string
 		size      int
 	}{
-		{"md5", "md5", md5.Size},
-		{"sha1", "sha1", sha1.Size},
-		{"sha256", "sha256", sha256.Size},
-		{"sha512", "sha512", sha512.Size},
-		{"sha224", "sha224", sha256.Size224},
-		{"sha384", "sha384", sha512.Size384},
-		{"sha512-224", "sha512-224", 28},
-		{"sha512-256", "sha512-256", 32},
-		{"sha3-224", "sha3-224", 28},
-		{"sha3-256", "sha3-256", 32},
-		{"sha3-384", "sha3-384", 48},
-		{"sha3-512", "sha3-512", 64},
-		{"ripemd160", "ripemd160", 20},
-		{"blake2s-256", "blake2s-256", 32},
-		{"blake2b-256", "blake2b-256", 32},
-		{"blake2b-384", "blake2b-384", 48},
-		{"blake2b-512", "blake2b-512", 64},
-		{"md4", "md4", 16},
+		{"md5", md5.Size},
+		{"sha1", sha1.Size},
+		{"sha256", sha256.Size},
+		{"sha512", sha512.Size},
+		{"sha224", sha256.Size224},
+		{"sha384", sha512.Size384},
+		{"sha512-224", 28},
+		{"sha512-256", 32},
+		{"sha3-224", 28},
+		{"sha3-256", 32},
+		{"sha3-384", 48},
+		{"sha3-512", 64},
+		{"ripemd160", 20},
+		{"blake2s-256", 32},
+		{"blake2b-256", 32},
+		{"blake2b-384", 48},
+		{"blake2b-512", 64},
+		{"md4", 16},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *T) {
+		t.Run(tt.sigilName, func(t *T) {
 			sigilValue, err := NewSigil(tt.sigilName)
 			RequireNoError(t, err)
 

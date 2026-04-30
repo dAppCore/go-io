@@ -17,6 +17,7 @@ const (
 	opList           = "pwa.List"
 	opStat           = "pwa.Stat"
 	opOpen           = "pwa.Open"
+	msgPWANotFound   = "not found: "
 )
 
 // ErrNotImplemented remains for callers that used the round-1 stub sentinel.
@@ -108,9 +109,9 @@ func (medium *Medium) Read(filePath string) (string, error) {
 	}
 	file, err := dataNode.Open(clean)
 	if err != nil {
-		return "", core.E(opRead, core.Concat("not found: ", clean), fs.ErrNotExist)
+		return "", core.E(opRead, core.Concat(msgPWANotFound, clean), fs.ErrNotExist)
 	}
-	defer file.Close()
+	defer closePWAFile(file, clean)
 	info, err := file.Stat()
 	if err != nil {
 		return "", core.E(opRead, core.Concat("stat failed: ", clean), err)
@@ -174,7 +175,7 @@ func (medium *Medium) List(filePath string) ([]fs.DirEntry, error) {
 	clean := cleanRelative(filePath)
 	entries, err := dataNode.ReadDir(clean)
 	if err != nil {
-		return nil, core.E(opList, core.Concat("not found: ", clean), fs.ErrNotExist)
+		return nil, core.E(opList, core.Concat(msgPWANotFound, clean), fs.ErrNotExist)
 	}
 	return entries, nil
 }
@@ -188,7 +189,7 @@ func (medium *Medium) Stat(filePath string) (fs.FileInfo, error) {
 	clean := cleanRelative(filePath)
 	info, err := dataNode.Stat(clean)
 	if err != nil {
-		return nil, core.E(opStat, core.Concat("not found: ", clean), fs.ErrNotExist)
+		return nil, core.E(opStat, core.Concat(msgPWANotFound, clean), fs.ErrNotExist)
 	}
 	return info, nil
 }
@@ -205,18 +206,24 @@ func (medium *Medium) Open(filePath string) (fs.File, error) {
 	}
 	file, err := dataNode.Open(clean)
 	if err != nil {
-		return nil, core.E(opOpen, core.Concat("not found: ", clean), fs.ErrNotExist)
+		return nil, core.E(opOpen, core.Concat(msgPWANotFound, clean), fs.ErrNotExist)
 	}
 	info, err := file.Stat()
 	if err != nil {
-		file.Close()
+		closePWAFile(file, clean)
 		return nil, core.E(opOpen, core.Concat("stat failed: ", clean), err)
 	}
 	if info.IsDir() {
-		file.Close()
+		closePWAFile(file, clean)
 		return nil, core.E(opOpen, core.Concat("path is a directory: ", clean), fs.ErrInvalid)
 	}
 	return file, nil
+}
+
+func closePWAFile(file fs.File, filePath string) {
+	if err := file.Close(); err != nil {
+		core.Warn("pwa file close failed", "file_path", filePath, "err", err)
+	}
 }
 
 // Create returns an error because downloaded PWA DataNodes are read-only.

@@ -9,6 +9,8 @@ import (
 	"time"
 )
 
+const webdavNestedPath = "nested/path/file.txt"
+
 func newWebDAVTestMedium(t *core.T) *Medium {
 	t.Helper()
 
@@ -55,11 +57,11 @@ func TestWebDAVMedium_Read_Ugly(t *core.T) {
 func TestWebDAVMedium_Write_Good(t *core.T) {
 	medium := newWebDAVTestMedium(t)
 
-	err := medium.Write("nested/path/file.txt", "content")
+	err := medium.Write(webdavNestedPath, "content")
 	core.RequireNoError(t, err)
 
-	core.AssertTrue(t, medium.IsFile("nested/path/file.txt"))
-	content, err := medium.Read("nested/path/file.txt")
+	core.AssertTrue(t, medium.IsFile(webdavNestedPath))
+	content, err := medium.Read(webdavNestedPath)
 	core.RequireNoError(t, err)
 	core.AssertEqual(t, "content", content)
 }
@@ -444,7 +446,7 @@ func TestWebdav_Medium_ReadStream_Good(t *core.T) {
 	core.RequireNoError(t, medium.Write("stream.txt", "payload"))
 	reader, err := medium.ReadStream("stream.txt")
 	core.RequireNoError(t, err)
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 	data, readErr := goio.ReadAll(reader)
 	core.AssertNoError(t, readErr)
 	core.AssertEqual(t, "payload", string(data))

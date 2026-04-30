@@ -10,6 +10,20 @@ import (
 
 var _ coreio.Medium = (*Medium)(nil)
 
+const (
+	dataNodeNestedPath   = "foo/bar/baz"
+	dataNodeDeletePath   = "delete-me.txt"
+	dataNodeTreeAPath    = "tree/a.txt"
+	dataNodeKeepPath     = "keep.txt"
+	dataNodeReadFailed   = "read failed"
+	dataNodeOldPath      = "old.txt"
+	dataNodeNewPath      = "new.txt"
+	dataNodePackageA     = "package a"
+	dataNodeSourcePath   = "src/a.go"
+	dataNodeOriginalPath = "original.txt"
+	dataNodeFilePath     = "file.txt"
+)
+
 func TestDataNode_ReadWriteGood(t *core.T) {
 	dataNodeMedium := New()
 
@@ -71,22 +85,22 @@ func TestDataNode_IsFile_Good(t *core.T) {
 func TestDataNode_EnsureDir_Good(t *core.T) {
 	dataNodeMedium := New()
 
-	core.RequireNoError(t, dataNodeMedium.EnsureDir("foo/bar/baz"))
+	core.RequireNoError(t, dataNodeMedium.EnsureDir(dataNodeNestedPath))
 
 	core.AssertTrue(t, dataNodeMedium.IsDir("foo"))
 	core.AssertTrue(t, dataNodeMedium.IsDir("foo/bar"))
-	core.AssertTrue(t, dataNodeMedium.IsDir("foo/bar/baz"))
-	core.AssertTrue(t, dataNodeMedium.Exists("foo/bar/baz"))
+	core.AssertTrue(t, dataNodeMedium.IsDir(dataNodeNestedPath))
+	core.AssertTrue(t, dataNodeMedium.Exists(dataNodeNestedPath))
 }
 
 func TestDataNode_Delete_Good(t *core.T) {
 	dataNodeMedium := New()
 
-	core.RequireNoError(t, dataNodeMedium.Write("delete-me.txt", "bye"))
-	core.AssertTrue(t, dataNodeMedium.Exists("delete-me.txt"))
+	core.RequireNoError(t, dataNodeMedium.Write(dataNodeDeletePath, "bye"))
+	core.AssertTrue(t, dataNodeMedium.Exists(dataNodeDeletePath))
 
-	core.RequireNoError(t, dataNodeMedium.Delete("delete-me.txt"))
-	core.AssertFalse(t, dataNodeMedium.Exists("delete-me.txt"))
+	core.RequireNoError(t, dataNodeMedium.Delete(dataNodeDeletePath))
+	core.AssertFalse(t, dataNodeMedium.Exists(dataNodeDeletePath))
 }
 
 func TestDataNode_Delete_Bad(t *core.T) {
@@ -118,20 +132,20 @@ func TestDataNode_Delete_DirectoryInspectionFailure_Bad(t *core.T) {
 func TestDataNode_DeleteAll_Good(t *core.T) {
 	dataNodeMedium := New()
 
-	core.RequireNoError(t, dataNodeMedium.Write("tree/a.txt", "a"))
+	core.RequireNoError(t, dataNodeMedium.Write(dataNodeTreeAPath, "a"))
 	core.RequireNoError(t, dataNodeMedium.Write("tree/sub/b.txt", "b"))
-	core.RequireNoError(t, dataNodeMedium.Write("keep.txt", "keep"))
+	core.RequireNoError(t, dataNodeMedium.Write(dataNodeKeepPath, "keep"))
 
 	core.RequireNoError(t, dataNodeMedium.DeleteAll("tree"))
 
-	core.AssertFalse(t, dataNodeMedium.Exists("tree/a.txt"))
+	core.AssertFalse(t, dataNodeMedium.Exists(dataNodeTreeAPath))
 	core.AssertFalse(t, dataNodeMedium.Exists("tree/sub/b.txt"))
-	core.AssertTrue(t, dataNodeMedium.Exists("keep.txt"))
+	core.AssertTrue(t, dataNodeMedium.Exists(dataNodeKeepPath))
 }
 
 func TestDataNode_DeleteAll_WalkFailure_Bad(t *core.T) {
 	dataNodeMedium := New()
-	core.RequireNoError(t, dataNodeMedium.Write("tree/a.txt", "a"))
+	core.RequireNoError(t, dataNodeMedium.Write(dataNodeTreeAPath, "a"))
 
 	original := dataNodeWalkDir
 	dataNodeWalkDir = func(_ fs.FS, _ string, _ fs.WalkDirFunc) error {
@@ -148,12 +162,12 @@ func TestDataNode_DeleteAll_WalkFailure_Bad(t *core.T) {
 
 func TestDataNode_Delete_RemoveFailure_Bad(t *core.T) {
 	dataNodeMedium := New()
-	core.RequireNoError(t, dataNodeMedium.Write("keep.txt", "keep"))
+	core.RequireNoError(t, dataNodeMedium.Write(dataNodeKeepPath, "keep"))
 	core.RequireNoError(t, dataNodeMedium.Write("bad.txt", "bad"))
 
 	original := dataNodeReadAll
 	dataNodeReadAll = func(_ goio.Reader) ([]byte, error) {
-		return nil, core.NewError("read failed")
+		return nil, core.NewError(dataNodeReadFailed)
 	}
 	t.Cleanup(func() {
 		dataNodeReadAll = original
@@ -167,11 +181,11 @@ func TestDataNode_Delete_RemoveFailure_Bad(t *core.T) {
 func TestDataNode_Rename_Good(t *core.T) {
 	dataNodeMedium := New()
 
-	core.RequireNoError(t, dataNodeMedium.Write("old.txt", "content"))
-	core.RequireNoError(t, dataNodeMedium.Rename("old.txt", "new.txt"))
+	core.RequireNoError(t, dataNodeMedium.Write(dataNodeOldPath, "content"))
+	core.RequireNoError(t, dataNodeMedium.Rename(dataNodeOldPath, dataNodeNewPath))
 
-	core.AssertFalse(t, dataNodeMedium.Exists("old.txt"))
-	got, err := dataNodeMedium.Read("new.txt")
+	core.AssertFalse(t, dataNodeMedium.Exists(dataNodeOldPath))
+	got, err := dataNodeMedium.Read(dataNodeNewPath)
 	core.RequireNoError(t, err)
 	core.AssertEqual(t, "content", got)
 }
@@ -179,16 +193,16 @@ func TestDataNode_Rename_Good(t *core.T) {
 func TestDataNode_RenameDirGood(t *core.T) {
 	dataNodeMedium := New()
 
-	core.RequireNoError(t, dataNodeMedium.Write("src/a.go", "package a"))
+	core.RequireNoError(t, dataNodeMedium.Write(dataNodeSourcePath, dataNodePackageA))
 	core.RequireNoError(t, dataNodeMedium.Write("src/sub/b.go", "package b"))
 
 	core.RequireNoError(t, dataNodeMedium.Rename("src", "destination"))
 
-	core.AssertFalse(t, dataNodeMedium.Exists("src/a.go"))
+	core.AssertFalse(t, dataNodeMedium.Exists(dataNodeSourcePath))
 
 	got, err := dataNodeMedium.Read("destination/a.go")
 	core.RequireNoError(t, err)
-	core.AssertEqual(t, "package a", got)
+	core.AssertEqual(t, dataNodePackageA, got)
 
 	got, err = dataNodeMedium.Read("destination/sub/b.go")
 	core.RequireNoError(t, err)
@@ -197,11 +211,11 @@ func TestDataNode_RenameDirGood(t *core.T) {
 
 func TestDataNode_RenameDir_ReadFailureBad(t *core.T) {
 	dataNodeMedium := New()
-	core.RequireNoError(t, dataNodeMedium.Write("src/a.go", "package a"))
+	core.RequireNoError(t, dataNodeMedium.Write(dataNodeSourcePath, dataNodePackageA))
 
 	original := dataNodeReadAll
 	dataNodeReadAll = func(_ goio.Reader) ([]byte, error) {
-		return nil, core.NewError("read failed")
+		return nil, core.NewError(dataNodeReadFailed)
 	}
 	t.Cleanup(func() {
 		dataNodeReadAll = original
@@ -263,7 +277,7 @@ func TestDataNode_Open_Good(t *core.T) {
 
 	file, err := dataNodeMedium.Open("open.txt")
 	core.RequireNoError(t, err)
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	data, err := goio.ReadAll(file)
 	core.RequireNoError(t, err)
@@ -273,38 +287,38 @@ func TestDataNode_Open_Good(t *core.T) {
 func TestDataNode_CreateAppendGood(t *core.T) {
 	dataNodeMedium := New()
 
-	writer, err := dataNodeMedium.Create("new.txt")
+	writer, err := dataNodeMedium.Create(dataNodeNewPath)
 	core.RequireNoError(t, err)
 	_, _ = writer.Write([]byte("hello"))
 	core.RequireNoError(t, writer.Close())
 
-	got, err := dataNodeMedium.Read("new.txt")
+	got, err := dataNodeMedium.Read(dataNodeNewPath)
 	core.RequireNoError(t, err)
 	core.AssertEqual(t, "hello", got)
 
-	writer, err = dataNodeMedium.Append("new.txt")
+	writer, err = dataNodeMedium.Append(dataNodeNewPath)
 	core.RequireNoError(t, err)
 	_, _ = writer.Write([]byte(" world"))
 	core.RequireNoError(t, writer.Close())
 
-	got, err = dataNodeMedium.Read("new.txt")
+	got, err = dataNodeMedium.Read(dataNodeNewPath)
 	core.RequireNoError(t, err)
 	core.AssertEqual(t, "hello world", got)
 }
 
 func TestDataNode_Append_ReadFailure_Bad(t *core.T) {
 	dataNodeMedium := New()
-	core.RequireNoError(t, dataNodeMedium.Write("new.txt", "hello"))
+	core.RequireNoError(t, dataNodeMedium.Write(dataNodeNewPath, "hello"))
 
 	original := dataNodeReadAll
 	dataNodeReadAll = func(_ goio.Reader) ([]byte, error) {
-		return nil, core.NewError("read failed")
+		return nil, core.NewError(dataNodeReadFailed)
 	}
 	t.Cleanup(func() {
 		dataNodeReadAll = original
 	})
 
-	_, err := dataNodeMedium.Append("new.txt")
+	_, err := dataNodeMedium.Append(dataNodeNewPath)
 	core.AssertError(t, err)
 	core.AssertContains(t, err.Error(), "failed to read existing content")
 }
@@ -350,17 +364,17 @@ func TestDataNode_SnapshotRestoreGood(t *core.T) {
 func TestDataNode_Restore_Good(t *core.T) {
 	dataNodeMedium := New()
 
-	core.RequireNoError(t, dataNodeMedium.Write("original.txt", "before"))
+	core.RequireNoError(t, dataNodeMedium.Write(dataNodeOriginalPath, "before"))
 
 	snapshotData, err := dataNodeMedium.Snapshot()
 	core.RequireNoError(t, err)
 
-	core.RequireNoError(t, dataNodeMedium.Write("original.txt", "after"))
+	core.RequireNoError(t, dataNodeMedium.Write(dataNodeOriginalPath, "after"))
 	core.RequireNoError(t, dataNodeMedium.Write("extra.txt", "extra"))
 
 	core.RequireNoError(t, dataNodeMedium.Restore(snapshotData))
 
-	got, err := dataNodeMedium.Read("original.txt")
+	got, err := dataNodeMedium.Read(dataNodeOriginalPath)
 	core.RequireNoError(t, err)
 	core.AssertEqual(t, "before", got)
 
@@ -377,7 +391,7 @@ func TestDataNode_DataNode_Good(t *core.T) {
 
 	file, err := dataNode.Open("test.txt")
 	core.RequireNoError(t, err)
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	data, err := goio.ReadAll(file)
 	core.RequireNoError(t, err)
@@ -387,10 +401,10 @@ func TestDataNode_DataNode_Good(t *core.T) {
 func TestDataNode_OverwriteGood(t *core.T) {
 	dataNodeMedium := New()
 
-	core.RequireNoError(t, dataNodeMedium.Write("file.txt", "v1"))
-	core.RequireNoError(t, dataNodeMedium.Write("file.txt", "v2"))
+	core.RequireNoError(t, dataNodeMedium.Write(dataNodeFilePath, "v1"))
+	core.RequireNoError(t, dataNodeMedium.Write(dataNodeFilePath, "v2"))
 
-	got, err := dataNodeMedium.Read("file.txt")
+	got, err := dataNodeMedium.Read(dataNodeFilePath)
 	core.RequireNoError(t, err)
 	core.AssertEqual(t, "v2", got)
 }
@@ -408,8 +422,8 @@ func TestDataNode_Exists_Good(t *core.T) {
 func TestDataNode_ReadExistingFileGood(t *core.T) {
 	dataNodeMedium := New()
 
-	core.RequireNoError(t, dataNodeMedium.Write("file.txt", "content"))
-	got, err := dataNodeMedium.Read("file.txt")
+	core.RequireNoError(t, dataNodeMedium.Write(dataNodeFilePath, "content"))
+	got, err := dataNodeMedium.Read(dataNodeFilePath)
 	core.RequireNoError(t, err)
 	core.AssertEqual(t, "content", got)
 }
@@ -435,13 +449,13 @@ func TestMedium_New_Ugly(t *core.T) {
 
 func TestMedium_FromTar_Good(t *core.T) {
 	source := New()
-	core.RequireNoError(t, source.Write("file.txt", "payload"))
+	core.RequireNoError(t, source.Write(dataNodeFilePath, "payload"))
 	snapshot, err := source.Snapshot()
 	core.RequireNoError(t, err)
 
 	restored, err := FromTar(snapshot)
 	core.AssertNoError(t, err)
-	core.AssertTrue(t, restored.IsFile("file.txt"))
+	core.AssertTrue(t, restored.IsFile(dataNodeFilePath))
 }
 
 func TestMedium_FromTar_Bad(t *core.T) {
@@ -525,10 +539,10 @@ func TestMedium_Medium_DataNode_Bad(t *core.T) {
 
 func TestMedium_Medium_DataNode_Ugly(t *core.T) {
 	medium := New()
-	core.RequireNoError(t, medium.Write("file.txt", "payload"))
+	core.RequireNoError(t, medium.Write(dataNodeFilePath, "payload"))
 	dataNode := medium.DataNode()
 	core.AssertNotNil(t, dataNode)
-	core.AssertTrue(t, medium.Exists("file.txt"))
+	core.AssertTrue(t, medium.Exists(dataNodeFilePath))
 }
 
 func TestMedium_Medium_Read_Good(t *core.T) {
@@ -619,8 +633,8 @@ func TestMedium_Medium_EnsureDir_Ugly(t *core.T) {
 
 func TestMedium_Medium_IsFile_Good(t *core.T) {
 	medium := New()
-	core.RequireNoError(t, medium.Write("file.txt", "payload"))
-	got := medium.IsFile("file.txt")
+	core.RequireNoError(t, medium.Write(dataNodeFilePath, "payload"))
+	got := medium.IsFile(dataNodeFilePath)
 	core.AssertTrue(t, got)
 }
 
@@ -684,17 +698,17 @@ func TestMedium_Medium_DeleteAll_Ugly(t *core.T) {
 
 func TestMedium_Medium_Rename_Good(t *core.T) {
 	medium := New()
-	core.RequireNoError(t, medium.Write("old.txt", "payload"))
-	err := medium.Rename("old.txt", "new.txt")
+	core.RequireNoError(t, medium.Write(dataNodeOldPath, "payload"))
+	err := medium.Rename(dataNodeOldPath, dataNodeNewPath)
 	core.AssertNoError(t, err)
-	core.AssertTrue(t, medium.IsFile("new.txt"))
+	core.AssertTrue(t, medium.IsFile(dataNodeNewPath))
 }
 
 func TestMedium_Medium_Rename_Bad(t *core.T) {
 	medium := New()
-	err := medium.Rename("missing.txt", "new.txt")
+	err := medium.Rename("missing.txt", dataNodeNewPath)
 	core.AssertError(t, err)
-	core.AssertFalse(t, medium.Exists("new.txt"))
+	core.AssertFalse(t, medium.Exists(dataNodeNewPath))
 }
 
 func TestMedium_Medium_Rename_Ugly(t *core.T) {
@@ -816,7 +830,7 @@ func TestMedium_Medium_Append_Bad(t *core.T) {
 
 func TestMedium_Medium_Append_Ugly(t *core.T) {
 	medium := New()
-	writer, err := medium.Append("new.txt")
+	writer, err := medium.Append(dataNodeNewPath)
 	core.RequireNoError(t, err)
 	_, writeErr := writer.Write([]byte("created"))
 	core.RequireNoError(t, writeErr)
@@ -828,7 +842,7 @@ func TestMedium_Medium_ReadStream_Good(t *core.T) {
 	core.RequireNoError(t, medium.Write("stream.txt", "payload"))
 	reader, err := medium.ReadStream("stream.txt")
 	core.RequireNoError(t, err)
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 	data, readErr := goio.ReadAll(reader)
 	core.AssertNoError(t, readErr)
 	core.AssertEqual(t, "payload", string(data))
@@ -907,8 +921,8 @@ func TestMedium_Medium_IsDir_Bad(t *core.T) {
 
 func TestMedium_Medium_IsDir_Ugly(t *core.T) {
 	medium := New()
-	core.RequireNoError(t, medium.Write("file.txt", "payload"))
-	got := medium.IsDir("file.txt")
+	core.RequireNoError(t, medium.Write(dataNodeFilePath, "payload"))
+	got := medium.IsDir(dataNodeFilePath)
 	core.AssertFalse(t, got)
 }
 
@@ -1033,9 +1047,9 @@ func TestMedium_Entry_Info_Ugly(t *core.T) {
 }
 
 func TestMedium_Info_Name_Good(t *core.T) {
-	info := &fileInfo{name: "file.txt"}
+	info := &fileInfo{name: dataNodeFilePath}
 	got := info.Name()
-	core.AssertEqual(t, "file.txt", got)
+	core.AssertEqual(t, dataNodeFilePath, got)
 }
 
 func TestMedium_Info_Name_Bad(t *core.T) {
@@ -1125,7 +1139,7 @@ func TestMedium_Info_IsDir_Ugly(t *core.T) {
 }
 
 func TestMedium_Info_Sys_Good(t *core.T) {
-	info := &fileInfo{name: "file.txt"}
+	info := &fileInfo{name: dataNodeFilePath}
 	got := info.Sys()
 	core.AssertNil(t, got)
 }

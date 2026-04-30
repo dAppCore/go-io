@@ -22,6 +22,12 @@ type rfc15Action struct {
 	Operation string
 }
 
+func closeAPIReader(closer goio.Closer, operation string) {
+	if err := closer.Close(); err != nil {
+		core.Warn("api close failed", "op", operation, "err", err)
+	}
+}
+
 var rfc15Actions = []rfc15Action{
 	{Name: coreio.ActionLocalRead, Medium: "local", Operation: "read"},
 	{Name: coreio.ActionLocalWrite, Medium: "local", Operation: "write"},
@@ -247,9 +253,6 @@ func (p *IOProvider) resolveMedium(c *gin.Context, mediumType string, req medium
 			return nil, false
 		}
 		return p.local, true
-	case "github", "pwa", "sftp", "webdav":
-		unconfiguredMedium(c, mediumType)
-		return nil, false
 	default:
 		unconfiguredMedium(c, mediumType)
 		return nil, false
@@ -435,7 +438,7 @@ func openMediumOperation(_ context.Context, medium coreio.Medium, req mediumRequ
 	if err != nil {
 		return mediumResponse{}, err
 	}
-	defer file.Close()
+	defer closeAPIReader(file, "api.openMediumOperation")
 	return readAllContent(file)
 }
 
@@ -466,7 +469,7 @@ func readStreamMediumOperation(_ context.Context, medium coreio.Medium, req medi
 	if err != nil {
 		return mediumResponse{}, err
 	}
-	defer reader.Close()
+	defer closeAPIReader(reader, "api.readStreamMediumOperation")
 	return readAllContent(reader)
 }
 

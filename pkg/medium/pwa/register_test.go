@@ -41,7 +41,8 @@ func TestRegister_FactoryFor_Bad(t *core.T) {
 }
 
 func TestRegister_FactoryFor_Ugly(t *core.T) {
-	RegisterFactory("ax7-pwa-empty", New)
+	result := RegisterFactory("ax7-pwa-empty", New)
+	core.AssertTrue(t, result.OK)
 	factory, ok := FactoryFor("ax7-pwa-empty")
 	core.AssertTrue(t, ok)
 	core.AssertNotNil(t, factory)

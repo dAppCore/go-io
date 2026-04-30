@@ -8,6 +8,8 @@ import (
 	core "dappco.re/go"
 )
 
+const s3ActionReportPath = "reports/daily.txt"
+
 func TestActions_RegisterActions_Good(t *core.T) {
 	c := core.New()
 	RegisterActions(c)
@@ -39,14 +41,14 @@ func TestActions_ReadWriteGood(t *core.T) {
 
 	writeResult := c.Action(ActionWrite).Run(context.Background(), core.NewOptions(
 		core.Option{Key: "medium", Value: medium},
-		core.Option{Key: "pa" + "th", Value: "reports/daily.txt"},
+		core.Option{Key: "pa" + "th", Value: s3ActionReportPath},
 		core.Option{Key: "content", Value: "done"},
 	))
 	core.RequireTrue(t, writeResult.OK)
 
 	readResult := c.Action(ActionRead).Run(context.Background(), core.NewOptions(
 		core.Option{Key: "medium", Value: medium},
-		core.Option{Key: "pa" + "th", Value: "reports/daily.txt"},
+		core.Option{Key: "pa" + "th", Value: s3ActionReportPath},
 	))
 	core.RequireTrue(t, readResult.OK)
 	core.AssertEqual(t, "done", readResult.Value)
@@ -58,12 +60,12 @@ func TestActions_ReadWriteBad(t *core.T) {
 
 	// Missing medium must fail.
 	result := c.Action(ActionRead).Run(context.Background(), core.NewOptions(
-		core.Option{Key: "pa" + "th", Value: "reports/daily.txt"},
+		core.Option{Key: "pa" + "th", Value: s3ActionReportPath},
 	))
 	core.AssertFalse(t, result.OK)
 
 	result = c.Action(ActionWrite).Run(context.Background(), core.NewOptions(
-		core.Option{Key: "pa" + "th", Value: "reports/daily.txt"},
+		core.Option{Key: "pa" + "th", Value: s3ActionReportPath},
 		core.Option{Key: "content", Value: "done"},
 	))
 	core.AssertFalse(t, result.OK)

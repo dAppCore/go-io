@@ -326,7 +326,7 @@ func TestMock_MockMedium_ReadStream_Good(t *core.T) {
 	core.RequireNoError(t, medium.Write("stream.txt", "payload"))
 	reader, err := medium.ReadStream("stream.txt")
 	core.RequireNoError(t, err)
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 	data, readErr := goio.ReadAll(reader)
 	core.AssertNoError(t, readErr)
 	core.AssertEqual(t, "payload", string(data))

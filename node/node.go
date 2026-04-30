@@ -15,6 +15,11 @@ import (
 	"dappco.re/go/io/internal/fsutil"
 )
 
+const (
+	opNodeExportFile    = "node.ExportFile"
+	msgNodePathNotFound = "path not found: "
+)
+
 // Example: nodeTree := node.New()
 // Example: nodeTree.AddData("config/app.yaml", []byte("port: 8080"))
 // Example: snapshot, _ := nodeTree.ToTar()
@@ -111,28 +116,39 @@ func (node *Node) LoadTar(data []byte) error {
 			return err
 		}
 
-		if header.Typeflag == tar.TypeReg {
-			contentResult := core.ReadAll(tarReader)
-			if !contentResult.OK {
-				if err, ok := contentResult.Value.(error); ok {
-					return core.E("node.LoadTar", "read tar entry", err)
-				}
-				return core.E("node.LoadTar", "read tar entry", fs.ErrInvalid)
-			}
-			name := core.TrimPrefix(header.Name, "/")
-			if name == "" || core.HasSuffix(name, "/") {
-				continue
-			}
-			newFiles[name] = &dataFile{
-				name:    name,
-				content: []byte(contentResult.Value.(string)),
-				modTime: header.ModTime,
-			}
+		if header.Typeflag != tar.TypeReg {
+			continue
+		}
+		file, err := dataFileFromTarEntry(tarReader, header)
+		if err != nil {
+			return err
+		}
+		if file != nil {
+			newFiles[file.name] = file
 		}
 	}
 
 	node.files = newFiles
 	return nil
+}
+
+func dataFileFromTarEntry(tarReader *tar.Reader, header *tar.Header) (*dataFile, error) {
+	contentResult := core.ReadAll(tarReader)
+	if !contentResult.OK {
+		if err, ok := contentResult.Value.(error); ok {
+			return nil, core.E("node.LoadTar", "read tar entry", err)
+		}
+		return nil, core.E("node.LoadTar", "read tar entry", fs.ErrInvalid)
+	}
+	name := core.TrimPrefix(header.Name, "/")
+	if name == "" || core.HasSuffix(name, "/") {
+		return nil, nil
+	}
+	return &dataFile{
+		name:    name,
+		content: []byte(contentResult.Value.(string)),
+		modTime: header.ModTime,
+	}, nil
 }
 
 // Example: options := node.WalkOptions{MaxDepth: 1, SkipErrors: true}
@@ -151,34 +167,47 @@ func (node *Node) Walk(root string, walkFunc fs.WalkDirFunc, options WalkOptions
 	}
 
 	return fs.WalkDir(node, root, func(entryPath string, entry fs.DirEntry, err error) error {
-		if options.Filter != nil && err == nil {
-			if !options.Filter(entryPath, entry) {
-				if entry != nil && entry.IsDir() {
-					return fs.SkipDir
-				}
-				return nil
-			}
+		if skip, skipErr := walkFilterDecision(entryPath, entry, err, options.Filter); skip {
+			return skipErr
 		}
 
 		walkResult := walkFunc(entryPath, entry, err)
 
-		if walkResult == nil && options.MaxDepth > 0 && entry != nil && entry.IsDir() && entryPath != root {
-			relativePath := core.TrimPrefix(entryPath, root)
-			relativePath = core.TrimPrefix(relativePath, "/")
-			parts := core.Split(relativePath, "/")
-			depth := 0
-			for _, part := range parts {
-				if part != "" {
-					depth++
-				}
-			}
-			if depth >= options.MaxDepth {
-				return fs.SkipDir
-			}
+		if walkResult == nil && maxDepthReached(root, entryPath, entry, options.MaxDepth) {
+			return fs.SkipDir
 		}
 
 		return walkResult
 	})
+}
+
+func walkFilterDecision(entryPath string, entry fs.DirEntry, err error, filter func(string, fs.DirEntry) bool) (bool, error) {
+	if filter == nil || err != nil || filter(entryPath, entry) {
+		return false, nil
+	}
+	if entry != nil && entry.IsDir() {
+		return true, fs.SkipDir
+	}
+	return true, nil
+}
+
+func maxDepthReached(root, entryPath string, entry fs.DirEntry, maxDepth int) bool {
+	if maxDepth <= 0 || entry == nil || !entry.IsDir() || entryPath == root {
+		return false
+	}
+	relativePath := core.TrimPrefix(entryPath, root)
+	relativePath = core.TrimPrefix(relativePath, "/")
+	return pathDepth(relativePath) >= maxDepth
+}
+
+func pathDepth(path string) int {
+	depth := 0
+	for _, part := range core.Split(path, "/") {
+		if part != "" {
+			depth++
+		}
+	}
+	return depth
 }
 
 // Example: content, _ := nodeTree.ReadFile("config/app.yaml")
@@ -186,7 +215,7 @@ func (node *Node) ReadFile(name string) ([]byte, error) {
 	name = core.TrimPrefix(name, "/")
 	file, ok := node.files[name]
 	if !ok {
-		return nil, core.E("node.ReadFile", core.Concat("path not found: ", name), fs.ErrNotExist)
+		return nil, core.E("node.ReadFile", core.Concat(msgNodePathNotFound, name), fs.ErrNotExist)
 	}
 	result := make([]byte, len(file.content))
 	copy(result, file.content)
@@ -202,17 +231,17 @@ func (node *Node) ExportFile(sourcePath, destinationPath string, permissions fs.
 	if !ok {
 		info, err := node.Stat(sourcePath)
 		if err != nil {
-			return core.E("node.ExportFile", core.Concat("source not found: ", sourcePath), fs.ErrNotExist)
+			return core.E(opNodeExportFile, core.Concat("source not found: ", sourcePath), fs.ErrNotExist)
 		}
 		if info.IsDir() {
-			return core.E("node.ExportFile", core.Concat("source is a directory: ", sourcePath), fs.ErrInvalid)
+			return core.E(opNodeExportFile, core.Concat("source is a directory: ", sourcePath), fs.ErrInvalid)
 		}
 		// unreachable: Stat only succeeds for directories when file is absent
-		return core.E("node.ExportFile", core.Concat("source not found: ", sourcePath), fs.ErrNotExist)
+		return core.E(opNodeExportFile, core.Concat("source not found: ", sourcePath), fs.ErrNotExist)
 	}
 	parent := core.PathDir(destinationPath)
 	if parent != "." && parent != "" && parent != destinationPath && !coreio.Local.IsDir(parent) {
-		return core.E("node.ExportFile", core.Concat("parent directory not found: ", destinationPath), fs.ErrNotExist)
+		return core.E(opNodeExportFile, core.Concat("parent directory not found: ", destinationPath), fs.ErrNotExist)
 	}
 	return coreio.Local.WriteMode(destinationPath, string(file.content), permissions)
 }
@@ -231,7 +260,7 @@ func (node *Node) CopyTo(target coreio.Medium, sourcePath, destinationPath strin
 	if !info.IsDir() {
 		file, ok := node.files[sourcePath]
 		if !ok {
-			return core.E("node.CopyTo", core.Concat("path not found: ", sourcePath), fs.ErrNotExist)
+			return core.E("node.CopyTo", core.Concat(msgNodePathNotFound, sourcePath), fs.ErrNotExist)
 		}
 		return target.Write(destinationPath, string(file.content))
 	}
@@ -275,7 +304,7 @@ func (node *Node) Open(name string) (fs.File, error) {
 			return &dirFile{path: name, modTime: time.Now()}, nil
 		}
 	}
-	return nil, core.E("node.Open", core.Concat("path not found: ", name), fs.ErrNotExist)
+	return nil, core.E("node.Open", core.Concat(msgNodePathNotFound, name), fs.ErrNotExist)
 }
 
 // Example: info, _ := nodeTree.Stat("config/app.yaml")
@@ -296,7 +325,7 @@ func (node *Node) Stat(name string) (fs.FileInfo, error) {
 			return &dirInfo{name: core.PathBase(name), modTime: time.Now()}, nil
 		}
 	}
-	return nil, core.E("node.Stat", core.Concat("path not found: ", name), fs.ErrNotExist)
+	return nil, core.E("node.Stat", core.Concat(msgNodePathNotFound, name), fs.ErrNotExist)
 }
 
 // Example: entries, _ := nodeTree.ReadDir("config")
@@ -355,7 +384,7 @@ func (node *Node) Read(filePath string) (string, error) {
 	filePath = core.TrimPrefix(filePath, "/")
 	file, ok := node.files[filePath]
 	if !ok {
-		return "", core.E("node.Read", core.Concat("path not found: ", filePath), fs.ErrNotExist)
+		return "", core.E("node.Read", core.Concat(msgNodePathNotFound, filePath), fs.ErrNotExist)
 	}
 	return string(file.content), nil
 }
@@ -410,7 +439,7 @@ func (node *Node) Delete(filePath string) error {
 		delete(node.files, filePath)
 		return nil
 	}
-	return core.E("node.Delete", core.Concat("path not found: ", filePath), fs.ErrNotExist)
+	return core.E("node.Delete", core.Concat(msgNodePathNotFound, filePath), fs.ErrNotExist)
 }
 
 // Example: _ = nodeTree.DeleteAll("logs/archive")
@@ -432,7 +461,7 @@ func (node *Node) DeleteAll(filePath string) error {
 	}
 
 	if !found {
-		return core.E("node.DeleteAll", core.Concat("path not found: ", filePath), fs.ErrNotExist)
+		return core.E("node.DeleteAll", core.Concat(msgNodePathNotFound, filePath), fs.ErrNotExist)
 	}
 	return nil
 }
@@ -472,7 +501,7 @@ func (node *Node) Rename(oldPath, newPath string) error {
 		node.files[p] = f
 	}
 	if renamed == 0 {
-		return core.E("node.Rename", core.Concat("path not found: ", oldPath), fs.ErrNotExist)
+		return core.E("node.Rename", core.Concat(msgNodePathNotFound, oldPath), fs.ErrNotExist)
 	}
 	return nil
 }

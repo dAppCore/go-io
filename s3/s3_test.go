@@ -13,6 +13,18 @@ import (
 	"time"
 )
 
+const (
+	s3MissingPath    = "nonexistent.txt"
+	s3FilePath       = "file.txt"
+	s3DeletePath     = "to-delete.txt"
+	s3DirFileOnePath = "dir/file1.txt"
+	s3DirFileTwoPath = "dir/file2.txt"
+	s3OldPath        = "old.txt"
+	s3NewPath        = "new.txt"
+	s3AppendPath     = "append.txt"
+	s3DirFilePath    = "dir/file.txt"
+)
+
 type testS3Client struct {
 	mu                 sync.RWMutex
 	objects            map[string][]byte
@@ -118,75 +130,96 @@ func (client *testS3Client) ListObjectsV2(operationContext context.Context, para
 		maxKeys = *params.MaxKeys
 	}
 
-	var allKeys []string
-	for k := range client.objects {
-		if core.HasPrefix(k, prefix) {
-			allKeys = append(allKeys, k)
-		}
-	}
-	sort.Strings(allKeys)
-
-	continuationToken := aws.ToString(params.ContinuationToken)
-
-	var contents []types.Object
-	commonPrefixes := make(map[string]bool)
-	truncated := false
-	var nextToken string
-
-	past := continuationToken == ""
-	for _, k := range allKeys {
-		if !past {
-			if k == continuationToken {
-				past = true
-			}
-			continue
-		}
-
-		rest := core.TrimPrefix(k, prefix)
-
-		if delimiter != "" {
-			parts := core.SplitN(rest, delimiter, 2)
-			if len(parts) == 2 {
-				cp := core.Concat(prefix, parts[0], delimiter)
-				commonPrefixes[cp] = true
-				continue
-			}
-		}
-
-		if int32(len(contents)) >= maxKeys {
-			truncated = true
-			nextToken = k
-			break
-		}
-
-		data := client.objects[k]
-		mtime := client.mtimes[k]
-		contents = append(contents, types.Object{
-			Key:          aws.String(k),
-			Size:         aws.Int64(int64(len(data))),
-			LastModified: &mtime,
-		})
-	}
-
-	var cpSlice []types.CommonPrefix
-	var cpKeys []string
-	for cp := range commonPrefixes {
-		cpKeys = append(cpKeys, cp)
-	}
-	sort.Strings(cpKeys)
-	for _, cp := range cpKeys {
-		cpSlice = append(cpSlice, types.CommonPrefix{Prefix: aws.String(cp)})
-	}
+	allKeys := client.matchingObjectKeys(prefix)
+	contents, commonPrefixes, truncated, nextToken := client.listObjectPage(
+		allKeys,
+		prefix,
+		delimiter,
+		aws.ToString(params.ContinuationToken),
+		maxKeys,
+	)
 
 	out := &awss3.ListObjectsV2Output{
 		Contents:       contents,
-		CommonPrefixes: cpSlice,
+		CommonPrefixes: commonPrefixSlice(commonPrefixes),
 		IsTruncated:    aws.Bool(truncated),
 	}
 	if truncated {
 		out.NextContinuationToken = aws.String(nextToken)
 	}
 	return out, nil
+}
+
+func (client *testS3Client) matchingObjectKeys(prefix string) []string {
+	var allKeys []string
+	for key := range client.objects {
+		if core.HasPrefix(key, prefix) {
+			allKeys = append(allKeys, key)
+		}
+	}
+	sort.Strings(allKeys)
+	return allKeys
+}
+
+func (client *testS3Client) listObjectPage(
+	allKeys []string,
+	prefix string,
+	delimiter string,
+	continuationToken string,
+	maxKeys int32,
+) ([]types.Object, map[string]bool, bool, string) {
+	var contents []types.Object
+	commonPrefixes := make(map[string]bool)
+	pastContinuation := continuationToken == ""
+	for _, key := range allKeys {
+		if !pastContinuation {
+			pastContinuation = key == continuationToken
+			continue
+		}
+		if addCommonPrefix(key, prefix, delimiter, commonPrefixes) {
+			continue
+		}
+		if int32(len(contents)) >= maxKeys {
+			return contents, commonPrefixes, true, key
+		}
+		contents = append(contents, client.objectForKey(key))
+	}
+	return contents, commonPrefixes, false, ""
+}
+
+func addCommonPrefix(key, prefix, delimiter string, commonPrefixes map[string]bool) bool {
+	if delimiter == "" {
+		return false
+	}
+	parts := core.SplitN(core.TrimPrefix(key, prefix), delimiter, 2)
+	if len(parts) != 2 {
+		return false
+	}
+	commonPrefixes[core.Concat(prefix, parts[0], delimiter)] = true
+	return true
+}
+
+func (client *testS3Client) objectForKey(key string) types.Object {
+	data := client.objects[key]
+	mtime := client.mtimes[key]
+	return types.Object{
+		Key:          aws.String(key),
+		Size:         aws.Int64(int64(len(data))),
+		LastModified: &mtime,
+	}
+}
+
+func commonPrefixSlice(commonPrefixes map[string]bool) []types.CommonPrefix {
+	var keys []string
+	for commonPrefix := range commonPrefixes {
+		keys = append(keys, commonPrefix)
+	}
+	sort.Strings(keys)
+	prefixes := make([]types.CommonPrefix, 0, len(keys))
+	for _, commonPrefix := range keys {
+		prefixes = append(prefixes, types.CommonPrefix{Prefix: aws.String(commonPrefix)})
+	}
+	return prefixes
 }
 
 func (client *testS3Client) CopyObject(operationContext context.Context, params *awss3.CopyObjectInput, optionFns ...func(*awss3.Options)) (*awss3.CopyObjectOutput, error) {
@@ -265,7 +298,7 @@ func TestS3_ReadWriteGood(t *core.T) {
 func TestS3_ReadWrite_NotFoundBad(t *core.T) {
 	s3Medium, _ := newS3Medium(t)
 
-	_, err := s3Medium.Read("nonexistent.txt")
+	_, err := s3Medium.Read(s3MissingPath)
 	core.AssertError(t, err)
 }
 
@@ -284,13 +317,13 @@ func TestS3_ReadWrite_Prefix_Good(t *core.T) {
 	s3Medium, err := New(Options{Bucket: "bucket", Client: testS3Client, Prefix: "pfx"})
 	core.RequireNoError(t, err)
 
-	err = s3Medium.Write("file.txt", "data")
+	err = s3Medium.Write(s3FilePath, "data")
 	core.RequireNoError(t, err)
 
 	_, ok := testS3Client.objects["pfx/file.txt"]
 	core.AssertTrue(t, ok, "object should be stored with prefix")
 
-	content, err := s3Medium.Read("file.txt")
+	content, err := s3Medium.Read(s3FilePath)
 	core.RequireNoError(t, err)
 	core.AssertEqual(t, "data", content)
 }
@@ -304,24 +337,24 @@ func TestS3_EnsureDir_Good(t *core.T) {
 func TestS3_IsFile_Good(t *core.T) {
 	s3Medium, _ := newS3Medium(t)
 
-	err := s3Medium.Write("file.txt", "content")
+	err := s3Medium.Write(s3FilePath, "content")
 	core.RequireNoError(t, err)
 
-	core.AssertTrue(t, s3Medium.IsFile("file.txt"))
-	core.AssertFalse(t, s3Medium.IsFile("nonexistent.txt"))
+	core.AssertTrue(t, s3Medium.IsFile(s3FilePath))
+	core.AssertFalse(t, s3Medium.IsFile(s3MissingPath))
 	core.AssertFalse(t, s3Medium.IsFile(""))
 }
 
 func TestS3_Delete_Good(t *core.T) {
 	s3Medium, _ := newS3Medium(t)
 
-	err := s3Medium.Write("to-delete.txt", "content")
+	err := s3Medium.Write(s3DeletePath, "content")
 	core.RequireNoError(t, err)
-	core.AssertTrue(t, s3Medium.Exists("to-delete.txt"))
+	core.AssertTrue(t, s3Medium.Exists(s3DeletePath))
 
-	err = s3Medium.Delete("to-delete.txt")
+	err = s3Medium.Delete(s3DeletePath)
 	core.RequireNoError(t, err)
-	core.AssertFalse(t, s3Medium.IsFile("to-delete.txt"))
+	core.AssertFalse(t, s3Medium.IsFile(s3DeletePath))
 }
 
 func TestS3_Delete_EmptyPath_Bad(t *core.T) {
@@ -333,14 +366,14 @@ func TestS3_Delete_EmptyPath_Bad(t *core.T) {
 func TestS3_DeleteAll_Good(t *core.T) {
 	s3Medium, _ := newS3Medium(t)
 
-	core.RequireNoError(t, s3Medium.Write("dir/file1.txt", "a"))
+	core.RequireNoError(t, s3Medium.Write(s3DirFileOnePath, "a"))
 	core.RequireNoError(t, s3Medium.Write("dir/sub/file2.txt", "b"))
 	core.RequireNoError(t, s3Medium.Write("other.txt", "c"))
 
 	err := s3Medium.DeleteAll("dir")
 	core.RequireNoError(t, err)
 
-	core.AssertFalse(t, s3Medium.IsFile("dir/file1.txt"))
+	core.AssertFalse(t, s3Medium.IsFile(s3DirFileOnePath))
 	core.AssertFalse(t, s3Medium.IsFile("dir/sub/file2.txt"))
 	core.AssertTrue(t, s3Medium.IsFile("other.txt"))
 }
@@ -363,10 +396,10 @@ func TestS3_DeleteAll_DeleteObjectError_Bad(t *core.T) {
 func TestS3_DeleteAll_PartialDelete_Bad(t *core.T) {
 	s3Medium, testS3Client := newS3Medium(t)
 
-	core.RequireNoError(t, s3Medium.Write("dir/file1.txt", "a"))
-	core.RequireNoError(t, s3Medium.Write("dir/file2.txt", "b"))
-	testS3Client.deleteObjectsErrs["dir/file2.txt"] = types.Error{
-		Key:     aws.String("dir/file2.txt"),
+	core.RequireNoError(t, s3Medium.Write(s3DirFileOnePath, "a"))
+	core.RequireNoError(t, s3Medium.Write(s3DirFileTwoPath, "b"))
+	testS3Client.deleteObjectsErrs[s3DirFileTwoPath] = types.Error{
+		Key:     aws.String(s3DirFileTwoPath),
 		Code:    aws.String("AccessDenied"),
 		Message: aws.String("blocked"),
 	}
@@ -374,48 +407,48 @@ func TestS3_DeleteAll_PartialDelete_Bad(t *core.T) {
 	err := s3Medium.DeleteAll("dir")
 	core.AssertError(t, err)
 	core.AssertContains(t, err.Error(), "partial delete failed")
-	core.AssertContains(t, err.Error(), "dir/file2.txt")
-	core.AssertTrue(t, s3Medium.IsFile("dir/file2.txt"))
-	core.AssertFalse(t, s3Medium.IsFile("dir/file1.txt"))
+	core.AssertContains(t, err.Error(), s3DirFileTwoPath)
+	core.AssertTrue(t, s3Medium.IsFile(s3DirFileTwoPath))
+	core.AssertFalse(t, s3Medium.IsFile(s3DirFileOnePath))
 }
 
 func TestS3_Rename_Good(t *core.T) {
 	s3Medium, _ := newS3Medium(t)
 
-	core.RequireNoError(t, s3Medium.Write("old.txt", "content"))
-	core.AssertTrue(t, s3Medium.IsFile("old.txt"))
+	core.RequireNoError(t, s3Medium.Write(s3OldPath, "content"))
+	core.AssertTrue(t, s3Medium.IsFile(s3OldPath))
 
-	err := s3Medium.Rename("old.txt", "new.txt")
+	err := s3Medium.Rename(s3OldPath, s3NewPath)
 	core.RequireNoError(t, err)
 
-	core.AssertFalse(t, s3Medium.IsFile("old.txt"))
-	core.AssertTrue(t, s3Medium.IsFile("new.txt"))
+	core.AssertFalse(t, s3Medium.IsFile(s3OldPath))
+	core.AssertTrue(t, s3Medium.IsFile(s3NewPath))
 
-	content, err := s3Medium.Read("new.txt")
+	content, err := s3Medium.Read(s3NewPath)
 	core.RequireNoError(t, err)
 	core.AssertEqual(t, "content", content)
 }
 
 func TestS3_Rename_EmptyPath_Bad(t *core.T) {
 	s3Medium, _ := newS3Medium(t)
-	err := s3Medium.Rename("", "new.txt")
+	err := s3Medium.Rename("", s3NewPath)
 	core.AssertError(t, err)
 
-	err = s3Medium.Rename("old.txt", "")
+	err = s3Medium.Rename(s3OldPath, "")
 	core.AssertError(t, err)
 }
 
 func TestS3_Rename_SourceNotFound_Bad(t *core.T) {
 	s3Medium, _ := newS3Medium(t)
-	err := s3Medium.Rename("nonexistent.txt", "new.txt")
+	err := s3Medium.Rename(s3MissingPath, s3NewPath)
 	core.AssertError(t, err)
 }
 
 func TestS3_List_Good(t *core.T) {
 	s3Medium, _ := newS3Medium(t)
 
-	core.RequireNoError(t, s3Medium.Write("dir/file1.txt", "a"))
-	core.RequireNoError(t, s3Medium.Write("dir/file2.txt", "b"))
+	core.RequireNoError(t, s3Medium.Write(s3DirFileOnePath, "a"))
+	core.RequireNoError(t, s3Medium.Write(s3DirFileTwoPath, "b"))
 	core.RequireNoError(t, s3Medium.Write("dir/sub/file3.txt", "c"))
 
 	entries, err := s3Medium.List("dir")
@@ -462,11 +495,11 @@ func TestS3_List_Root_Good(t *core.T) {
 func TestS3_Stat_Good(t *core.T) {
 	s3Medium, _ := newS3Medium(t)
 
-	core.RequireNoError(t, s3Medium.Write("file.txt", "hello world"))
+	core.RequireNoError(t, s3Medium.Write(s3FilePath, "hello world"))
 
-	info, err := s3Medium.Stat("file.txt")
+	info, err := s3Medium.Stat(s3FilePath)
 	core.RequireNoError(t, err)
-	core.AssertEqual(t, "file.txt", info.Name())
+	core.AssertEqual(t, s3FilePath, info.Name())
 	core.AssertEqual(t, int64(11), info.Size())
 	core.AssertFalse(t, info.IsDir())
 }
@@ -474,7 +507,7 @@ func TestS3_Stat_Good(t *core.T) {
 func TestS3_Stat_NotFound_Bad(t *core.T) {
 	s3Medium, _ := newS3Medium(t)
 
-	_, err := s3Medium.Stat("nonexistent.txt")
+	_, err := s3Medium.Stat(s3MissingPath)
 	core.AssertError(t, err)
 }
 
@@ -487,11 +520,11 @@ func TestS3_Stat_EmptyPath_Bad(t *core.T) {
 func TestS3_Open_Good(t *core.T) {
 	s3Medium, _ := newS3Medium(t)
 
-	core.RequireNoError(t, s3Medium.Write("file.txt", "open me"))
+	core.RequireNoError(t, s3Medium.Write(s3FilePath, "open me"))
 
-	file, err := s3Medium.Open("file.txt")
+	file, err := s3Medium.Open(s3FilePath)
 	core.RequireNoError(t, err)
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	data, err := goio.ReadAll(file.(goio.Reader))
 	core.RequireNoError(t, err)
@@ -499,20 +532,20 @@ func TestS3_Open_Good(t *core.T) {
 
 	stat, err := file.Stat()
 	core.RequireNoError(t, err)
-	core.AssertEqual(t, "file.txt", stat.Name())
+	core.AssertEqual(t, s3FilePath, stat.Name())
 }
 
 func TestS3_Open_NotFound_Bad(t *core.T) {
 	s3Medium, _ := newS3Medium(t)
 
-	_, err := s3Medium.Open("nonexistent.txt")
+	_, err := s3Medium.Open(s3MissingPath)
 	core.AssertError(t, err)
 }
 
 func TestS3_Create_Good(t *core.T) {
 	s3Medium, _ := newS3Medium(t)
 
-	writer, err := s3Medium.Create("new.txt")
+	writer, err := s3Medium.Create(s3NewPath)
 	core.RequireNoError(t, err)
 
 	bytesWritten, err := writer.Write([]byte("created"))
@@ -522,7 +555,7 @@ func TestS3_Create_Good(t *core.T) {
 	err = writer.Close()
 	core.RequireNoError(t, err)
 
-	content, err := s3Medium.Read("new.txt")
+	content, err := s3Medium.Read(s3NewPath)
 	core.RequireNoError(t, err)
 	core.AssertEqual(t, "created", content)
 }
@@ -530,9 +563,9 @@ func TestS3_Create_Good(t *core.T) {
 func TestS3_Append_Good(t *core.T) {
 	s3Medium, _ := newS3Medium(t)
 
-	core.RequireNoError(t, s3Medium.Write("append.txt", "hello"))
+	core.RequireNoError(t, s3Medium.Write(s3AppendPath, "hello"))
 
-	writer, err := s3Medium.Append("append.txt")
+	writer, err := s3Medium.Append(s3AppendPath)
 	core.RequireNoError(t, err)
 
 	_, err = writer.Write([]byte(" world"))
@@ -540,7 +573,7 @@ func TestS3_Append_Good(t *core.T) {
 	err = writer.Close()
 	core.RequireNoError(t, err)
 
-	content, err := s3Medium.Read("append.txt")
+	content, err := s3Medium.Read(s3AppendPath)
 	core.RequireNoError(t, err)
 	core.AssertEqual(t, "hello world", content)
 }
@@ -548,7 +581,7 @@ func TestS3_Append_Good(t *core.T) {
 func TestS3_Append_NewFile_Good(t *core.T) {
 	s3Medium, _ := newS3Medium(t)
 
-	writer, err := s3Medium.Append("new.txt")
+	writer, err := s3Medium.Append(s3NewPath)
 	core.RequireNoError(t, err)
 
 	_, err = writer.Write([]byte("fresh"))
@@ -556,7 +589,7 @@ func TestS3_Append_NewFile_Good(t *core.T) {
 	err = writer.Close()
 	core.RequireNoError(t, err)
 
-	content, err := s3Medium.Read("new.txt")
+	content, err := s3Medium.Read(s3NewPath)
 	core.RequireNoError(t, err)
 	core.AssertEqual(t, "fresh", content)
 }
@@ -568,7 +601,7 @@ func TestS3_ReadStream_Good(t *core.T) {
 
 	reader, err := s3Medium.ReadStream("stream.txt")
 	core.RequireNoError(t, err)
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 
 	data, err := goio.ReadAll(reader)
 	core.RequireNoError(t, err)
@@ -577,7 +610,7 @@ func TestS3_ReadStream_Good(t *core.T) {
 
 func TestS3_ReadStream_NotFound_Bad(t *core.T) {
 	s3Medium, _ := newS3Medium(t)
-	_, err := s3Medium.ReadStream("nonexistent.txt")
+	_, err := s3Medium.ReadStream(s3MissingPath)
 	core.AssertError(t, err)
 }
 
@@ -600,26 +633,26 @@ func TestS3_WriteStream_Good(t *core.T) {
 func TestS3_Exists_Good(t *core.T) {
 	s3Medium, _ := newS3Medium(t)
 
-	core.AssertFalse(t, s3Medium.Exists("nonexistent.txt"))
+	core.AssertFalse(t, s3Medium.Exists(s3MissingPath))
 
-	core.RequireNoError(t, s3Medium.Write("file.txt", "content"))
-	core.AssertTrue(t, s3Medium.Exists("file.txt"))
+	core.RequireNoError(t, s3Medium.Write(s3FilePath, "content"))
+	core.AssertTrue(t, s3Medium.Exists(s3FilePath))
 }
 
 func TestS3_Exists_DirectoryPrefix_Good(t *core.T) {
 	s3Medium, _ := newS3Medium(t)
 
-	core.RequireNoError(t, s3Medium.Write("dir/file.txt", "content"))
+	core.RequireNoError(t, s3Medium.Write(s3DirFilePath, "content"))
 	core.AssertTrue(t, s3Medium.Exists("dir"))
 }
 
 func TestS3_IsDir_Good(t *core.T) {
 	s3Medium, _ := newS3Medium(t)
 
-	core.RequireNoError(t, s3Medium.Write("dir/file.txt", "content"))
+	core.RequireNoError(t, s3Medium.Write(s3DirFilePath, "content"))
 
 	core.AssertTrue(t, s3Medium.IsDir("dir"))
-	core.AssertFalse(t, s3Medium.IsDir("dir/file.txt"))
+	core.AssertFalse(t, s3Medium.IsDir(s3DirFilePath))
 	core.AssertFalse(t, s3Medium.IsDir("nonexistent"))
 	core.AssertFalse(t, s3Medium.IsDir(""))
 }
@@ -628,15 +661,15 @@ func TestS3_ObjectKeyGood(t *core.T) {
 	testS3Client := newTestS3Client()
 
 	s3Medium, _ := New(Options{Bucket: "bucket", Client: testS3Client})
-	core.AssertEqual(t, "file.txt", s3Medium.objectKey("file.txt"))
-	core.AssertEqual(t, "dir/file.txt", s3Medium.objectKey("dir/file.txt"))
+	core.AssertEqual(t, s3FilePath, s3Medium.objectKey(s3FilePath))
+	core.AssertEqual(t, s3DirFilePath, s3Medium.objectKey(s3DirFilePath))
 	core.AssertEqual(t, "", s3Medium.objectKey(""))
-	core.AssertEqual(t, "file.txt", s3Medium.objectKey("/file.txt"))
-	core.AssertEqual(t, "file.txt", s3Medium.objectKey("../file.txt"))
+	core.AssertEqual(t, s3FilePath, s3Medium.objectKey("/file.txt"))
+	core.AssertEqual(t, s3FilePath, s3Medium.objectKey("../file.txt"))
 
 	prefixedS3Medium, _ := New(Options{Bucket: "bucket", Client: testS3Client, Prefix: "pfx"})
-	core.AssertEqual(t, "pfx/file.txt", prefixedS3Medium.objectKey("file.txt"))
-	core.AssertEqual(t, "pfx/dir/file.txt", prefixedS3Medium.objectKey("dir/file.txt"))
+	core.AssertEqual(t, "pfx/file.txt", prefixedS3Medium.objectKey(s3FilePath))
+	core.AssertEqual(t, "pfx/dir/file.txt", prefixedS3Medium.objectKey(s3DirFilePath))
 	core.AssertEqual(t, "pfx/", prefixedS3Medium.objectKey(""))
 }
 
@@ -773,8 +806,8 @@ func TestS3_Medium_EnsureDir_Ugly(t *core.T) {
 
 func TestS3_Medium_IsFile_Good(t *core.T) {
 	medium := newS3MediumFixture(t)
-	core.RequireNoError(t, medium.Write("file.txt", "payload"))
-	got := medium.IsFile("file.txt")
+	core.RequireNoError(t, medium.Write(s3FilePath, "payload"))
+	got := medium.IsFile(s3FilePath)
 	core.AssertTrue(t, got)
 }
 
@@ -837,23 +870,23 @@ func TestS3_Medium_DeleteAll_Ugly(t *core.T) {
 
 func TestS3_Medium_Rename_Good(t *core.T) {
 	medium := newS3MediumFixture(t)
-	core.RequireNoError(t, medium.Write("old.txt", "payload"))
-	err := medium.Rename("old.txt", "new.txt")
+	core.RequireNoError(t, medium.Write(s3OldPath, "payload"))
+	err := medium.Rename(s3OldPath, s3NewPath)
 	core.AssertNoError(t, err)
-	core.AssertTrue(t, medium.IsFile("new.txt"))
+	core.AssertTrue(t, medium.IsFile(s3NewPath))
 }
 
 func TestS3_Medium_Rename_Bad(t *core.T) {
 	medium := newS3MediumFixture(t)
-	err := medium.Rename("missing.txt", "new.txt")
+	err := medium.Rename("missing.txt", s3NewPath)
 	core.AssertError(t, err)
-	core.AssertFalse(t, medium.Exists("new.txt"))
+	core.AssertFalse(t, medium.Exists(s3NewPath))
 }
 
 func TestS3_Medium_Rename_Ugly(t *core.T) {
 	medium := newS3MediumFixture(t)
-	core.RequireNoError(t, medium.Write("old.txt", "payload"))
-	err := medium.Rename("old.txt", "nested/new.txt")
+	core.RequireNoError(t, medium.Write(s3OldPath, "payload"))
+	err := medium.Rename(s3OldPath, "nested/new.txt")
 	core.AssertNoError(t, err)
 	core.AssertTrue(t, medium.IsFile("nested/new.txt"))
 }
@@ -952,8 +985,8 @@ func TestS3_Medium_Create_Ugly(t *core.T) {
 
 func TestS3_Medium_Append_Good(t *core.T) {
 	medium := newS3MediumFixture(t)
-	core.RequireNoError(t, medium.Write("append.txt", "a"))
-	writer, err := medium.Append("append.txt")
+	core.RequireNoError(t, medium.Write(s3AppendPath, "a"))
+	writer, err := medium.Append(s3AppendPath)
 	core.RequireNoError(t, err)
 	_, writeErr := writer.Write([]byte("b"))
 	core.AssertNoError(t, writeErr)
@@ -969,7 +1002,7 @@ func TestS3_Medium_Append_Bad(t *core.T) {
 
 func TestS3_Medium_Append_Ugly(t *core.T) {
 	medium := newS3MediumFixture(t)
-	writer, err := medium.Append("new.txt")
+	writer, err := medium.Append(s3NewPath)
 	core.RequireNoError(t, err)
 	_, writeErr := writer.Write([]byte("new"))
 	core.AssertNoError(t, writeErr)
@@ -1174,7 +1207,7 @@ func TestS3_Info_Sys_Bad(t *core.T) {
 }
 
 func TestS3_Info_Sys_Ugly(t *core.T) {
-	var info *fileInfo = &fileInfo{}
+	var info *fileInfo
 	got := info.Sys()
 	core.AssertNil(t, got)
 }
@@ -1258,8 +1291,8 @@ func TestS3_Entry_Info_Ugly(t *core.T) {
 
 func TestS3_File_Read_Good(t *core.T) {
 	medium := newS3MediumFixture(t)
-	core.RequireNoError(t, medium.Write("file.txt", "abc"))
-	file, err := medium.Open("file.txt")
+	core.RequireNoError(t, medium.Write(s3FilePath, "abc"))
+	file, err := medium.Open(s3FilePath)
 	core.RequireNoError(t, err)
 	buf := make([]byte, 3)
 	n, readErr := file.Read(buf)
@@ -1284,10 +1317,10 @@ func TestS3_File_Read_Ugly(t *core.T) {
 }
 
 func TestS3_File_Stat_Good(t *core.T) {
-	file := &s3File{name: "file.txt", content: []byte("abc")}
+	file := &s3File{name: s3FilePath, content: []byte("abc")}
 	info, err := file.Stat()
 	core.AssertNoError(t, err)
-	core.AssertEqual(t, "file.txt", info.Name())
+	core.AssertEqual(t, s3FilePath, info.Name())
 }
 
 func TestS3_File_Stat_Bad(t *core.T) {
@@ -1305,7 +1338,7 @@ func TestS3_File_Stat_Ugly(t *core.T) {
 }
 
 func TestS3_File_Close_Good(t *core.T) {
-	file := &s3File{name: "file.txt"}
+	file := &s3File{name: s3FilePath}
 	err := file.Close()
 	core.AssertNoError(t, err)
 }
