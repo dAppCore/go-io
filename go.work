@@ -1,0 +1,10 @@
+go 1.26.2
+
+// Workspace mode for development: pulls local Core modules from external/.
+//
+// CI should run with GOWORK=off so go/go.mod tags drive reproducible builds.
+
+use (
+	./go
+	./external/go
+)
