@@ -76,6 +76,19 @@ func NewService(config IOConfig) func(*core.Core) core.Result {
 	}
 }
 
+// Register builds the io service against the unsandboxed package
+// Local medium and returns the service Result directly — the
+// imperative-style alternative to NewService for consumers wiring
+// services without WithName options.
+//
+// Example:
+//
+//	r := io.Register(c)
+//	svc := r.Value.(*io.Service)
+func Register(c *core.Core) core.Result {
+	return NewService(IOConfig{})(c)
+}
+
 // OnStartup registers the io action handlers on the attached Core.
 // Implements core.Startable. Idempotent via core.Once — multiple
 // startups will not double-register.
