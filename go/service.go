@@ -54,7 +54,7 @@ type Service struct {
 // IOConfig.Root is non-empty, otherwise the package Local) and produces
 // a *Service ready for c.Service() registration.
 //
-// Example:
+// Usage example:
 //
 //	c, _ := core.New(
 //	    core.WithName("io", io.NewService(io.IOConfig{Root: "/srv/app"})),
@@ -321,4 +321,3 @@ func (s *Service) handleList(_ core.Context, opts core.Options) core.Result {
 	}
 	return core.Ok(names)
 }
-
