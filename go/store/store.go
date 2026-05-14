@@ -6,7 +6,7 @@ import (
 	"text/template" // Note: AX-6 intrinsic - structural for KeyValueStore.Render templating; core exposes no template primitive.
 
 	core "dappco.re/go"
-	_ "modernc.org/sqlite"
+	_ "github.com/marcboeker/go-duckdb"
 )
 
 // NotFoundError is the sentinel returned when a key does not exist in the store.
@@ -54,13 +54,9 @@ func New(options Options) (
 		return nil, core.E(opStoreNew, "database path is required", fs.ErrInvalid)
 	}
 
-	database, err := sql.Open("sqlite", options.Path)
+	database, err := sql.Open("duckdb", options.Path)
 	if err != nil {
 		return nil, core.E(opStoreNew, "open db", err)
-	}
-	if _, err := database.Exec("PRAGMA journal_mode=WAL"); err != nil {
-		closeStoreDatabase(database, opStoreNew)
-		return nil, core.E(opStoreNew, "WAL mode", err)
 	}
 	if _, err := database.Exec(`CREATE TABLE IF NOT EXISTS entries (
 		group_name TEXT NOT NULL,
