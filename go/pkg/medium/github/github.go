@@ -599,7 +599,7 @@ func readBorgDataNodeFile(dataNode *borgdatanode.DataNode, filePath string) (
 	if err != nil {
 		return "", err
 	}
-	return string(data), nil
+	return core.AsString(data), nil
 }
 
 func closeGitHubDataNodeFile(file fs.File, filePath string) {
