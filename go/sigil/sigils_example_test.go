@@ -2,7 +2,11 @@ package sigil
 
 import core "dappco.re/go"
 
-type Buffer = sigilBuffer
+// SigilBuffer aliases the package-internal sigilBuffer for the example
+// surface. Renamed from `Buffer` to avoid collision with core.Buffer
+// (the bytes.Buffer alias added in dappco.re/go v0.10.0) which is
+// dot-imported by sibling test files in this package.
+type SigilBuffer = sigilBuffer
 
 func ExampleReverseSigil_In() {
 	core.Println("ok")
