@@ -3,7 +3,7 @@ module dappco.re/go/io
 go 1.26.0
 
 require (
-	dappco.re/go v0.9.0
+	dappco.re/go v0.10.3
 	forge.lthn.ai/Snider/Borg v0.3.1
 	github.com/aws/aws-sdk-go-v2 v1.41.4
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.97.1
