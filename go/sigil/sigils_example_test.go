@@ -2,8 +2,6 @@ package sigil
 
 import core "dappco.re/go"
 
-type Buffer = sigilBuffer
-
 func ExampleReverseSigil_In() {
 	core.Println("ok")
 	// Output: ok

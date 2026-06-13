@@ -3,12 +3,13 @@ module dappco.re/go/io
 go 1.26.0
 
 require (
-	dappco.re/go v0.10.3
+	dappco.re/go v0.10.4
 	forge.lthn.ai/Snider/Borg v0.3.1
 	github.com/aws/aws-sdk-go-v2 v1.41.4
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.97.1
 	github.com/gin-gonic/gin v1.12.0
 	github.com/google/go-github/v75 v75.0.0
+	github.com/marcboeker/go-duckdb v1.8.5
 	github.com/pkg/sftp v1.13.10
 	golang.org/x/crypto v0.50.0
 	golang.org/x/net v0.53.0
@@ -62,7 +63,6 @@ require (
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/kr/fs v0.1.0 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
-	github.com/marcboeker/go-duckdb v1.8.5 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mitchellh/colorstring v0.0.0-20190213212951-d06e56a500db // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
