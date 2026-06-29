@@ -169,7 +169,9 @@ func (medium *Medium) Read(filePath string) (
 	if err != nil {
 		return "", core.E(opDatanodeRead, core.Concat("read failed: ", filePath), err)
 	}
-	return string(data), nil
+	// data is freshly allocated by ReadAll; AsString returns a
+	// zero-copy view of the buffer for the caller.
+	return core.AsString(data), nil
 }
 
 func (medium *Medium) Write(filePath, content string) error { // legacy error contract

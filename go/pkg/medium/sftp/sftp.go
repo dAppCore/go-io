@@ -221,7 +221,7 @@ func (medium *Medium) Read(filePath string) (
 	if err != nil {
 		return "", core.E(opRead, core.Concat("read failed: ", remotePath), err)
 	}
-	return string(data), nil
+	return core.AsString(data), nil
 }
 
 // Write writes a remote file using the default file mode.

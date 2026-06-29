@@ -124,7 +124,7 @@ func resolveSymlinksRecursive(path string, seen map[string]struct{}) (
 			}
 			return "", err
 		}
-		if !isSymlink(uint32(info.Mode)) {
+		if !info.IsSymlink {
 			current = next
 			continue
 		}
@@ -459,42 +459,6 @@ func (medium *Medium) Rename(oldPath, newPath string) error { // legacy error co
 		return err
 	}
 	return resultError("local.Rename", core.Concat("rename failed: ", oldPath), unrestrictedFileSystem.Rename(oldResolvedPath, newResolvedPath))
-}
-
-func lstat(path string) (
-	*syscall.Stat_t,
-	error,
-) {
-	info := &syscall.Stat_t{}
-	if err := syscall.Lstat(path, info); err != nil {
-		return nil, err
-	}
-	return info, nil
-}
-
-// isSymlink reports whether the stat mode bits represent a symlink.
-// Caller widens to uint32 because syscall.Stat_t.Mode is uint16 on
-// macOS but uint32 on Linux — accept the wider type, callers cast.
-func isSymlink(mode uint32) bool {
-	return mode&syscall.S_IFMT == syscall.S_IFLNK
-}
-
-func readlink(path string) (
-	string,
-	error,
-) {
-	size := 256
-	for {
-		linkBuffer := make([]byte, size)
-		bytesRead, err := syscall.Readlink(path, linkBuffer)
-		if err != nil {
-			return "", err
-		}
-		if bytesRead < len(linkBuffer) {
-			return string(linkBuffer[:bytesRead]), nil
-		}
-		size *= 2
-	}
 }
 
 func resultError(operation, message string, result core.Result) error { // legacy error contract

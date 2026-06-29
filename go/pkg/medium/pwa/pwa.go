@@ -136,7 +136,7 @@ func (medium *Medium) Read(filePath string) (
 	if err != nil {
 		return "", core.E(opRead, core.Concat("read failed: ", clean), err)
 	}
-	return string(data), nil
+	return core.AsString(data), nil
 }
 
 // Write returns an error because downloaded PWA DataNodes are read-only.
