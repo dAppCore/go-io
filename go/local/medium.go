@@ -306,7 +306,7 @@ func (medium *Medium) IsDir(path string) bool {
 	if err != nil {
 		return false
 	}
-	return unrestrictedFileSystem.IsDir(resolvedPath)
+	return unrestrictedFileSystem.IsDir(resolvedPath).OK
 }
 
 // Example: isFile := medium.IsFile("config/app.yaml")
@@ -318,7 +318,7 @@ func (medium *Medium) IsFile(path string) bool {
 	if err != nil {
 		return false
 	}
-	return unrestrictedFileSystem.IsFile(resolvedPath)
+	return unrestrictedFileSystem.IsFile(resolvedPath).OK
 }
 
 // Example: exists := medium.Exists("config/app.yaml")
@@ -327,7 +327,7 @@ func (medium *Medium) Exists(path string) bool {
 	if err != nil {
 		return false
 	}
-	return unrestrictedFileSystem.Exists(resolvedPath)
+	return unrestrictedFileSystem.Exists(resolvedPath).OK
 }
 
 // Example: entries, _ := medium.List("config")
