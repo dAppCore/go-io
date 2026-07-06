@@ -6,7 +6,7 @@ import (
 	"text/template" // Note: AX-6 intrinsic - structural for KeyValueStore.Render templating; core exposes no template primitive.
 
 	core "dappco.re/go"
-	_ "github.com/marcboeker/go-duckdb"
+	_ "github.com/marcboeker/go-duckdb/v2"
 )
 
 // NotFoundError is the sentinel returned when a key does not exist in the store.
