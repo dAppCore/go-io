@@ -51,9 +51,6 @@ func New(root string) (
 	if err != nil {
 		return nil, core.E("local.New", "resolve root", err)
 	}
-	if err := ensureHostRoot(absoluteRoot); err != nil {
-		return nil, core.E("local.New", "ensure root", err)
-	}
 	if resolved := core.PathEvalSymlinks(absoluteRoot); resolved.OK {
 		if value, ok := resolved.Value.(string); ok {
 			absoluteRoot = value
@@ -123,17 +120,6 @@ func absolutePath(path string) (
 		return "", core.E("local.absolutePath", "unexpected absolute path type", nil)
 	}
 	return absolute, nil
-}
-
-func ensureHostRoot(root string) error {
-	result := core.MkdirAll(root, 0755)
-	if result.OK {
-		return nil
-	}
-	if err, ok := result.Value.(error); ok {
-		return err
-	}
-	return core.E("local.ensureHostRoot", "unexpected directory result", nil)
 }
 
 // rootPath converts legacy absolute and traversal-heavy caller paths into a
