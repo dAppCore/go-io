@@ -7,9 +7,9 @@ require (
 	forge.lthn.ai/Snider/Borg v0.3.1
 	github.com/aws/aws-sdk-go-v2 v1.41.4
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.97.1
+	github.com/duckdb/duckdb-go/v2 v2.10504.0
 	github.com/gin-gonic/gin v1.12.0
 	github.com/google/go-github/v75 v75.0.0
-	github.com/marcboeker/go-duckdb/v2 v2.4.3
 	github.com/pkg/sftp v1.13.10
 	golang.org/x/crypto v0.50.0
 	golang.org/x/net v0.53.0
@@ -22,7 +22,7 @@ require (
 	forge.lthn.ai/Snider/Enchantrix v0.0.4 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/ProtonMail/go-crypto v1.3.0 // indirect
-	github.com/apache/arrow-go/v18 v18.4.1 // indirect
+	github.com/apache/arrow-go/v18 v18.5.1 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.7 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.20 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.20 // indirect
@@ -39,12 +39,12 @@ require (
 	github.com/cloudflare/circl v1.6.3 // indirect
 	github.com/cloudwego/base64x v0.1.6 // indirect
 	github.com/cyphar/filepath-securejoin v0.6.1 // indirect
-	github.com/duckdb/duckdb-go-bindings v0.1.21 // indirect
-	github.com/duckdb/duckdb-go-bindings/darwin-amd64 v0.1.21 // indirect
-	github.com/duckdb/duckdb-go-bindings/darwin-arm64 v0.1.21 // indirect
-	github.com/duckdb/duckdb-go-bindings/linux-amd64 v0.1.21 // indirect
-	github.com/duckdb/duckdb-go-bindings/linux-arm64 v0.1.21 // indirect
-	github.com/duckdb/duckdb-go-bindings/windows-amd64 v0.1.21 // indirect
+	github.com/duckdb/duckdb-go-bindings v0.10504.0 // indirect
+	github.com/duckdb/duckdb-go-bindings/lib/darwin-amd64 v0.10504.0 // indirect
+	github.com/duckdb/duckdb-go-bindings/lib/darwin-arm64 v0.10504.0 // indirect
+	github.com/duckdb/duckdb-go-bindings/lib/linux-amd64 v0.10504.0 // indirect
+	github.com/duckdb/duckdb-go-bindings/lib/linux-arm64 v0.10504.0 // indirect
+	github.com/duckdb/duckdb-go-bindings/lib/windows-amd64 v0.10504.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.12 // indirect
@@ -55,11 +55,11 @@ require (
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/go-playground/validator/v10 v10.30.1 // indirect
-	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
+	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
 	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/goccy/go-yaml v1.19.2 // indirect
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect
-	github.com/google/flatbuffers v25.2.10+incompatible // indirect
+	github.com/google/flatbuffers v25.12.19+incompatible // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 // indirect
@@ -69,15 +69,13 @@ require (
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/kr/fs v0.1.0 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
-	github.com/marcboeker/go-duckdb/arrowmapping v0.0.21 // indirect
-	github.com/marcboeker/go-duckdb/mapping v0.0.21 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mitchellh/colorstring v0.0.0-20190213212951-d06e56a500db // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/ncruces/go-strftime v1.0.0 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
-	github.com/pierrec/lz4/v4 v4.1.22 // indirect
+	github.com/pierrec/lz4/v4 v4.1.25 // indirect
 	github.com/pjbgf/sha1cd v0.5.0 // indirect
 	github.com/quic-go/qpack v0.6.0 // indirect
 	github.com/quic-go/quic-go v0.59.0 // indirect
@@ -89,7 +87,7 @@ require (
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.3.1 // indirect
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
-	github.com/zeebo/xxh3 v1.0.2 // indirect
+	github.com/zeebo/xxh3 v1.1.0 // indirect
 	go.mongodb.org/mongo-driver/v2 v2.5.0 // indirect
 	golang.org/x/arch v0.22.0 // indirect
 	golang.org/x/exp v0.0.0-20260212183809-81e46e3db34a // indirect
@@ -101,7 +99,7 @@ require (
 	golang.org/x/text v0.36.0 // indirect
 	golang.org/x/tools v0.43.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
-	google.golang.org/protobuf v1.36.10 // indirect
+	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	modernc.org/libc v1.70.0 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
