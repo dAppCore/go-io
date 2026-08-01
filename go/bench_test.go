@@ -26,7 +26,7 @@ func BenchmarkMemoryMedium_Read(b *testing.B) {
 func BenchmarkMemoryMedium_List(b *testing.B) {
 	medium := NewMemoryMedium()
 	_ = medium.EnsureDir("dir")
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		_ = medium.Write("dir/file"+string(rune(i))+".txt", "content")
 	}
 	b.ResetTimer()

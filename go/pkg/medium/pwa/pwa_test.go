@@ -1,7 +1,6 @@
 package pwa
 
 import (
-	"context"
 	core "dappco.re/go"
 	borgdatanode "forge.lthn.ai/Snider/Borg/pkg/datanode"
 	goio "io"
@@ -77,27 +76,27 @@ func TestPWAMedium_Actions_UseBorgDataNode(t *core.T) {
 	c := core.New()
 	RegisterActions(c)
 
-	scrape := c.Action(ActionScrape).Run(context.Background(), core.NewOptions(
+	scrape := c.Action(ActionScrape).Run(t.Context(), core.NewOptions(
 		core.Option{Key: "url", Value: server.URL},
 	))
 	core.RequireTrue(t, scrape.OK)
 	medium, ok := scrape.Value.(*Medium)
 	core.RequireTrue(t, ok)
 
-	read := c.Action(ActionRead).Run(context.Background(), core.NewOptions(
+	read := c.Action(ActionRead).Run(t.Context(), core.NewOptions(
 		core.Option{Key: "medium", Value: medium},
 		core.Option{Key: "pa" + "th", Value: pwaIndexPath},
 	))
 	core.AssertTrue(t, read.OK)
 	core.AssertContains(t, read.Value.(string), pwaIconPath)
 
-	list := c.Action(ActionList).Run(context.Background(), core.NewOptions(
+	list := c.Action(ActionList).Run(t.Context(), core.NewOptions(
 		core.Option{Key: "medium", Value: medium},
 		core.Option{Key: "pa" + "th", Value: ""},
 	))
 	core.AssertTrue(t, list.OK)
 
-	write := c.Action(ActionWrite).Run(context.Background(), core.NewOptions(
+	write := c.Action(ActionWrite).Run(t.Context(), core.NewOptions(
 		core.Option{Key: "medium", Value: medium},
 		core.Option{Key: "pa" + "th", Value: pwaIndexPath},
 		core.Option{Key: "content", Value: "mutate"},

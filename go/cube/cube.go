@@ -7,7 +7,8 @@ package cube
 import (
 	goio "io" // AX-6-exception: io interface types have no core equivalent; io.EOF preserves stream semantics.
 	"io/fs"   // AX-6-exception: fs interface types have no core equivalent.
-	"time"    // AX-6-exception: filesystem metadata timestamps have no core equivalent.
+	"slices"
+	"time" // AX-6-exception: filesystem metadata timestamps have no core equivalent.
 
 	core "dappco.re/go"
 	coreio "dappco.re/go/io"
@@ -571,10 +572,5 @@ func validatedTarEntryName(rawName string) (
 }
 
 func hasParentPathSegment(name string) bool {
-	for _, part := range core.Split(name, "/") {
-		if part == ".." {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(core.Split(name, "/"), "..")
 }

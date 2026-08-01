@@ -3,8 +3,6 @@
 package cube
 
 import (
-	"context"
-
 	core "dappco.re/go"
 	coreio "dappco.re/go/io"
 )
@@ -39,7 +37,7 @@ func TestActions_Write_ReadGood(t *core.T) {
 	RegisterActions(c)
 	inner := coreio.NewMemoryMedium()
 
-	writeResult := c.Action(ActionWrite).Run(context.Background(), core.NewOptions(
+	writeResult := c.Action(ActionWrite).Run(t.Context(), core.NewOptions(
 		core.Option{Key: "inner", Value: coreio.Medium(inner)},
 		core.Option{Key: "key", Value: testKey},
 		core.Option{Key: "pa" + "th", Value: cubeActionSecretPath},
@@ -47,7 +45,7 @@ func TestActions_Write_ReadGood(t *core.T) {
 	))
 	core.RequireTrue(t, writeResult.OK)
 
-	readResult := c.Action(ActionRead).Run(context.Background(), core.NewOptions(
+	readResult := c.Action(ActionRead).Run(t.Context(), core.NewOptions(
 		core.Option{Key: "inner", Value: coreio.Medium(inner)},
 		core.Option{Key: "key", Value: testKey},
 		core.Option{Key: "pa" + "th", Value: cubeActionSecretPath},
@@ -61,7 +59,7 @@ func TestActions_Write_ReadBad(t *core.T) {
 	RegisterActions(c)
 
 	// Missing inner medium must fail.
-	result := c.Action(ActionWrite).Run(context.Background(), core.NewOptions(
+	result := c.Action(ActionWrite).Run(t.Context(), core.NewOptions(
 		core.Option{Key: "key", Value: testKey},
 		core.Option{Key: "pa" + "th", Value: cubeActionSecretPath},
 		core.Option{Key: "content", Value: "classified"},
@@ -75,7 +73,7 @@ func TestActions_Write_ReadUgly(t *core.T) {
 	inner := coreio.NewMemoryMedium()
 
 	// Wrong-type key (string instead of []byte) must fail.
-	result := c.Action(ActionWrite).Run(context.Background(), core.NewOptions(
+	result := c.Action(ActionWrite).Run(t.Context(), core.NewOptions(
 		core.Option{Key: "inner", Value: coreio.Medium(inner)},
 		core.Option{Key: "key", Value: "not a byte slice"},
 		core.Option{Key: "pa" + "th", Value: cubeActionSecretPath},
@@ -93,7 +91,7 @@ func TestActions_PackUnpackGood(t *core.T) {
 	core.RequireNoError(t, source.Write("config/app.yaml", "port: 8080"))
 
 	outputPath := tempDir + "/app.cube"
-	packResult := c.Action(ActionPack).Run(context.Background(), core.NewOptions(
+	packResult := c.Action(ActionPack).Run(t.Context(), core.NewOptions(
 		core.Option{Key: "source", Value: coreio.Medium(source)},
 		core.Option{Key: "output", Value: outputPath},
 		core.Option{Key: "key", Value: testKey},
@@ -101,7 +99,7 @@ func TestActions_PackUnpackGood(t *core.T) {
 	core.RequireTrue(t, packResult.OK)
 
 	destination := coreio.NewMemoryMedium()
-	unpackResult := c.Action(ActionUnpack).Run(context.Background(), core.NewOptions(
+	unpackResult := c.Action(ActionUnpack).Run(t.Context(), core.NewOptions(
 		core.Option{Key: "cube", Value: outputPath},
 		core.Option{Key: "destination", Value: coreio.Medium(destination)},
 		core.Option{Key: "key", Value: testKey},
@@ -118,14 +116,14 @@ func TestActions_PackUnpackBad(t *core.T) {
 	RegisterActions(c)
 
 	// Pack without a source medium.
-	result := c.Action(ActionPack).Run(context.Background(), core.NewOptions(
+	result := c.Action(ActionPack).Run(t.Context(), core.NewOptions(
 		core.Option{Key: "output", Value: "/tmp/anywhere.cube"},
 		core.Option{Key: "key", Value: testKey},
 	))
 	core.AssertFalse(t, result.OK)
 
 	// Unpack without a destination medium.
-	result = c.Action(ActionUnpack).Run(context.Background(), core.NewOptions(
+	result = c.Action(ActionUnpack).Run(t.Context(), core.NewOptions(
 		core.Option{Key: "cube", Value: "missing.cube"},
 		core.Option{Key: "key", Value: testKey},
 	))
@@ -142,7 +140,7 @@ func TestActions_PackUnpackUgly(t *core.T) {
 
 	// Wrong-type key on pack must fail without writing anything.
 	outputPath := tempDir + "/bad.cube"
-	result := c.Action(ActionPack).Run(context.Background(), core.NewOptions(
+	result := c.Action(ActionPack).Run(t.Context(), core.NewOptions(
 		core.Option{Key: "source", Value: coreio.Medium(source)},
 		core.Option{Key: "output", Value: outputPath},
 		core.Option{Key: "key", Value: "not a byte slice"},

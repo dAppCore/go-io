@@ -67,14 +67,14 @@ func TestActions_LocalReadGood(t *T) {
 	coreio.RegisterActions(c)
 
 	// Prime a file via the write action, then read it back via the read action.
-	writeResult := c.Action(coreio.ActionLocalWrite).Run(context.Background(), NewOptions(
+	writeResult := c.Action(coreio.ActionLocalWrite).Run(t.Context(), NewOptions(
 		Option{Key: "root", Value: tempDir},
 		Option{Key: "pa" + "th", Value: "hello.txt"},
 		Option{Key: "content", Value: "world"},
 	))
 	RequireTrue(t, writeResult.OK)
 
-	readResult := c.Action(coreio.ActionLocalRead).Run(context.Background(), NewOptions(
+	readResult := c.Action(coreio.ActionLocalRead).Run(t.Context(), NewOptions(
 		Option{Key: "root", Value: tempDir},
 		Option{Key: "pa" + "th", Value: "hello.txt"},
 	))
@@ -88,7 +88,7 @@ func TestActions_LocalReadBad(t *T) {
 	coreio.RegisterActions(c)
 
 	// Reading a missing file returns !OK and an error in Value.
-	result := c.Action(coreio.ActionLocalRead).Run(context.Background(), NewOptions(
+	result := c.Action(coreio.ActionLocalRead).Run(t.Context(), NewOptions(
 		Option{Key: "root", Value: tempDir},
 		Option{Key: "pa" + "th", Value: actionMissingPath},
 	))
@@ -100,7 +100,7 @@ func TestActions_LocalReadUgly(t *T) {
 	coreio.RegisterActions(c)
 
 	// Empty path — read attempts to read the sandbox root which is not a file.
-	result := c.Action(coreio.ActionLocalRead).Run(context.Background(), NewOptions(
+	result := c.Action(coreio.ActionLocalRead).Run(t.Context(), NewOptions(
 		Option{Key: "root", Value: t.TempDir()},
 		Option{Key: "pa" + "th", Value: ""},
 	))
@@ -112,18 +112,18 @@ func TestActions_LocalListGood(t *T) {
 	c := New()
 	coreio.RegisterActions(c)
 
-	RequireTrue(t, c.Action(coreio.ActionLocalWrite).Run(context.Background(), NewOptions(
+	RequireTrue(t, c.Action(coreio.ActionLocalWrite).Run(t.Context(), NewOptions(
 		Option{Key: "root", Value: tempDir},
 		Option{Key: "pa" + "th", Value: "a.txt"},
 		Option{Key: "content", Value: "alpha"},
 	)).OK)
-	RequireTrue(t, c.Action(coreio.ActionLocalWrite).Run(context.Background(), NewOptions(
+	RequireTrue(t, c.Action(coreio.ActionLocalWrite).Run(t.Context(), NewOptions(
 		Option{Key: "root", Value: tempDir},
 		Option{Key: "pa" + "th", Value: "b.txt"},
 		Option{Key: "content", Value: "beta"},
 	)).OK)
 
-	listResult := c.Action(coreio.ActionLocalList).Run(context.Background(), NewOptions(
+	listResult := c.Action(coreio.ActionLocalList).Run(t.Context(), NewOptions(
 		Option{Key: "root", Value: tempDir},
 		Option{Key: "pa" + "th", Value: ""},
 	))
@@ -139,7 +139,7 @@ func TestActions_LocalListBad(t *T) {
 	coreio.RegisterActions(c)
 
 	// Listing a path that does not exist returns !OK.
-	result := c.Action(coreio.ActionLocalList).Run(context.Background(), NewOptions(
+	result := c.Action(coreio.ActionLocalList).Run(t.Context(), NewOptions(
 		Option{Key: "root", Value: tempDir},
 		Option{Key: "pa" + "th", Value: "missing"},
 	))
@@ -152,7 +152,7 @@ func TestActions_LocalListUgly(t *T) {
 	coreio.RegisterActions(c)
 
 	// Missing root must fail instead of falling back to host root.
-	result := c.Action(coreio.ActionLocalList).Run(context.Background(), NewOptions(
+	result := c.Action(coreio.ActionLocalList).Run(t.Context(), NewOptions(
 		Option{Key: "pa" + "th", Value: tempDir},
 	))
 	AssertFalse(t, result.OK)
@@ -163,13 +163,13 @@ func TestActions_LocalDeleteGood(t *T) {
 	c := New()
 	coreio.RegisterActions(c)
 
-	RequireTrue(t, c.Action(coreio.ActionLocalWrite).Run(context.Background(), NewOptions(
+	RequireTrue(t, c.Action(coreio.ActionLocalWrite).Run(t.Context(), NewOptions(
 		Option{Key: "root", Value: tempDir},
 		Option{Key: "pa" + "th", Value: "temp.txt"},
 		Option{Key: "content", Value: "ephemeral"},
 	)).OK)
 
-	result := c.Action(coreio.ActionLocalDelete).Run(context.Background(), NewOptions(
+	result := c.Action(coreio.ActionLocalDelete).Run(t.Context(), NewOptions(
 		Option{Key: "root", Value: tempDir},
 		Option{Key: "pa" + "th", Value: "temp.txt"},
 	))
@@ -182,7 +182,7 @@ func TestActions_LocalDeleteBad(t *T) {
 	coreio.RegisterActions(c)
 
 	// Deleting a missing file returns !OK.
-	result := c.Action(coreio.ActionLocalDelete).Run(context.Background(), NewOptions(
+	result := c.Action(coreio.ActionLocalDelete).Run(t.Context(), NewOptions(
 		Option{Key: "root", Value: tempDir},
 		Option{Key: "pa" + "th", Value: actionMissingPath},
 	))
@@ -195,18 +195,18 @@ func TestActions_LocalDeleteUgly(t *T) {
 	coreio.RegisterActions(c)
 
 	// Recursive delete of a subtree.
-	RequireTrue(t, c.Action(coreio.ActionLocalWrite).Run(context.Background(), NewOptions(
+	RequireTrue(t, c.Action(coreio.ActionLocalWrite).Run(t.Context(), NewOptions(
 		Option{Key: "root", Value: tempDir},
 		Option{Key: "pa" + "th", Value: "branch/a.txt"},
 		Option{Key: "content", Value: "a"},
 	)).OK)
-	RequireTrue(t, c.Action(coreio.ActionLocalWrite).Run(context.Background(), NewOptions(
+	RequireTrue(t, c.Action(coreio.ActionLocalWrite).Run(t.Context(), NewOptions(
 		Option{Key: "root", Value: tempDir},
 		Option{Key: "pa" + "th", Value: "branch/b.txt"},
 		Option{Key: "content", Value: "b"},
 	)).OK)
 
-	result := c.Action(coreio.ActionLocalDelete).Run(context.Background(), NewOptions(
+	result := c.Action(coreio.ActionLocalDelete).Run(t.Context(), NewOptions(
 		Option{Key: "root", Value: tempDir},
 		Option{Key: "pa" + "th", Value: "branch"},
 		Option{Key: "recursive", Value: true},
@@ -220,13 +220,13 @@ func TestActions_MemoryRoundTripGood(t *T) {
 	defer coreio.ResetMemoryActionStore()
 	coreio.ResetMemoryActionStore()
 
-	writeResult := c.Action(coreio.ActionMemoryWrite).Run(context.Background(), NewOptions(
+	writeResult := c.Action(coreio.ActionMemoryWrite).Run(t.Context(), NewOptions(
 		Option{Key: "pa" + "th", Value: actionConfigPath},
 		Option{Key: "content", Value: actionConfigContent},
 	))
 	RequireTrue(t, writeResult.OK)
 
-	readResult := c.Action(coreio.ActionMemoryRead).Run(context.Background(), NewOptions(
+	readResult := c.Action(coreio.ActionMemoryRead).Run(t.Context(), NewOptions(
 		Option{Key: "pa" + "th", Value: actionConfigPath},
 	))
 	RequireTrue(t, readResult.OK)
@@ -239,7 +239,7 @@ func TestActions_MemoryRoundTripBad(t *T) {
 	coreio.ResetMemoryActionStore()
 
 	// Reading a missing path returns !OK.
-	result := c.Action(coreio.ActionMemoryRead).Run(context.Background(), NewOptions(
+	result := c.Action(coreio.ActionMemoryRead).Run(t.Context(), NewOptions(
 		Option{Key: "pa" + "th", Value: actionMissingPath},
 	))
 	AssertFalse(t, result.OK)
@@ -251,7 +251,7 @@ func TestActions_MemoryRoundTripUgly(t *T) {
 	coreio.ResetMemoryActionStore()
 
 	// ResetMemoryActionStore clears previous state between actions.
-	writeResult := c.Action(coreio.ActionMemoryWrite).Run(context.Background(), NewOptions(
+	writeResult := c.Action(coreio.ActionMemoryWrite).Run(t.Context(), NewOptions(
 		Option{Key: "pa" + "th", Value: "tmp.txt"},
 		Option{Key: "content", Value: "payload"},
 	))
@@ -259,7 +259,7 @@ func TestActions_MemoryRoundTripUgly(t *T) {
 
 	coreio.ResetMemoryActionStore()
 
-	readResult := c.Action(coreio.ActionMemoryRead).Run(context.Background(), NewOptions(
+	readResult := c.Action(coreio.ActionMemoryRead).Run(t.Context(), NewOptions(
 		Option{Key: "pa" + "th", Value: "tmp.txt"},
 	))
 	AssertFalse(t, readResult.OK)
@@ -273,7 +273,7 @@ func TestActions_CopyGood(t *T) {
 	destination := coreio.NewMemoryMedium()
 	RequireNoError(t, source.Write(actionInputPath, "payload"))
 
-	result := c.Action(coreio.ActionCopy).Run(context.Background(), NewOptions(
+	result := c.Action(coreio.ActionCopy).Run(t.Context(), NewOptions(
 		Option{Key: "source", Value: coreio.Medium(source)},
 		Option{Key: "sourcePath", Value: actionInputPath},
 		Option{Key: "destination", Value: coreio.Medium(destination)},
@@ -291,7 +291,7 @@ func TestActions_CopyBad(t *T) {
 	coreio.RegisterActions(c)
 
 	// Missing source medium must fail.
-	result := c.Action(coreio.ActionCopy).Run(context.Background(), NewOptions(
+	result := c.Action(coreio.ActionCopy).Run(t.Context(), NewOptions(
 		Option{Key: "sourcePath", Value: actionInputPath},
 		Option{Key: "destination", Value: coreio.Medium(coreio.NewMemoryMedium())},
 		Option{Key: "destinationPath", Value: actionBackupInputPath},
@@ -305,7 +305,7 @@ func TestActions_CopyUgly(t *T) {
 
 	source := coreio.NewMemoryMedium()
 	// Source file does not exist — copy must surface the read error.
-	result := c.Action(coreio.ActionCopy).Run(context.Background(), NewOptions(
+	result := c.Action(coreio.ActionCopy).Run(t.Context(), NewOptions(
 		Option{Key: "source", Value: coreio.Medium(source)},
 		Option{Key: "sourcePath", Value: actionMissingPath},
 		Option{Key: "destination", Value: coreio.Medium(coreio.NewMemoryMedium())},
@@ -319,14 +319,14 @@ func TestActions_S3ReadWriteGood(t *T) {
 	coreio.RegisterActions(c)
 	medium := newActionS3Medium(t)
 
-	writeResult := c.Action(coreio.ActionS3Write).Run(context.Background(), NewOptions(
+	writeResult := c.Action(coreio.ActionS3Write).Run(t.Context(), NewOptions(
 		Option{Key: "medium", Value: medium},
 		Option{Key: "pa" + "th", Value: "reports/daily.txt"},
 		Option{Key: "content", Value: "done"},
 	))
 	RequireTrue(t, writeResult.OK)
 
-	readResult := c.Action(coreio.ActionS3Read).Run(context.Background(), NewOptions(
+	readResult := c.Action(coreio.ActionS3Read).Run(t.Context(), NewOptions(
 		Option{Key: "medium", Value: medium},
 		Option{Key: "pa" + "th", Value: "reports/daily.txt"},
 	))
@@ -339,13 +339,13 @@ func TestActions_S3ReadWriteUgly(t *T) {
 	coreio.RegisterActions(c)
 	medium := newActionS3Medium(t)
 
-	readResult := c.Action(coreio.ActionS3Read).Run(context.Background(), NewOptions(
+	readResult := c.Action(coreio.ActionS3Read).Run(t.Context(), NewOptions(
 		Option{Key: "medium", Value: medium},
 		Option{Key: "pa" + "th", Value: actionMissingPath},
 	))
 	AssertFalse(t, readResult.OK)
 
-	writeResult := c.Action(coreio.ActionS3Write).Run(context.Background(), NewOptions(
+	writeResult := c.Action(coreio.ActionS3Write).Run(t.Context(), NewOptions(
 		Option{Key: "medium", Value: medium},
 		Option{Key: "pa" + "th", Value: ""},
 		Option{Key: "content", Value: "payload"},
@@ -358,14 +358,14 @@ func TestActions_SFTPReadWriteGood(t *T) {
 	coreio.RegisterActions(c)
 	medium := newActionSFTPTestMedium(t)
 
-	writeResult := c.Action(coreio.ActionSFTPWrite).Run(context.Background(), NewOptions(
+	writeResult := c.Action(coreio.ActionSFTPWrite).Run(t.Context(), NewOptions(
 		Option{Key: "medium", Value: medium},
 		Option{Key: "pa" + "th", Value: "notes/todo.txt"},
 		Option{Key: "content", Value: "ship sftp"},
 	))
 	RequireTrue(t, writeResult.OK)
 
-	readResult := c.Action(coreio.ActionSFTPRead).Run(context.Background(), NewOptions(
+	readResult := c.Action(coreio.ActionSFTPRead).Run(t.Context(), NewOptions(
 		Option{Key: "medium", Value: medium},
 		Option{Key: "pa" + "th", Value: "notes/todo.txt"},
 	))
@@ -378,13 +378,13 @@ func TestActions_SFTPReadWriteUgly(t *T) {
 	coreio.RegisterActions(c)
 	medium := newActionSFTPTestMedium(t)
 
-	readResult := c.Action(coreio.ActionSFTPRead).Run(context.Background(), NewOptions(
+	readResult := c.Action(coreio.ActionSFTPRead).Run(t.Context(), NewOptions(
 		Option{Key: "medium", Value: medium},
 		Option{Key: "pa" + "th", Value: actionMissingPath},
 	))
 	AssertFalse(t, readResult.OK)
 
-	writeResult := c.Action(coreio.ActionSFTPWrite).Run(context.Background(), NewOptions(
+	writeResult := c.Action(coreio.ActionSFTPWrite).Run(t.Context(), NewOptions(
 		Option{Key: "medium", Value: medium},
 		Option{Key: "pa" + "th", Value: ""},
 		Option{Key: "content", Value: "payload"},
@@ -402,14 +402,14 @@ func TestActions_CubeReadWritePackUnpackGood(t *T) {
 	cubeMedium, err := cube.New(cube.Options{Inner: inner, Key: actionTestCubeKey})
 	RequireNoError(t, err)
 
-	writeResult := c.Action(coreio.ActionCubeWrite).Run(context.Background(), NewOptions(
+	writeResult := c.Action(coreio.ActionCubeWrite).Run(t.Context(), NewOptions(
 		Option{Key: "medium", Value: coreio.Medium(cubeMedium)},
 		Option{Key: "pa" + "th", Value: actionSecretPath},
 		Option{Key: "content", Value: "classified"},
 	))
 	RequireTrue(t, writeResult.OK)
 
-	readResult := c.Action(coreio.ActionCubeRead).Run(context.Background(), NewOptions(
+	readResult := c.Action(coreio.ActionCubeRead).Run(t.Context(), NewOptions(
 		Option{Key: "medium", Value: coreio.Medium(cubeMedium)},
 		Option{Key: "pa" + "th", Value: actionSecretPath},
 	))
@@ -417,7 +417,7 @@ func TestActions_CubeReadWritePackUnpackGood(t *T) {
 	AssertEqual(t, "classified", readResult.Value)
 
 	innerContract := coreio.NewMemoryMedium()
-	contractWrite := c.Action(coreio.ActionCubeWrite).Run(context.Background(), NewOptions(
+	contractWrite := c.Action(coreio.ActionCubeWrite).Run(t.Context(), NewOptions(
 		Option{Key: "inner", Value: coreio.Medium(innerContract)},
 		Option{Key: "key", Value: actionTestCubeKey},
 		Option{Key: "pa" + "th", Value: "inner.txt"},
@@ -425,7 +425,7 @@ func TestActions_CubeReadWritePackUnpackGood(t *T) {
 	))
 	RequireTrue(t, contractWrite.OK)
 
-	contractRead := c.Action(coreio.ActionCubeRead).Run(context.Background(), NewOptions(
+	contractRead := c.Action(coreio.ActionCubeRead).Run(t.Context(), NewOptions(
 		Option{Key: "inner", Value: coreio.Medium(innerContract)},
 		Option{Key: "key", Value: actionTestCubeKey},
 		Option{Key: "pa" + "th", Value: "inner.txt"},
@@ -436,7 +436,7 @@ func TestActions_CubeReadWritePackUnpackGood(t *T) {
 	source := coreio.NewMemoryMedium()
 	RequireNoError(t, source.Write(actionConfigPath, actionConfigContent))
 	outputPath := tempDir + "/app.cube"
-	packResult := c.Action(coreio.ActionCubePack).Run(context.Background(), NewOptions(
+	packResult := c.Action(coreio.ActionCubePack).Run(t.Context(), NewOptions(
 		Option{Key: "source", Value: coreio.Medium(source)},
 		Option{Key: "output", Value: outputPath},
 		Option{Key: "key", Value: actionTestCubeKey},
@@ -444,7 +444,7 @@ func TestActions_CubeReadWritePackUnpackGood(t *T) {
 	RequireTrue(t, packResult.OK)
 
 	destination := coreio.NewMemoryMedium()
-	unpackResult := c.Action(coreio.ActionCubeUnpack).Run(context.Background(), NewOptions(
+	unpackResult := c.Action(coreio.ActionCubeUnpack).Run(t.Context(), NewOptions(
 		Option{Key: "cube", Value: outputPath},
 		Option{Key: "destination", Value: coreio.Medium(destination)},
 		Option{Key: "key", Value: actionTestCubeKey},
@@ -461,14 +461,14 @@ func TestActions_CubeReadWritePackUnpackUgly(t *T) {
 	coreio.RegisterActions(c)
 	cube.RegisterActions(c)
 
-	readResult := c.Action(coreio.ActionCubeRead).Run(context.Background(), NewOptions(
+	readResult := c.Action(coreio.ActionCubeRead).Run(t.Context(), NewOptions(
 		Option{Key: "inner", Value: coreio.Medium(coreio.NewMemoryMedium())},
 		Option{Key: "key", Value: actionTestCubeKey},
 		Option{Key: "pa" + "th", Value: actionMissingPath},
 	))
 	AssertFalse(t, readResult.OK)
 
-	writeResult := c.Action(coreio.ActionCubeWrite).Run(context.Background(), NewOptions(
+	writeResult := c.Action(coreio.ActionCubeWrite).Run(t.Context(), NewOptions(
 		Option{Key: "inner", Value: coreio.Medium(coreio.NewMemoryMedium())},
 		Option{Key: "key", Value: []byte("short")},
 		Option{Key: "pa" + "th", Value: actionSecretPath},
@@ -476,13 +476,13 @@ func TestActions_CubeReadWritePackUnpackUgly(t *T) {
 	))
 	AssertFalse(t, writeResult.OK)
 
-	packResult := c.Action(coreio.ActionCubePack).Run(context.Background(), NewOptions(
+	packResult := c.Action(coreio.ActionCubePack).Run(t.Context(), NewOptions(
 		Option{Key: "output", Value: t.TempDir() + "/app.cube"},
 		Option{Key: "key", Value: actionTestCubeKey},
 	))
 	AssertFalse(t, packResult.OK)
 
-	unpackResult := c.Action(coreio.ActionCubeUnpack).Run(context.Background(), NewOptions(
+	unpackResult := c.Action(coreio.ActionCubeUnpack).Run(t.Context(), NewOptions(
 		Option{Key: "cube", Value: t.TempDir() + "/missing.cube"},
 		Option{Key: "destination", Value: coreio.Medium(coreio.NewMemoryMedium())},
 		Option{Key: "key", Value: actionTestCubeKey},
@@ -495,7 +495,7 @@ func TestActions_GitHubPWAStubsBad(t *T) {
 	coreio.RegisterActions(c)
 
 	for _, name := range []string{coreio.ActionGitHubClone, coreio.ActionGitHubRead, coreio.ActionPWAScrape} {
-		result := c.Action(name).Run(context.Background(), NewOptions())
+		result := c.Action(name).Run(t.Context(), NewOptions())
 		AssertFalse(t, result.OK, name)
 		err, ok := result.Value.(error)
 		RequireTrue(t, ok, name)
@@ -627,14 +627,14 @@ func TestActions_ResetMemoryActionStore_Good(t *T) {
 	coreio.RegisterActions(c)
 	coreio.ResetMemoryActionStore()
 
-	writeResult := c.Action(coreio.ActionMemoryWrite).Run(context.Background(), NewOptions(
+	writeResult := c.Action(coreio.ActionMemoryWrite).Run(t.Context(), NewOptions(
 		Option{Key: "pa" + "th", Value: "file.txt"},
 		Option{Key: "content", Value: "payload"},
 	))
 	RequireTrue(t, writeResult.OK)
 
 	coreio.ResetMemoryActionStore()
-	readResult := c.Action(coreio.ActionMemoryRead).Run(context.Background(), NewOptions(
+	readResult := c.Action(coreio.ActionMemoryRead).Run(t.Context(), NewOptions(
 		Option{Key: "pa" + "th", Value: "file.txt"},
 	))
 	AssertFalse(t, readResult.OK)
@@ -646,7 +646,7 @@ func TestActions_ResetMemoryActionStore_Bad(t *T) {
 	coreio.ResetMemoryActionStore()
 	coreio.ResetMemoryActionStore()
 
-	readResult := c.Action(coreio.ActionMemoryRead).Run(context.Background(), NewOptions(
+	readResult := c.Action(coreio.ActionMemoryRead).Run(t.Context(), NewOptions(
 		Option{Key: "pa" + "th", Value: actionMissingPath},
 	))
 	AssertFalse(t, readResult.OK)
@@ -657,19 +657,19 @@ func TestActions_ResetMemoryActionStore_Ugly(t *T) {
 	coreio.RegisterActions(c)
 	coreio.ResetMemoryActionStore()
 
-	writeResult := c.Action(coreio.ActionMemoryWrite).Run(context.Background(), NewOptions(
+	writeResult := c.Action(coreio.ActionMemoryWrite).Run(t.Context(), NewOptions(
 		Option{Key: "pa" + "th", Value: "old.txt"},
 		Option{Key: "content", Value: "payload"},
 	))
 	RequireTrue(t, writeResult.OK)
 
-	readBeforeReset := c.Action(coreio.ActionMemoryRead).Run(context.Background(), NewOptions(
+	readBeforeReset := c.Action(coreio.ActionMemoryRead).Run(t.Context(), NewOptions(
 		Option{Key: "pa" + "th", Value: "old.txt"},
 	))
 	RequireTrue(t, readBeforeReset.OK)
 
 	coreio.ResetMemoryActionStore()
-	readAfterReset := c.Action(coreio.ActionMemoryRead).Run(context.Background(), NewOptions(
+	readAfterReset := c.Action(coreio.ActionMemoryRead).Run(t.Context(), NewOptions(
 		Option{Key: "pa" + "th", Value: "old.txt"},
 	))
 	AssertFalse(t, readAfterReset.OK)

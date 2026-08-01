@@ -175,12 +175,7 @@ func statusError(operation, resource string, statusCode int) error { // legacy e
 }
 
 func statusOK(statusCode int, allowed ...int) bool {
-	for _, code := range allowed {
-		if statusCode == code {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(allowed, statusCode)
 }
 
 func closeWebDAVBody(closer goio.Closer) {

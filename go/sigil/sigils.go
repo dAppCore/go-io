@@ -6,9 +6,11 @@ import (
 	"crypto/md5"
 	"crypto/sha1"
 	"crypto/sha256"
+	sha30 "crypto/sha3"
 	"crypto/sha512"
 	"encoding/base64"
 	"encoding/hex"
+	"hash"
 	"io/fs" // AX-6-exception: fs sentinel errors have no core equivalent.
 
 	core "dappco.re/go"
@@ -16,7 +18,6 @@ import (
 	"golang.org/x/crypto/blake2s"
 	"golang.org/x/crypto/md4"       //nolint:staticcheck // Supported for legacy hash-name compatibility.
 	"golang.org/x/crypto/ripemd160" //nolint:staticcheck // Supported for legacy hash-name compatibility.
-	"golang.org/x/crypto/sha3"
 )
 
 const (
@@ -258,13 +259,13 @@ func (sigil *HashSigil) In(data []byte) (
 	case crypto.RIPEMD160:
 		hasher = ripemd160.New()
 	case crypto.SHA3_224:
-		hasher = sha3.New224()
+		hasher = hash.Hash(sha30.New224())
 	case crypto.SHA3_256:
-		hasher = sha3.New256()
+		hasher = hash.Hash(sha30.New256())
 	case crypto.SHA3_384:
-		hasher = sha3.New384()
+		hasher = hash.Hash(sha30.New384())
 	case crypto.SHA3_512:
-		hasher = sha3.New512()
+		hasher = hash.Hash(sha30.New512())
 	case crypto.SHA512_224:
 		hasher = sha512.New512_224()
 	case crypto.SHA512_256:
@@ -376,7 +377,7 @@ func indentJSON(compact string) string {
 	inString := false
 	escaped := false
 
-	for i := 0; i < len(compact); i++ {
+	for i := range len(compact) {
 		ch := compact[i]
 		if inString {
 			inString, escaped = writeJSONStringByte(builder, ch, escaped)
@@ -407,7 +408,7 @@ func writeJSONString(builder jsonIndentWriter, text string) {
 }
 
 func writeJSONIndent(builder jsonIndentWriter, level int) {
-	for i := 0; i < level; i++ {
+	for range level {
 		writeJSONString(builder, "  ")
 	}
 }

@@ -1,7 +1,6 @@
 package github
 
 import (
-	"context"
 	core "dappco.re/go"
 	"encoding/base64"
 	goio "io"
@@ -169,7 +168,7 @@ func TestGitHubMedium_Actions_Register(t *core.T) {
 	core.AssertTrue(t, c.Action(ActionList).Exists())
 	core.AssertTrue(t, c.Action(ActionClone).Exists())
 
-	result := c.Action(ActionRead).Run(context.Background(), core.NewOptions(
+	result := c.Action(ActionRead).Run(t.Context(), core.NewOptions(
 		core.Option{Key: "owner", Value: "Snider"},
 		core.Option{Key: "repo", Value: "demo"},
 		core.Option{Key: "pa" + "th", Value: ""},

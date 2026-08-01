@@ -8,7 +8,8 @@ import (
 	"archive/tar" // AX-6-exception: tar archive transport has no core equivalent.
 	goio "io"     // AX-6-exception: io interface types have no core equivalent; io.EOF preserves stream semantics.
 	"io/fs"       // AX-6-exception: fs interface types have no core equivalent.
-	"time"        // AX-6-exception: filesystem metadata timestamps have no core equivalent.
+	"maps"
+	"time" // AX-6-exception: filesystem metadata timestamps have no core equivalent.
 
 	core "dappco.re/go"
 	coreio "dappco.re/go/io"
@@ -537,9 +538,7 @@ func (node *Node) Rename(oldPath, newPath string) error { // legacy error contra
 	for _, p := range toDelete {
 		delete(node.files, p)
 	}
-	for p, f := range toAdd {
-		node.files[p] = f
-	}
+	maps.Copy(node.files, toAdd)
 	if renamed == 0 {
 		return core.E("node.Rename", core.Concat(msgNodePathNotFound, oldPath), fs.ErrNotExist)
 	}

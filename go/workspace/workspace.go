@@ -3,6 +3,7 @@ package workspace
 import (
 	goio "io"
 	"io/fs"
+	"slices"
 	"sync"
 
 	core "dappco.re/go"
@@ -269,10 +270,8 @@ func cleanMediumSubpath(operation, subpath string, allowEmpty bool) (
 	if core.HasPrefix(subpath, "/") {
 		return "", core.E(operation, core.Concat("absolute path rejected: ", subpath), fs.ErrPermission)
 	}
-	for _, part := range core.Split(subpath, "/") {
-		if part == ".." {
-			return "", core.E(operation, core.Concat("path traversal rejected: ", subpath), fs.ErrPermission)
-		}
+	if slices.Contains(core.Split(subpath, "/"), "..") {
+		return "", core.E(operation, core.Concat("path traversal rejected: ", subpath), fs.ErrPermission)
 	}
 	cleaned := core.CleanPath(subpath, "/")
 	if cleaned == "." {

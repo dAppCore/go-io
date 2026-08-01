@@ -3,8 +3,6 @@
 package s3
 
 import (
-	"context"
-
 	core "dappco.re/go"
 )
 
@@ -39,14 +37,14 @@ func TestActions_ReadWriteGood(t *core.T) {
 	medium, err := New(Options{Bucket: "bucket", Client: client, Prefix: "prefix/"})
 	core.RequireNoError(t, err)
 
-	writeResult := c.Action(ActionWrite).Run(context.Background(), core.NewOptions(
+	writeResult := c.Action(ActionWrite).Run(t.Context(), core.NewOptions(
 		core.Option{Key: "medium", Value: medium},
 		core.Option{Key: "pa" + "th", Value: s3ActionReportPath},
 		core.Option{Key: "content", Value: "done"},
 	))
 	core.RequireTrue(t, writeResult.OK)
 
-	readResult := c.Action(ActionRead).Run(context.Background(), core.NewOptions(
+	readResult := c.Action(ActionRead).Run(t.Context(), core.NewOptions(
 		core.Option{Key: "medium", Value: medium},
 		core.Option{Key: "pa" + "th", Value: s3ActionReportPath},
 	))
@@ -59,12 +57,12 @@ func TestActions_ReadWriteBad(t *core.T) {
 	RegisterActions(c)
 
 	// Missing medium must fail.
-	result := c.Action(ActionRead).Run(context.Background(), core.NewOptions(
+	result := c.Action(ActionRead).Run(t.Context(), core.NewOptions(
 		core.Option{Key: "pa" + "th", Value: s3ActionReportPath},
 	))
 	core.AssertFalse(t, result.OK)
 
-	result = c.Action(ActionWrite).Run(context.Background(), core.NewOptions(
+	result = c.Action(ActionWrite).Run(t.Context(), core.NewOptions(
 		core.Option{Key: "pa" + "th", Value: s3ActionReportPath},
 		core.Option{Key: "content", Value: "done"},
 	))
@@ -80,7 +78,7 @@ func TestActions_ReadWriteUgly(t *core.T) {
 	core.RequireNoError(t, err)
 
 	// Reading a key that was never written must fail.
-	result := c.Action(ActionRead).Run(context.Background(), core.NewOptions(
+	result := c.Action(ActionRead).Run(t.Context(), core.NewOptions(
 		core.Option{Key: "medium", Value: medium},
 		core.Option{Key: "pa" + "th", Value: "missing.txt"},
 	))

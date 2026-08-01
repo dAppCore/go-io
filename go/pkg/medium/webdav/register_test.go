@@ -1,7 +1,6 @@
 package webdav
 
 import (
-	"context"
 	core "dappco.re/go"
 )
 
@@ -64,6 +63,6 @@ func TestRegister_RegisterActions_Bad(t *core.T) {
 func TestRegister_RegisterActions_Ugly(t *core.T) {
 	c := core.New()
 	RegisterActions(c)
-	result := c.Action(ActionRead).Run(context.Background(), core.NewOptions())
+	result := c.Action(ActionRead).Run(t.Context(), core.NewOptions())
 	core.AssertFalse(t, result.OK)
 }
