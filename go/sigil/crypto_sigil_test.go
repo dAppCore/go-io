@@ -181,7 +181,7 @@ func TestCryptoSigil_NewChaChaPolySigil_FixedNonceBytes_Bad(t *T) {
 
 	cases := map[string][]byte{
 		"non-empty": []byte("0123456789abcdef01234567"),
-		"empty":     []byte{},
+		"empty":     {},
 		"typed nil": nil,
 	}
 	for name, nonce := range cases {
