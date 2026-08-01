@@ -250,8 +250,8 @@ func TestIo_NewSandboxed_Bad(t *core.T) {
 func TestIo_NewSandboxed_Ugly(t *core.T) {
 	root := t.TempDir()
 	medium, err := NewSandboxed(root + "/missing")
-	core.AssertNoError(t, err)
-	core.AssertNotNil(t, medium)
+	core.AssertError(t, err)
+	core.AssertNil(t, medium)
 }
 
 func TestIo_Read_Good(t *core.T) {

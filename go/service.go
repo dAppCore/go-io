@@ -17,7 +17,8 @@ package io
 
 import (
 	"context"
-	"io/fs" // AX-6-exception: fs.FileMode is the structural type the Medium interface returns; no core equivalent.
+	goio "io" // AX-6-exception: io.Closer is the lifecycle contract implemented by the handle-backed local Medium.
+	"io/fs"   // AX-6-exception: fs.FileMode is the structural type the Medium interface returns; no core equivalent.
 
 	core "dappco.re/go"
 )
@@ -48,6 +49,7 @@ type Service struct {
 	// Example: content, _ := svc.Medium.Read("config/app.yaml")
 	Medium        Medium
 	registrations core.Once
+	ownsMedium    bool
 }
 
 // NewService returns a factory that resolves a Medium (sandboxed when
@@ -62,16 +64,19 @@ type Service struct {
 func NewService(config IOConfig) func(*core.Core) core.Result {
 	return func(c *core.Core) core.Result {
 		medium := Local
+		ownsMedium := false
 		if config.Root != "" {
 			sandboxed, err := NewSandboxed(config.Root)
 			if err != nil {
 				return core.Fail(core.E("io.NewService", "create sandboxed medium", err))
 			}
 			medium = sandboxed
+			ownsMedium = true
 		}
 		return core.Ok(&Service{
 			ServiceRuntime: core.NewServiceRuntime(c, config),
 			Medium:         medium,
+			ownsMedium:     ownsMedium,
 		})
 	}
 }
@@ -119,13 +124,24 @@ func (s *Service) OnStartup(context.Context) core.Result {
 	return core.Ok(nil)
 }
 
-// OnShutdown is a no-op — Local and sandboxed mediums hold no
-// closable resources. Implements core.Stoppable.
+// OnShutdown closes a sandboxed Medium owned by this service. The package-level
+// Local Medium is process-owned and deliberately remains open. Implements
+// core.Stoppable.
 //
 // Example:
 //
 //	r := svc.OnShutdown(ctx)
 func (s *Service) OnShutdown(context.Context) core.Result {
+	if s == nil || !s.ownsMedium {
+		return core.Ok(nil)
+	}
+	closer, ok := s.Medium.(goio.Closer)
+	if !ok {
+		return core.Fail(core.E("io.Service.OnShutdown", "owned medium is not closable", nil))
+	}
+	if err := closer.Close(); err != nil {
+		return core.Fail(core.E("io.Service.OnShutdown", "close owned medium", err))
+	}
 	return core.Ok(nil)
 }
 

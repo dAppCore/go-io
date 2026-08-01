@@ -18,34 +18,57 @@ const (
 func TestLocal_New_ResolvesRoot_Good(t *core.T) {
 	root := t.TempDir()
 	localMedium, err := New(root)
-	core.AssertNoError(t, err)
-	resolved, err := resolveSymlinksPath(root)
 	core.RequireNoError(t, err)
-	core.AssertEqual(t, resolved, localMedium.filesystemRoot)
+	t.Cleanup(func() {
+		core.AssertNoError(t, localMedium.Close())
+	})
+	resolved := core.PathEvalSymlinks(root)
+	core.RequireTrue(t, resolved.OK)
+	resolvedRoot, ok := resolved.Value.(string)
+	core.RequireTrue(t, ok)
+	core.AssertEqual(t, resolvedRoot, localMedium.filesystemRoot)
+	core.AssertEqual(t, resolvedRoot, localMedium.root.Name())
 }
 
-func TestLocal_Path_SandboxedGood(t *core.T) {
+func TestLocal_Path_RootRelative_Good(t *core.T) {
 	localMedium := &Medium{filesystemRoot: "/home/user"}
 
-	core.AssertEqual(t, localHomeFilePath, localMedium.sandboxedPath(localFilePath))
-	core.AssertEqual(t, "/home/user/dir/file.txt", localMedium.sandboxedPath("dir/file.txt"))
-
-	core.AssertEqual(t, "/home/user", localMedium.sandboxedPath(""))
-
-	core.AssertEqual(t, localHomeFilePath, localMedium.sandboxedPath("../file.txt"))
-	core.AssertEqual(t, localHomeFilePath, localMedium.sandboxedPath("dir/../file.txt"))
-
-	core.AssertEqual(t, "/home/user/etc/passwd", localMedium.sandboxedPath(localEtcPasswdPath))
+	got, err := localMedium.rootPath(localFilePath)
+	core.RequireNoError(t, err)
+	core.AssertEqual(t, "file.txt", got)
+	got, err = localMedium.rootPath("dir/file.txt")
+	core.RequireNoError(t, err)
+	core.AssertEqual(t, "dir/file.txt", got)
+	got, err = localMedium.rootPath("")
+	core.RequireNoError(t, err)
+	core.AssertEqual(t, ".", got)
+	got, err = localMedium.rootPath("../file.txt")
+	core.RequireNoError(t, err)
+	core.AssertEqual(t, "file.txt", got)
+	got, err = localMedium.rootPath("dir/../file.txt")
+	core.RequireNoError(t, err)
+	core.AssertEqual(t, "file.txt", got)
+	got, err = localMedium.rootPath(localEtcPasswdPath)
+	core.RequireNoError(t, err)
+	core.AssertEqual(t, "etc/passwd", got)
 }
 
 func TestLocal_Path_RootFilesystem_Good(t *core.T) {
 	localMedium := &Medium{filesystemRoot: "/"}
 
-	core.AssertEqual(t, localEtcPasswdPath, localMedium.sandboxedPath(localEtcPasswdPath))
-	core.AssertEqual(t, localHomeFilePath, localMedium.sandboxedPath(localHomeFilePath))
-
-	workingDirectory := currentWorkingDir()
-	core.AssertEqual(t, core.Path(workingDirectory, localFilePath), localMedium.sandboxedPath(localFilePath))
+	got, err := localMedium.rootPath(localEtcPasswdPath)
+	core.RequireNoError(t, err)
+	core.AssertEqual(t, "etc/passwd", got)
+	got, err = localMedium.rootPath(localHomeFilePath)
+	core.RequireNoError(t, err)
+	core.AssertEqual(t, "home/user/file.txt", got)
+	got, err = localMedium.rootPath(localFilePath)
+	core.RequireNoError(t, err)
+	expected := core.TrimPrefix(
+		core.PathToSlash(core.PathJoin(currentWorkingDir(), localFilePath)),
+		"/",
+	)
+	core.AssertEqual(t, expected, got)
 }
 
 func TestLocal_ReadWrite_BasicGood(t *core.T) {
@@ -409,37 +432,39 @@ func TestLocal_WriteStream_Basic_Good(t *core.T) {
 func TestLocal_Path_TraversalSandboxGood(t *core.T) {
 	localMedium := &Medium{filesystemRoot: "/sandbox"}
 
-	core.AssertEqual(t, "/sandbox/file.txt", localMedium.sandboxedPath("../../../file.txt"))
-	core.AssertEqual(t, "/sandbox/target", localMedium.sandboxedPath("dir/../../target"))
-
-	core.AssertEqual(t, "/sandbox/.ssh/id_rsa", localMedium.sandboxedPath(".ssh/id_rsa"))
-	core.AssertEqual(t, "/sandbox/id_rsa", localMedium.sandboxedPath(".ssh/../id_rsa"))
-
-	core.AssertEqual(t, "/sandbox/file\x00.txt", localMedium.sandboxedPath("file\x00.txt"))
+	for input, expected := range map[string]string{
+		"../../../file.txt": "file.txt",
+		"dir/../../target":  "target",
+		".ssh/id_rsa":       ".ssh/id_rsa",
+		".ssh/../id_rsa":    "id_rsa",
+	} {
+		got, err := localMedium.rootPath(input)
+		core.AssertNoError(t, err)
+		core.AssertEqual(t, expected, got)
+	}
+	_, err := localMedium.rootPath("file\x00.txt")
+	core.AssertError(t, err)
 }
 
-func TestLocal_ValidatePath_SymlinkEscapeBad(t *core.T) {
+func TestLocal_SymlinkEscape_Bad(t *core.T) {
 	root := t.TempDir()
 	localMedium, err := New(root)
-	core.AssertNoError(t, err)
+	core.RequireNoError(t, err)
+	t.Cleanup(func() {
+		core.AssertNoError(t, localMedium.Close())
+	})
 
 	outside := t.TempDir()
 	outsideFile := core.Path(outside, "secret.txt")
-	outsideMedium, err := New("/")
-	core.RequireNoError(t, err)
-	err = outsideMedium.Write(outsideFile, "secret")
-	core.AssertNoError(t, err)
-
-	_, err = localMedium.validatePath("../outside.txt")
-	core.AssertNoError(t, err)
+	core.RequireTrue(t, core.WriteFile(outsideFile, []byte("secret"), 0600).OK)
 
 	linkPath := core.Path(root, "evil_link")
 	err = syscall.Symlink(outside, linkPath)
 	core.AssertNoError(t, err)
 
-	_, err = localMedium.validatePath("evil_link/secret.txt")
+	content, err := localMedium.Read("evil_link/secret.txt")
 	core.AssertError(t, err)
-	core.AssertErrorIs(t, err, fs.ErrPermission)
+	core.AssertNotEqual(t, "secret", content)
 
 	err = localMedium.EnsureDir("inner")
 	core.AssertNoError(t, err)
@@ -448,9 +473,9 @@ func TestLocal_ValidatePath_SymlinkEscapeBad(t *core.T) {
 	err = syscall.Symlink(outside, nestedLink)
 	core.AssertNoError(t, err)
 
-	_, err = localMedium.validatePath("inner/nested_evil/secret.txt")
+	content, err = localMedium.Read("inner/nested_evil/secret.txt")
 	core.AssertError(t, err)
-	core.AssertErrorIs(t, err, fs.ErrPermission)
+	core.AssertNotEqual(t, "secret", content)
 }
 
 func TestLocal_EmptyPathsGood(t *core.T) {
@@ -480,6 +505,9 @@ func newLocalMediumFixture(t *core.T) *Medium {
 	t.Helper()
 	medium, err := New(t.TempDir())
 	core.RequireNoError(t, err)
+	t.Cleanup(func() {
+		core.AssertNoError(t, medium.Close())
+	})
 	return medium
 }
 

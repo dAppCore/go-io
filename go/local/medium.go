@@ -7,8 +7,10 @@ import (
 	"cmp"
 	goio "io"
 	"io/fs"
+	"os" // AX-6-exception: os.Root is the Go security primitive that anchors every local Medium operation to one directory handle.
+	"runtime"
 	"slices"
-	"syscall"
+	"sync"
 
 	core "dappco.re/go"
 )
@@ -16,17 +18,19 @@ import (
 // Example: medium, _ := local.New("/srv/app")
 // Example: _ = medium.Write("config/app.yaml", "port: 8080")
 type Medium struct {
-	filesystemRoot string
+	filesystemRoot      string
+	root                *os.Root
+	closeOnce           sync.Once
+	closeErr            error
+	beforeRootOperation func()
 }
 
 var _ fs.FS = (*Medium)(nil)
-
-var unrestrictedFileSystem = (&core.Fs{}).NewUnrestricted()
+var _ goio.Closer = (*Medium)(nil)
 
 const (
-	opLocalDelete           = "local.Delete"
-	opLocalDeleteAll        = "local.DeleteAll"
-	msgUnexpectedResultType = "unexpected result type"
+	opLocalDelete    = "local.Delete"
+	opLocalDeleteAll = "local.DeleteAll"
 )
 
 // Example: medium, _ := local.New("/srv/app")
@@ -35,11 +39,32 @@ func New(root string) (
 	*Medium,
 	error,
 ) {
-	absoluteRoot := absolutePath(root)
-	if resolvedRoot, err := resolveSymlinksPath(absoluteRoot); err == nil {
-		absoluteRoot = resolvedRoot
+	if runtime.GOOS == "js" || runtime.GOOS == "plan9" {
+		return nil, core.E(
+			"local.New",
+			core.Concat("os.Root cannot enforce rename-safe containment on ", runtime.GOOS),
+			fs.ErrPermission,
+		)
 	}
-	return &Medium{filesystemRoot: absoluteRoot}, nil
+
+	absoluteRoot, err := absolutePath(root)
+	if err != nil {
+		return nil, core.E("local.New", "resolve root", err)
+	}
+	if resolved := core.PathEvalSymlinks(absoluteRoot); resolved.OK {
+		if value, ok := resolved.Value.(string); ok {
+			absoluteRoot = value
+		}
+	}
+
+	rootHandle, err := os.OpenRoot(absoluteRoot)
+	if err != nil {
+		return nil, core.E("local.New", "open root", err)
+	}
+	return &Medium{
+		filesystemRoot: absoluteRoot,
+		root:           rootHandle,
+	}, nil
 }
 
 func dirSeparator() string {
@@ -67,118 +92,77 @@ func currentWorkingDir() string {
 	if workingDirectory := core.Env("DIR_CWD"); workingDirectory != "" {
 		return workingDirectory
 	}
+	if result := core.Getwd(); result.OK {
+		if workingDirectory, ok := result.Value.(string); ok {
+			return workingDirectory
+		}
+	}
 	return "."
 }
 
-func absolutePath(path string) string {
+func absolutePath(path string) (
+	string,
+	error,
+) {
 	path = normalisePath(path)
-	if core.PathIsAbs(path) {
-		return core.Path(path)
+	if path == "" {
+		path = "."
 	}
-	return core.Path(currentWorkingDir(), path)
-}
-
-func cleanSandboxPath(path string) string {
-	return core.Path(dirSeparator() + normalisePath(path))
-}
-
-func splitPathParts(path string) []string {
-	trimmed := core.TrimPrefix(path, dirSeparator())
-	if trimmed == "" {
-		return nil
-	}
-	var parts []string
-	for _, part := range core.Split(trimmed, dirSeparator()) {
-		if part == "" {
-			continue
-		}
-		parts = append(parts, part)
-	}
-	return parts
-}
-
-func resolveSymlinksPath(path string) (
-	string,
-	error,
-) {
-	return resolveSymlinksRecursive(absolutePath(path), map[string]struct{}{})
-}
-
-func resolveSymlinksRecursive(path string, seen map[string]struct{}) (
-	string,
-	error,
-) {
-	path = core.Path(path)
-	if path == dirSeparator() {
-		return path, nil
-	}
-
-	current := dirSeparator()
-	for _, part := range splitPathParts(path) {
-		next := core.Path(current, part)
-		info, err := lstat(next)
-		if err != nil {
-			if core.Is(err, syscall.ENOENT) {
-				current = next
-				continue
-			}
+	result := core.PathAbs(path)
+	if !result.OK {
+		if err, ok := result.Value.(error); ok {
 			return "", err
 		}
-		if !info.IsSymlink {
-			current = next
-			continue
-		}
-
-		resolved, err := resolveSymlinkTarget(current, next, seen)
-		if err != nil {
-			return "", err
-		}
-		current = resolved
+		return "", core.E("local.absolutePath", "unexpected absolute path result", nil)
 	}
-
-	return current, nil
+	absolute, ok := result.Value.(string)
+	if !ok {
+		return "", core.E("local.absolutePath", "unexpected absolute path type", nil)
+	}
+	return absolute, nil
 }
 
-func resolveSymlinkTarget(current, next string, seen map[string]struct{}) (
+// rootPath converts legacy absolute and traversal-heavy caller paths into a
+// clean name relative to the already-open root. It does not inspect the host
+// filesystem; containment is enforced when os.Root resolves the name.
+func (medium *Medium) rootPath(path string) (
 	string,
 	error,
 ) {
-	target, err := readlink(next)
-	if err != nil {
-		return "", err
+	if medium == nil {
+		return "", core.E("local.rootPath", "medium is nil", fs.ErrInvalid)
 	}
-	target = normalisePath(target)
-	if !core.PathIsAbs(target) {
-		target = core.Path(current, target)
-	} else {
-		target = core.Path(target)
+	if core.Contains(path, "\x00") {
+		return "", core.E("local.rootPath", "path contains NUL", fs.ErrInvalid)
 	}
-	if _, ok := seen[target]; ok {
-		return "", core.E("local.resolveSymlinksPath", core.Concat("symlink cycle: ", target), fs.ErrInvalid)
-	}
-	seen[target] = struct{}{}
-	resolved, err := resolveSymlinksRecursive(target, seen)
-	delete(seen, target)
-	return resolved, err
-}
 
-func isWithinRoot(root, target string) bool {
-	root = core.Path(root)
-	target = core.Path(target)
-	if root == dirSeparator() {
-		return true
+	path = core.PathToSlash(normalisePath(path))
+	if medium.filesystemRoot == dirSeparator() && path != "" && !core.PathIsAbs(path) {
+		path = core.PathToSlash(core.PathJoin(currentWorkingDir(), path))
 	}
-	return target == root || core.HasPrefix(target, root+dirSeparator())
+
+	clean := core.CleanPath("/"+core.TrimPrefix(path, "/"), "/")
+	relative := core.TrimPrefix(clean, "/")
+	if relative == "" {
+		return ".", nil
+	}
+	return relative, nil
 }
 
 func canonicalPath(path string) string {
 	if path == "" {
 		return ""
 	}
-	if resolved, err := resolveSymlinksPath(path); err == nil {
-		return resolved
+	absolute, err := absolutePath(path)
+	if err != nil {
+		return ""
 	}
-	return absolutePath(path)
+	if resolved := core.PathEvalSymlinks(absolute); resolved.OK {
+		if value, ok := resolved.Value.(string); ok {
+			return value
+		}
+	}
+	return absolute
 }
 
 func isProtectedPath(fullPath string) bool {
@@ -196,105 +180,80 @@ func isProtectedPath(fullPath string) bool {
 	return ok
 }
 
-func logSandboxEscape(root, path, attempted string) {
-	username := core.Env("USER")
-	if username == "" {
-		username = "unknown"
-	}
-	core.Security("sandbox escape detected", "root", root, "pa"+"th", path, "attempted", attempted, "user", username)
-}
-
-func (medium *Medium) sandboxedPath(path string) string {
-	if path == "" {
+func (medium *Medium) fullPath(path string) string {
+	if path == "." {
 		return medium.filesystemRoot
 	}
-
-	if medium.filesystemRoot == dirSeparator() && !core.PathIsAbs(normalisePath(path)) {
-		return core.Path(currentWorkingDir(), normalisePath(path))
-	}
-
-	clean := cleanSandboxPath(path)
-
-	if medium.filesystemRoot == dirSeparator() {
-		return clean
-	}
-
-	return core.Path(medium.filesystemRoot, core.TrimPrefix(clean, dirSeparator()))
+	return core.PathJoin(medium.filesystemRoot, path)
 }
 
-// validatePath resolves the caller-supplied path against the sandbox root, rejecting any path
-// that would escape via symlinks.
-//
-// TODO(security): the per-component Lstat + join loop is subject to a TOCTOU race: a symlink
-// could be swapped between the Lstat and the subsequent open. A proper fix requires opening each
-// directory component with O_NOFOLLOW (openat-style) so that the resolved fd is used for the
-// next step rather than re-resolving from a path string. Until then, symlink-based escape is
-// only possible on systems where an attacker can swap filesystem objects between syscalls.
-func (medium *Medium) validatePath(path string) (
+func (medium *Medium) prepare(path string) (
+	*os.Root,
 	string,
 	error,
 ) {
-	if medium.filesystemRoot == dirSeparator() {
-		return medium.sandboxedPath(path), nil
+	name, err := medium.rootPath(path)
+	if err != nil {
+		return nil, "", err
 	}
-
-	parts := splitPathParts(cleanSandboxPath(path))
-	current := medium.filesystemRoot
-
-	for _, part := range parts {
-		next := core.Path(current, part)
-		realNext, err := resolveSymlinksPath(next)
-		if err != nil {
-			if core.Is(err, syscall.ENOENT) {
-				current = next
-				continue
-			}
-			return "", err
-		}
-
-		if !isWithinRoot(medium.filesystemRoot, realNext) {
-			logSandboxEscape(medium.filesystemRoot, path, realNext)
-			return "", fs.ErrPermission
-		}
-		current = realNext
+	if medium.root == nil {
+		return nil, "", core.E("local.prepare", "medium is closed or uninitialised", fs.ErrClosed)
 	}
+	medium.runBeforeRootOperation()
+	return medium.root, name, nil
+}
 
-	return current, nil
+func ensureParent(root *os.Root, name string) error {
+	parent := core.PathToSlash(core.PathDir(name))
+	if parent == "" || parent == "." {
+		return nil
+	}
+	return root.MkdirAll(parent, 0755)
 }
 
 func (medium *Medium) Read(path string) (
 	string,
 	error,
 ) {
-	resolvedPath, err := medium.validatePath(path)
+	root, name, err := medium.prepare(path)
 	if err != nil {
 		return "", err
 	}
-	return resultString("local.Read", core.Concat("read failed: ", path), unrestrictedFileSystem.Read(resolvedPath))
+	content, err := root.ReadFile(name)
+	if err != nil {
+		return "", core.E("local.Read", core.Concat("read failed: ", path), err)
+	}
+	return string(content), nil
 }
 
 func (medium *Medium) Write(path, content string) error { // legacy error contract
-
 	return medium.WriteMode(path, content, 0644)
 }
 
 func (medium *Medium) WriteMode(path, content string, mode fs.FileMode) error { // legacy error contract
-
-	resolvedPath, err := medium.validatePath(path)
+	root, name, err := medium.prepare(path)
 	if err != nil {
 		return err
 	}
-	return resultError("local.WriteMode", core.Concat("write failed: ", path), unrestrictedFileSystem.WriteMode(resolvedPath, content, mode))
+	if err := ensureParent(root, name); err != nil {
+		return core.E("local.WriteMode", core.Concat("create parent failed: ", path), err)
+	}
+	if err := root.WriteFile(name, []byte(content), mode); err != nil {
+		return core.E("local.WriteMode", core.Concat("write failed: ", path), err)
+	}
+	return nil
 }
 
 // Example: _ = medium.EnsureDir("config/app")
 func (medium *Medium) EnsureDir(path string) error { // legacy error contract
-
-	resolvedPath, err := medium.validatePath(path)
+	root, name, err := medium.prepare(path)
 	if err != nil {
 		return err
 	}
-	return resultError("local.EnsureDir", core.Concat("ensure dir failed: ", path), unrestrictedFileSystem.EnsureDir(resolvedPath))
+	if err := root.MkdirAll(name, 0755); err != nil {
+		return core.E("local.EnsureDir", core.Concat("ensure dir failed: ", path), err)
+	}
+	return nil
 }
 
 // Example: isDirectory := medium.IsDir("config")
@@ -302,11 +261,8 @@ func (medium *Medium) IsDir(path string) bool {
 	if path == "" {
 		return false
 	}
-	resolvedPath, err := medium.validatePath(path)
-	if err != nil {
-		return false
-	}
-	return unrestrictedFileSystem.IsDir(resolvedPath).OK
+	info, err := medium.Stat(path)
+	return err == nil && info.IsDir()
 }
 
 // Example: isFile := medium.IsFile("config/app.yaml")
@@ -314,20 +270,14 @@ func (medium *Medium) IsFile(path string) bool {
 	if path == "" {
 		return false
 	}
-	resolvedPath, err := medium.validatePath(path)
-	if err != nil {
-		return false
-	}
-	return unrestrictedFileSystem.IsFile(resolvedPath).OK
+	info, err := medium.Stat(path)
+	return err == nil && !info.IsDir()
 }
 
 // Example: exists := medium.Exists("config/app.yaml")
 func (medium *Medium) Exists(path string) bool {
-	resolvedPath, err := medium.validatePath(path)
-	if err != nil {
-		return false
-	}
-	return unrestrictedFileSystem.Exists(resolvedPath).OK
+	_, err := medium.Stat(path)
+	return err == nil
 }
 
 // Example: entries, _ := medium.List("config")
@@ -335,19 +285,17 @@ func (medium *Medium) List(path string) (
 	[]fs.DirEntry,
 	error,
 ) {
-	resolvedPath, err := medium.validatePath(path)
+	root, name, err := medium.prepare(path)
 	if err != nil {
 		return nil, err
 	}
-	entries, err := resultDirEntries("local.List", core.Concat("list failed: ", path), unrestrictedFileSystem.List(resolvedPath))
+	entries, err := fs.ReadDir(root.FS(), name)
 	if err != nil {
-		return nil, err
+		return nil, core.E("local.List", core.Concat("list failed: ", path), err)
 	}
-
 	slices.SortFunc(entries, func(a, b fs.DirEntry) int {
 		return cmp.Compare(a.Name(), b.Name())
 	})
-
 	return entries, nil
 }
 
@@ -356,11 +304,15 @@ func (medium *Medium) Stat(path string) (
 	fs.FileInfo,
 	error,
 ) {
-	resolvedPath, err := medium.validatePath(path)
+	root, name, err := medium.prepare(path)
 	if err != nil {
 		return nil, err
 	}
-	return resultFileInfo("local.Stat", core.Concat("stat failed: ", path), unrestrictedFileSystem.Stat(resolvedPath))
+	info, err := root.Stat(name)
+	if err != nil {
+		return nil, core.E("local.Stat", core.Concat("stat failed: ", path), err)
+	}
+	return info, nil
 }
 
 // Example: file, _ := medium.Open("config/app.yaml")
@@ -368,11 +320,15 @@ func (medium *Medium) Open(path string) (
 	fs.File,
 	error,
 ) {
-	resolvedPath, err := medium.validatePath(path)
+	root, name, err := medium.prepare(path)
 	if err != nil {
 		return nil, err
 	}
-	return resultFile("local.Open", core.Concat("open failed: ", path), unrestrictedFileSystem.Open(resolvedPath))
+	file, err := root.Open(name)
+	if err != nil {
+		return nil, core.E("local.Open", core.Concat("open failed: ", path), err)
+	}
+	return file, nil
 }
 
 // Example: writer, _ := medium.Create("logs/app.log")
@@ -380,11 +336,18 @@ func (medium *Medium) Create(path string) (
 	goio.WriteCloser,
 	error,
 ) {
-	resolvedPath, err := medium.validatePath(path)
+	root, name, err := medium.prepare(path)
 	if err != nil {
 		return nil, err
 	}
-	return resultWriteCloser("local.Create", core.Concat("create failed: ", path), unrestrictedFileSystem.Create(resolvedPath))
+	if err := ensureParent(root, name); err != nil {
+		return nil, core.E("local.Create", core.Concat("create parent failed: ", path), err)
+	}
+	writer, err := root.OpenFile(name, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
+	if err != nil {
+		return nil, core.E("local.Create", core.Concat("create failed: ", path), err)
+	}
+	return writer, nil
 }
 
 // Example: writer, _ := medium.Append("logs/app.log")
@@ -392,11 +355,18 @@ func (medium *Medium) Append(path string) (
 	goio.WriteCloser,
 	error,
 ) {
-	resolvedPath, err := medium.validatePath(path)
+	root, name, err := medium.prepare(path)
 	if err != nil {
 		return nil, err
 	}
-	return resultWriteCloser("local.Append", core.Concat("append failed: ", path), unrestrictedFileSystem.Append(resolvedPath))
+	if err := ensureParent(root, name); err != nil {
+		return nil, core.E("local.Append", core.Concat("create parent failed: ", path), err)
+	}
+	writer, err := root.OpenFile(name, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		return nil, core.E("local.Append", core.Concat("append failed: ", path), err)
+	}
+	return writer, nil
 }
 
 // Example: reader, _ := medium.ReadStream("logs/app.log")
@@ -404,7 +374,16 @@ func (medium *Medium) ReadStream(path string) (
 	goio.ReadCloser,
 	error,
 ) {
-	return medium.Open(path)
+	file, err := medium.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	reader, ok := file.(goio.ReadCloser)
+	if !ok {
+		_ = file.Close()
+		return nil, core.E("local.ReadStream", "opened file is not closable", fs.ErrInvalid)
+	}
+	return reader, nil
 }
 
 // Example: writer, _ := medium.WriteStream("logs/app.log")
@@ -417,127 +396,78 @@ func (medium *Medium) WriteStream(path string) (
 
 // Example: _ = medium.Delete("config/app.yaml")
 func (medium *Medium) Delete(path string) error { // legacy error contract
-
-	resolvedPath, err := medium.validatePath(path)
+	root, name, err := medium.prepare(path)
 	if err != nil {
 		return err
 	}
-	if resolvedPath == medium.filesystemRoot {
-		return core.E(opLocalDelete, "refusing to delete sandbox root", nil)
+	if name == "." {
+		return core.E(opLocalDelete, "refusing to delete sandbox root", fs.ErrPermission)
 	}
-	if isProtectedPath(resolvedPath) {
-		return core.E(opLocalDelete, core.Concat("refusing to delete protected path: ", resolvedPath), nil)
+	if protected := medium.fullPath(name); isProtectedPath(protected) {
+		return core.E(opLocalDelete, core.Concat("refusing to delete protected path: ", protected), fs.ErrPermission)
 	}
-	return resultError(opLocalDelete, core.Concat("delete failed: ", path), unrestrictedFileSystem.Delete(resolvedPath))
+	if err := root.Remove(name); err != nil {
+		return core.E(opLocalDelete, core.Concat("delete failed: ", path), err)
+	}
+	return nil
 }
 
 // Example: _ = medium.DeleteAll("logs/archive")
 func (medium *Medium) DeleteAll(path string) error { // legacy error contract
-
-	resolvedPath, err := medium.validatePath(path)
+	root, name, err := medium.prepare(path)
 	if err != nil {
 		return err
 	}
-	if resolvedPath == medium.filesystemRoot {
-		return core.E(opLocalDeleteAll, "refusing to delete sandbox root", nil)
+	if name == "." {
+		return core.E(opLocalDeleteAll, "refusing to delete sandbox root", fs.ErrPermission)
 	}
-	if isProtectedPath(resolvedPath) {
-		return core.E(opLocalDeleteAll, core.Concat("refusing to delete protected path: ", resolvedPath), nil)
+	if protected := medium.fullPath(name); isProtectedPath(protected) {
+		return core.E(opLocalDeleteAll, core.Concat("refusing to delete protected path: ", protected), fs.ErrPermission)
 	}
-	return resultError(opLocalDeleteAll, core.Concat("delete all failed: ", path), unrestrictedFileSystem.DeleteAll(resolvedPath))
+	if err := root.RemoveAll(name); err != nil {
+		return core.E(opLocalDeleteAll, core.Concat("delete all failed: ", path), err)
+	}
+	return nil
 }
 
 // Example: _ = medium.Rename("drafts/todo.txt", "archive/todo.txt")
 func (medium *Medium) Rename(oldPath, newPath string) error { // legacy error contract
-
-	oldResolvedPath, err := medium.validatePath(oldPath)
+	oldName, err := medium.rootPath(oldPath)
 	if err != nil {
 		return err
 	}
-	newResolvedPath, err := medium.validatePath(newPath)
+	newName, err := medium.rootPath(newPath)
 	if err != nil {
 		return err
 	}
-	return resultError("local.Rename", core.Concat("rename failed: ", oldPath), unrestrictedFileSystem.Rename(oldResolvedPath, newResolvedPath))
+	medium.runBeforeRootOperation()
+	if err := ensureParent(medium.root, newName); err != nil {
+		return core.E("local.Rename", core.Concat("create destination parent failed: ", newPath), err)
+	}
+	if err := medium.root.Rename(oldName, newName); err != nil {
+		return core.E("local.Rename", core.Concat("rename failed: ", oldPath), err)
+	}
+	return nil
 }
 
-func resultError(operation, message string, result core.Result) error { // legacy error contract
-
-	if result.OK {
-		return nil
+// Close releases the directory handle that enforces Medium containment.
+func (medium *Medium) Close() error {
+	if medium == nil {
+		return core.E("local.Close", "medium is nil", fs.ErrInvalid)
 	}
-	if err, ok := result.Value.(error); ok {
-		return core.E(operation, message, err)
-	}
-	return core.E(operation, message, nil)
+	medium.closeOnce.Do(func() {
+		if medium.root != nil {
+			medium.closeErr = medium.root.Close()
+		}
+	})
+	return medium.closeErr
 }
 
-func resultString(operation, message string, result core.Result) (
-	string,
-	error,
-) {
-	if !result.OK {
-		return "", resultError(operation, message, result)
+func (medium *Medium) runBeforeRootOperation() {
+	if medium == nil || medium.beforeRootOperation == nil {
+		return
 	}
-	value, ok := result.Value.(string)
-	if !ok {
-		return "", core.E(operation, msgUnexpectedResultType, nil)
-	}
-	return value, nil
-}
-
-func resultDirEntries(operation, message string, result core.Result) (
-	[]fs.DirEntry,
-	error,
-) {
-	if !result.OK {
-		return nil, resultError(operation, message, result)
-	}
-	entries, ok := result.Value.([]fs.DirEntry)
-	if !ok {
-		return nil, core.E(operation, msgUnexpectedResultType, nil)
-	}
-	return entries, nil
-}
-
-func resultFileInfo(operation, message string, result core.Result) (
-	fs.FileInfo,
-	error,
-) {
-	if !result.OK {
-		return nil, resultError(operation, message, result)
-	}
-	fileInfo, ok := result.Value.(fs.FileInfo)
-	if !ok {
-		return nil, core.E(operation, msgUnexpectedResultType, nil)
-	}
-	return fileInfo, nil
-}
-
-func resultFile(operation, message string, result core.Result) (
-	fs.File,
-	error,
-) {
-	if !result.OK {
-		return nil, resultError(operation, message, result)
-	}
-	file, ok := result.Value.(fs.File)
-	if !ok {
-		return nil, core.E(operation, msgUnexpectedResultType, nil)
-	}
-	return file, nil
-}
-
-func resultWriteCloser(operation, message string, result core.Result) (
-	goio.WriteCloser,
-	error,
-) {
-	if !result.OK {
-		return nil, resultError(operation, message, result)
-	}
-	writer, ok := result.Value.(goio.WriteCloser)
-	if !ok {
-		return nil, core.E(operation, msgUnexpectedResultType, nil)
-	}
-	return writer, nil
+	hook := medium.beforeRootOperation
+	medium.beforeRootOperation = nil
+	hook()
 }
