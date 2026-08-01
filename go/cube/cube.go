@@ -14,8 +14,8 @@ import (
 	coreio "dappco.re/go/io"
 	coredatanode "dappco.re/go/io/datanode"
 	"dappco.re/go/io/sigil"
-	borgdatanode "forge.lthn.ai/Snider/Borg/pkg/datanode"
-	borgtrix "forge.lthn.ai/Snider/Borg/pkg/trix"
+	borgdatanode "github.com/Snider/Borg/pkg/datanode"
+	borgtrix "github.com/Snider/Borg/pkg/trix"
 )
 
 const (

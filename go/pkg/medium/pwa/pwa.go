@@ -7,8 +7,8 @@ import (
 
 	core "dappco.re/go"
 	coreio "dappco.re/go/io"
-	borgdatanode "forge.lthn.ai/Snider/Borg/pkg/datanode"
-	borgpwa "forge.lthn.ai/Snider/Borg/pkg/pwa"
+	borgdatanode "github.com/Snider/Borg/pkg/datanode"
+	borgpwa "github.com/Snider/Borg/pkg/pwa"
 )
 
 const (

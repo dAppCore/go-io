@@ -2,7 +2,7 @@ package pwa
 
 import (
 	core "dappco.re/go"
-	borgdatanode "forge.lthn.ai/Snider/Borg/pkg/datanode"
+	borgdatanode "github.com/Snider/Borg/pkg/datanode"
 	goio "io"
 	"io/fs"
 	"net/http"

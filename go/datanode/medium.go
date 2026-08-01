@@ -14,7 +14,7 @@ import (
 
 	core "dappco.re/go"
 	coreio "dappco.re/go/io"
-	borgdatanode "forge.lthn.ai/Snider/Borg/pkg/datanode"
+	borgdatanode "github.com/Snider/Borg/pkg/datanode"
 )
 
 var (

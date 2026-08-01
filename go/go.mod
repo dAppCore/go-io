@@ -4,7 +4,7 @@ go 1.26.0
 
 require (
 	dappco.re/go v0.12.0
-	forge.lthn.ai/Snider/Borg v0.3.1
+	github.com/Snider/Borg v0.4.0
 	github.com/aws/aws-sdk-go-v2 v1.43.3
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.106.3
 	github.com/duckdb/duckdb-go/v2 v2.10505.0
@@ -19,9 +19,9 @@ require (
 
 require (
 	dario.cat/mergo v1.0.2 // indirect
-	forge.lthn.ai/Snider/Enchantrix v0.0.4 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/ProtonMail/go-crypto v1.4.1 // indirect
+	github.com/Snider/Enchantrix v0.0.4 // indirect
 	github.com/apache/arrow-go/v18 v18.7.0 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.16 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.34 // indirect

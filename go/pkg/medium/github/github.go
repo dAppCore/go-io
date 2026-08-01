@@ -11,8 +11,8 @@ import (
 
 	core "dappco.re/go"
 	coreio "dappco.re/go/io"
-	borgdatanode "forge.lthn.ai/Snider/Borg/pkg/datanode"
-	borgvcs "forge.lthn.ai/Snider/Borg/pkg/vcs"
+	borgdatanode "github.com/Snider/Borg/pkg/datanode"
+	borgvcs "github.com/Snider/Borg/pkg/vcs"
 	gh "github.com/google/go-github/v75/github"
 	"golang.org/x/oauth2"
 )
