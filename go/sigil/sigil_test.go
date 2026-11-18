@@ -5,7 +5,7 @@ import (
 	"crypto/sha1"
 	"crypto/sha256"
 	"crypto/sha512"
-	. "dappco.re/go"
+	. "github.com/dappcore/go"
 	"encoding/base64"
 	"encoding/hex"
 )

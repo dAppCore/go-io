@@ -1,7 +1,7 @@
 package pwa
 
 import (
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 	borgdatanode "github.com/Snider/Borg/pkg/datanode"
 	goio "io"
 	"io/fs"

@@ -1,7 +1,7 @@
 package webdav
 
 import (
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 )
 
 func TestRegister_RegisterFactory_Good(t *core.T) {

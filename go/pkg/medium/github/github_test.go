@@ -1,7 +1,7 @@
 package github
 
 import (
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 	"encoding/base64"
 	goio "io"
 	"io/fs"

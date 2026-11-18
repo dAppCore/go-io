@@ -1,7 +1,7 @@
 package webdav
 
 import (
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 	xwebdav "golang.org/x/net/webdav"
 	goio "io"
 	"io/fs"

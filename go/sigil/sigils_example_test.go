@@ -1,6 +1,6 @@
 package sigil
 
-import core "dappco.re/go"
+import core "github.com/dappcore/go"
 
 func ExampleReverseSigil_In() {
 	core.Println("ok")

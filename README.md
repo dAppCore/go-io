@@ -1,6 +1,6 @@
 # go-io
 
-`dappco.re/go/io` is the Core storage boundary. It gives callers one `Medium`
+`github.com/dappcore/go-io/go` is the Core storage boundary. It gives callers one `Medium`
 interface for file-like operations while letting the backing store be local
 disk, memory, S3, SQLite, WebDAV, SFTP, GitHub, a Borg DataNode, or an encrypted
 workspace.

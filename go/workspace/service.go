@@ -8,11 +8,11 @@ import (
 	"io/fs"
 	"sync" // Note: AX-6 — internal concurrency primitive; structural per RFC §5.1
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 	"golang.org/x/crypto/hkdf"
 
-	"dappco.re/go/io"
-	"dappco.re/go/io/sigil"
+	"github.com/dappcore/go-io/go"
+	"github.com/dappcore/go-io/go/sigil"
 )
 
 // Example: service, _ := workspace.New(workspace.Options{KeyPairProvider: keyPairProvider})

@@ -6,9 +6,9 @@ package api
 import (
 	"net/http"
 
-	core "dappco.re/go"
-	coreio "dappco.re/go/io"
-	"dappco.re/go/io/cube"
+	core "github.com/dappcore/go"
+	coreio "github.com/dappcore/go-io/go"
+	"github.com/dappcore/go-io/go/cube"
 	"github.com/gin-gonic/gin"
 )
 

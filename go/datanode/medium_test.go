@@ -1,8 +1,8 @@
 package datanode
 
 import (
-	core "dappco.re/go"
-	coreio "dappco.re/go/io"
+	core "github.com/dappcore/go"
+	coreio "github.com/dappcore/go-io/go"
 	goio "io"
 	"io/fs"
 	"time"

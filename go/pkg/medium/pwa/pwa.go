@@ -5,8 +5,8 @@ import (
 	"io/fs"
 	"sync"
 
-	core "dappco.re/go"
-	coreio "dappco.re/go/io"
+	core "github.com/dappcore/go"
+	coreio "github.com/dappcore/go-io/go"
 	borgdatanode "github.com/Snider/Borg/pkg/datanode"
 	borgpwa "github.com/Snider/Borg/pkg/pwa"
 )

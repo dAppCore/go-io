@@ -1,6 +1,6 @@
 package datanode
 
-import core "dappco.re/go"
+import core "github.com/dappcore/go"
 
 type Closer = writeCloser
 type Entry = dirEntry

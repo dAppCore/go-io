@@ -2,7 +2,7 @@ package sigil
 
 import (
 	"crypto"
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 )
 
 func TestSigils_ReverseSigil_In_Good(t *core.T) {

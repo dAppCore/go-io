@@ -2,7 +2,7 @@ package sigil
 
 import (
 	"crypto/rand"
-	. "dappco.re/go"
+	. "github.com/dappcore/go"
 	goio "io"
 )
 

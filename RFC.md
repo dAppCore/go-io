@@ -1,7 +1,7 @@
 # RFC — Windows support for go-io (local Medium)
 
 **Status:** draft · **Author:** Cladius · **Date:** 2026-05-12
-**Triggered by:** Lethean Desktop (`lthn/desktop`) Windows cross-compile blocked at `dappco.re/go/io/local/medium.go` syscall references.
+**Triggered by:** Lethean Desktop (`lthn/desktop`) Windows cross-compile blocked at `github.com/dappcore/go-io/go/local/medium.go` syscall references.
 
 ## Problem
 
@@ -34,7 +34,7 @@ Out of scope:
 
 ## Design
 
-Replace the three syscall-leaning helpers with three platform-abstracted ones, splitting Unix-specific implementations behind build tags. Match the precedent already in `dappco.re/go/process` (`pidfile_unix.go` / `pidfile_windows.go`).
+Replace the three syscall-leaning helpers with three platform-abstracted ones, splitting Unix-specific implementations behind build tags. Match the precedent already in `github.com/dappcore/go-process/go` (`pidfile_unix.go` / `pidfile_windows.go`).
 
 ### New abstraction: `linkInfo`
 
@@ -158,6 +158,6 @@ Existing tests should pass on Unix unchanged. For Windows:
 
 ## Cross-references
 
-- Existing platform-split precedent: `dappco.re/go/process/pidfile_{unix,windows}.go`
+- Existing platform-split precedent: `github.com/dappcore/go-process/go/pidfile_{unix,windows}.go`
 - Triggered from: Lethean Desktop Windows cross-compile audit (parent issue at `lthn/desktop` GitHub)
 - Companion RFC: `~/Code/core/go-process/RFC.md` (the other Windows source-level blocker, larger scope)

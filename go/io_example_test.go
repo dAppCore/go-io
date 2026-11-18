@@ -1,6 +1,6 @@
 package io
 
-import core "dappco.re/go"
+import core "github.com/dappcore/go"
 
 func ExampleFileInfo_Name() {
 	core.Println("ok")

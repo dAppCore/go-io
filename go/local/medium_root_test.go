@@ -5,7 +5,7 @@ import (
 	"io/fs"
 	"syscall"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 )
 
 func TestLocal_Read_ComponentSwapCannotEscape_Ugly(t *core.T) {

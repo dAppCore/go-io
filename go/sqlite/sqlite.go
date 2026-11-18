@@ -8,8 +8,8 @@ import (
 	"io/fs"   // AX-6-exception: fs interface types have no core equivalent.
 	"time"    // AX-6-exception: filesystem metadata timestamps have no core equivalent.
 
-	core "dappco.re/go"
-	coreio "dappco.re/go/io"
+	core "github.com/dappcore/go"
+	coreio "github.com/dappcore/go-io/go"
 
 	_ "modernc.org/sqlite"
 )

@@ -2,11 +2,11 @@ package io_test
 
 import (
 	"context"
-	. "dappco.re/go"
-	coreio "dappco.re/go/io"
-	"dappco.re/go/io/cube"
-	iosftp "dappco.re/go/io/pkg/medium/sftp"
-	ios3 "dappco.re/go/io/s3"
+	. "github.com/dappcore/go"
+	coreio "github.com/dappcore/go-io/go"
+	"github.com/dappcore/go-io/go/cube"
+	iosftp "github.com/dappcore/go-io/go/pkg/medium/sftp"
+	ios3 "github.com/dappcore/go-io/go/s3"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awss3 "github.com/aws/aws-sdk-go-v2/service/s3"
 	pkgsftp "github.com/pkg/sftp"

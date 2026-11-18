@@ -1,7 +1,7 @@
 package fsutil
 
 import (
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 	"io/fs"
 )
 
