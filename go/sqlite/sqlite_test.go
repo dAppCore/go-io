@@ -1,7 +1,7 @@
 package sqlite
 
 import (
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 	goio "io"
 	"io/fs"
 )

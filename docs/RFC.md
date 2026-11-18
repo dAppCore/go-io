@@ -7,9 +7,9 @@ description: Complete API reference for go-io.
 
 This document enumerates every exported type, function, method, and variable in go-io, with short usage examples.
 
-Examples use the import paths from `docs/index.md` (`dappco.re/go/core/io`). Adjust paths if your module path differs.
+Examples use the import paths from `docs/index.md` (`github.com/dappcore/go-io/go`). Adjust paths if your module path differs.
 
-## Package io (`dappco.re/go/core/io`)
+## Package io (`github.com/dappcore/go-io/go`)
 
 Defines the `Medium` interface, helper functions, and in-memory `MemoryMedium` implementation.
 
@@ -588,7 +588,7 @@ _, _ = w.Write([]byte("hello"))
 _ = w.Close()
 ```
 
-## Package local (`dappco.re/go/core/io/local`)
+## Package local (`github.com/dappcore/go-io/go/local`)
 
 Local filesystem backend with sandboxed roots and symlink-escape protection.
 
@@ -751,7 +751,7 @@ _ = m.Write("old.txt", "data")
 _ = m.Rename("old.txt", "new.txt")
 ```
 
-## Package node (`dappco.re/go/core/io/node`)
+## Package node (`github.com/dappcore/go-io/go/node`)
 
 In-memory filesystem implementing `io.Medium` and `fs.FS`, with tar serialisation.
 
@@ -1023,7 +1023,7 @@ _, _ = w.Write([]byte("data"))
 _ = w.Close()
 ```
 
-## Package store (`dappco.re/go/core/io/store`)
+## Package store (`github.com/dappcore/go-io/go/store`)
 
 Group-namespaced key-value store backed by SQLite, plus a `Medium` adapter.
 
@@ -1308,7 +1308,7 @@ _ = m.Write("config/theme", "midnight")
 ok := m.IsDir("config")
 ```
 
-## Package sqlite (`dappco.re/go/core/io/sqlite`)
+## Package sqlite (`github.com/dappcore/go-io/go/sqlite`)
 
 SQLite-backed `io.Medium` implementation using the pure-Go driver.
 
@@ -1481,7 +1481,7 @@ _ = m.EnsureDir("config")
 ok := m.IsDir("config")
 ```
 
-## Package s3 (`dappco.re/go/core/io/s3`)
+## Package s3 (`github.com/dappcore/go-io/go/s3`)
 
 Amazon S3-backed `io.Medium` implementation.
 
@@ -1663,7 +1663,7 @@ m, _ := s3.New(s3.Options{Bucket: "bucket", Client: client})
 ok := m.IsDir("logs")
 ```
 
-## Package datanode (`dappco.re/go/core/io/datanode`)
+## Package datanode (`github.com/dappcore/go-io/go/datanode`)
 
 In-memory `io.Medium` backed by Borg's DataNode, with tar snapshot/restore support.
 
@@ -1861,7 +1861,7 @@ _ = m.EnsureDir("config")
 ok := m.IsDir("config")
 ```
 
-## Package workspace (`dappco.re/go/core/io/workspace`)
+## Package workspace (`github.com/dappcore/go-io/go/workspace`)
 
 Encrypted user workspace management.
 
@@ -1998,7 +1998,7 @@ result := service.HandleWorkspaceMessage(core.New(), workspace.WorkspaceCommand{
 _ = result.OK
 ```
 
-## Package sigil (`dappco.re/go/core/io/sigil`)
+## Package sigil (`github.com/dappcore/go-io/go/sigil`)
 
 Composable data-transformation sigils for encoding, compression, hashing, and encryption.
 

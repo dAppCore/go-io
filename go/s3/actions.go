@@ -11,7 +11,7 @@ import (
 	"context"
 	"io/fs"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 )
 
 // Named action identifiers for the S3 Medium. Matches the go-io RFC §15

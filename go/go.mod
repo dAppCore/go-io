@@ -1,12 +1,12 @@
-module dappco.re/go/io
+module github.com/dappcore/go-io/go
 
 go 1.26.0
 
 require (
-	dappco.re/go v0.12.0
 	github.com/Snider/Borg v0.4.0
 	github.com/aws/aws-sdk-go-v2 v1.43.3
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.106.3
+	github.com/dappcore/go v0.13.0
 	github.com/duckdb/duckdb-go/v2 v2.10505.0
 	github.com/gin-gonic/gin v1.12.0
 	github.com/google/go-github/v75 v75.0.0

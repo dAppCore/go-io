@@ -9,8 +9,8 @@ import (
 	"slices"
 	"time"
 
-	core "dappco.re/go"
-	coreio "dappco.re/go/io"
+	core "github.com/dappcore/go"
+	coreio "github.com/dappcore/go-io/go"
 	borgdatanode "github.com/Snider/Borg/pkg/datanode"
 	borgvcs "github.com/Snider/Borg/pkg/vcs"
 	gh "github.com/google/go-github/v75/github"

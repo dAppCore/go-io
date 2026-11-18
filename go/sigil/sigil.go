@@ -4,7 +4,7 @@
 // Example: decoded, _ := sigil.Untransmute(encoded, []sigil.Sigil{hexSigil, gzipSigil})
 package sigil
 
-import core "dappco.re/go"
+import core "github.com/dappcore/go"
 
 // Example: var transform sigil.Sigil = &sigil.HexSigil{}
 type Sigil interface {

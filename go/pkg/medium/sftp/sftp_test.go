@@ -1,7 +1,7 @@
 package sftp
 
 import (
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 	pkgsftp "github.com/pkg/sftp"
 	goio "io"
 	"io/fs"

@@ -1,6 +1,6 @@
 package cube
 
-import core "dappco.re/go"
+import core "github.com/dappcore/go"
 
 type File = cubeFile
 type WriteCloser = cubeWriteCloser

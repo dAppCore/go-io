@@ -1,6 +1,6 @@
 # AGENTS.md
 
-This repository implements `dappco.re/go/io`, the Core I/O abstraction layer.
+This repository implements `github.com/dappcore/go-io/go`, the Core I/O abstraction layer.
 Agents working here should treat `Medium` as the central contract and should
 avoid bypassing it with direct filesystem or JSON convenience imports.
 
@@ -29,7 +29,7 @@ matching `<file>_test.go` file. The required triplets are named
 catch-all test files.
 
 Examples live beside the source in `<file>_example_test.go`. They use
-`Println` from `dappco.re/go`, not `fmt`.
+`Println` from `github.com/dappcore/go`, not `fmt`.
 
 The upgrade audit also rejects direct imports or exact quoted use of wrapped
 stdlib names such as `fmt`, `errors`, `strings`, `path`, `os`, `encoding/json`,

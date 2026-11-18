@@ -45,14 +45,14 @@ Limitation: `CODEX.md` is not present in this repository. The `stdlib -> core.*`
 
 Interpretation note: `CLAUDE.md` only makes one direct stdlib replacement rule explicit: do not use raw `os` / `filepath` outside the backend boundary. The concrete drift in this repo therefore falls into two buckets: stale pre-`forge.lthn.ai` core import paths, and direct host-filesystem/path handling in non-backend production code.
 
-- `go.mod:1` still declares `module dappco.re/go/core/io` while the repo documentation identifies the module as `forge.lthn.ai/core/go-io`.
-- `go.mod:6` still depends on `dappco.re/go/core` while the repo docs list `forge.lthn.ai/core/go` as the current Core dependency.
-- `io.go:12` imports `dappco.re/go/core/io/local` instead of the documented `forge.lthn.ai/core/go-io/local`.
-- `node/node.go:18` imports `dappco.re/go/core/io` instead of the documented `forge.lthn.ai/core/go-io`.
-- `workspace/service.go:10` imports `dappco.re/go/core` instead of the documented Core package path.
-- `workspace/service.go:13` imports `dappco.re/go/core/io` instead of the documented `forge.lthn.ai/core/go-io`.
-- `workspace/service_test.go:7` still imports `dappco.re/go/core`.
-- `datanode/client_test.go:7` still imports `dappco.re/go/core/io`.
+- `go.mod:1` still declares `module github.com/dappcore/go-io/go` while the repo documentation identifies the module as `forge.lthn.ai/core/go-io`.
+- `go.mod:6` still depends on `github.com/dappcore/go` while the repo docs list `forge.lthn.ai/core/go` as the current Core dependency.
+- `io.go:12` imports `github.com/dappcore/go-io/go/local` instead of the documented `forge.lthn.ai/core/go-io/local`.
+- `node/node.go:18` imports `github.com/dappcore/go-io/go` instead of the documented `forge.lthn.ai/core/go-io`.
+- `workspace/service.go:10` imports `github.com/dappcore/go` instead of the documented Core package path.
+- `workspace/service.go:13` imports `github.com/dappcore/go-io/go` instead of the documented `forge.lthn.ai/core/go-io`.
+- `workspace/service_test.go:7` still imports `github.com/dappcore/go`.
+- `datanode/client_test.go:7` still imports `github.com/dappcore/go-io/go`.
 - `workspace/service.go:6` uses raw `os.UserHomeDir()` in non-backend production code, despite the repo guidance that filesystem access must go through the `io.Medium` abstraction.
 - `workspace/service.go:7` builds runtime filesystem paths with `filepath.Join()` in non-backend production code, again bypassing the documented abstraction boundary.
 

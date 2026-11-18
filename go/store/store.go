@@ -5,7 +5,7 @@ import (
 	"io/fs"
 	"text/template" // Note: AX-6 intrinsic - structural for KeyValueStore.Render templating; core exposes no template primitive.
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 	_ "github.com/duckdb/duckdb-go/v2"
 )
 

@@ -1,6 +1,6 @@
 package webdav
 
-import core "dappco.re/go"
+import core "github.com/dappcore/go"
 
 func ExampleRegisterFactory() {
 	core.Println("ok")

@@ -3,7 +3,7 @@
 package s3
 
 import (
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 )
 
 const s3ActionReportPath = "reports/daily.txt"

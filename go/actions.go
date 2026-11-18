@@ -11,7 +11,7 @@ import (
 	"context"
 	"io/fs"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 )
 
 // Named action identifiers used by Core consumers. Each maps to a Medium

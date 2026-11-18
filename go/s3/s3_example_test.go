@@ -1,6 +1,6 @@
 package s3
 
-import core "dappco.re/go"
+import core "github.com/dappcore/go"
 
 type Info = fileInfo
 type Entry = dirEntry

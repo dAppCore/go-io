@@ -1,7 +1,7 @@
 package store
 
 import (
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 	"io"
 	"io/fs"
 )

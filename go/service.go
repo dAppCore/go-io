@@ -20,7 +20,7 @@ import (
 	goio "io" // AX-6-exception: io.Closer is the lifecycle contract implemented by the handle-backed local Medium.
 	"io/fs"   // AX-6-exception: fs.FileMode is the structural type the Medium interface returns; no core equivalent.
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 )
 
 // IOConfig configures the service-backed Medium. Empty/zero config

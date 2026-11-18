@@ -10,10 +10,10 @@ import (
 	"slices"
 	"time" // AX-6-exception: filesystem metadata timestamps have no core equivalent.
 
-	core "dappco.re/go"
-	coreio "dappco.re/go/io"
-	coredatanode "dappco.re/go/io/datanode"
-	"dappco.re/go/io/sigil"
+	core "github.com/dappcore/go"
+	coreio "github.com/dappcore/go-io/go"
+	coredatanode "github.com/dappcore/go-io/go/datanode"
+	"github.com/dappcore/go-io/go/sigil"
 	borgdatanode "github.com/Snider/Borg/pkg/datanode"
 	borgtrix "github.com/Snider/Borg/pkg/trix"
 )

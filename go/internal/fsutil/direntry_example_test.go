@@ -1,6 +1,6 @@
 package fsutil
 
-import core "dappco.re/go"
+import core "github.com/dappcore/go"
 
 func ExampleSortDirEntriesByName() {
 	core.Println("ok")
