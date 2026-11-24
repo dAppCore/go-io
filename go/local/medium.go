@@ -20,6 +20,9 @@ import (
 type Medium struct {
 	filesystemRoot      string
 	root                *os.Root
+	drives              map[string]*os.Root // Windows, whole-filesystem only: the other drives, opened when first used
+	drivesMu            sync.Mutex
+	closed              bool // set by Close: no more drives open after it
 	closeOnce           sync.Once
 	closeErr            error
 	beforeRootOperation func()
@@ -141,38 +144,97 @@ func (medium *Medium) rootPath(path string) (
 	string,
 	error,
 ) {
+	drive, name, err := medium.rootPathOn(path)
+	if err != nil {
+		return "", err
+	}
+	if drive != "" {
+		return "", core.E("local.rootPath", core.Concat("path is on another drive: ", path), fs.ErrPermission)
+	}
+	return name, nil
+}
+
+// wholeFilesystem: is this medium the whole filesystem ("/", which on
+// Windows is the current drive's root)? Only such a medium follows a path
+// onto another drive.
+func (medium *Medium) wholeFilesystem() bool {
+	if medium.filesystemRoot == dirSeparator() {
+		return true
+	}
+	rootDrive := driveOf(core.PathToSlash(medium.filesystemRoot))
+	return rootDrive != "" && len(core.TrimSuffix(core.PathToSlash(medium.filesystemRoot), "/")) == len(rootDrive)
+}
+
+// rootPathOn is rootPath plus the drive: "" for the medium's own root, or
+// another Windows drive ("D:") a whole-filesystem medium reaches through
+// rootFor. A medium rooted in a folder never leaves its drive.
+func (medium *Medium) rootPathOn(path string) (
+	drive string,
+	name string,
+	err error,
+) {
 	if medium == nil {
-		return "", core.E("local.rootPath", "medium is nil", fs.ErrInvalid)
+		return "", "", core.E("local.rootPath", "medium is nil", fs.ErrInvalid)
 	}
 	if core.Contains(path, "\x00") {
-		return "", core.E("local.rootPath", "path contains NUL", fs.ErrInvalid)
+		return "", "", core.E("local.rootPath", "path contains NUL", fs.ErrInvalid)
 	}
 
 	path = core.PathToSlash(normalisePath(path))
 	rootDrive := driveOf(core.PathToSlash(medium.filesystemRoot))
-	wholeFilesystem := medium.filesystemRoot == dirSeparator() ||
-		(rootDrive != "" && len(core.TrimSuffix(core.PathToSlash(medium.filesystemRoot), "/")) == len(rootDrive))
-	if wholeFilesystem && path != "" && !core.PathIsAbs(path) {
+	whole := medium.wholeFilesystem()
+	if whole && path != "" && !core.PathIsAbs(path) {
 		path = core.PathToSlash(core.PathJoin(currentWorkingDir(), path))
 	}
 	// Windows: a root has a drive (C:\), and so can a path. os.Root takes
-	// names relative to the root, which "C:" isn't, so a path on the root's
-	// own drive drops it; one on another drive can't be reached from here.
+	// names relative to the root, which "C:" isn't, so the drive comes off;
+	// a different drive is only reachable from a whole-filesystem medium.
 	if rootDrive != "" {
-		if drive := driveOf(path); drive != "" {
-			if !core.EqualFold(drive, rootDrive) {
-				return "", core.E("local.rootPath", core.Concat("path is on another drive: ", path), fs.ErrPermission)
+		if d := driveOf(path); d != "" {
+			if !core.EqualFold(d, rootDrive) {
+				if !whole {
+					return "", "", core.E("local.rootPath", core.Concat("path is on another drive: ", path), fs.ErrPermission)
+				}
+				drive = core.Upper(d)
 			}
-			path = path[len(drive):]
+			path = path[len(d):]
 		}
 	}
 
 	clean := core.CleanPath("/"+core.TrimPrefix(path, "/"), "/")
 	relative := core.TrimPrefix(clean, "/")
 	if relative == "" {
-		return ".", nil
+		return drive, ".", nil
 	}
-	return relative, nil
+	return drive, relative, nil
+}
+
+// rootFor is the os.Root a path resolved by rootPathOn lives under: the
+// medium's own, or another drive's, opened once and kept until Close.
+func (medium *Medium) rootFor(drive string) (*os.Root, error) {
+	if drive == "" {
+		if medium.root == nil {
+			return nil, core.E("local.prepare", "medium is closed or uninitialised", fs.ErrClosed)
+		}
+		return medium.root, nil
+	}
+	medium.drivesMu.Lock()
+	defer medium.drivesMu.Unlock()
+	if medium.root == nil || medium.closed {
+		return nil, core.E("local.prepare", "medium is closed or uninitialised", fs.ErrClosed)
+	}
+	if root, ok := medium.drives[drive]; ok {
+		return root, nil
+	}
+	root, err := os.OpenRoot(drive + string(os.PathSeparator))
+	if err != nil {
+		return nil, core.E("local.prepare", core.Concat("open drive ", drive), err)
+	}
+	if medium.drives == nil {
+		medium.drives = map[string]*os.Root{}
+	}
+	medium.drives[drive] = root
+	return root, nil
 }
 
 func canonicalPath(path string) string {
@@ -218,15 +280,16 @@ func (medium *Medium) prepare(path string) (
 	string,
 	error,
 ) {
-	name, err := medium.rootPath(path)
+	drive, name, err := medium.rootPathOn(path)
 	if err != nil {
 		return nil, "", err
 	}
-	if medium.root == nil {
-		return nil, "", core.E("local.prepare", "medium is closed or uninitialised", fs.ErrClosed)
+	root, err := medium.rootFor(drive)
+	if err != nil {
+		return nil, "", err
 	}
 	medium.runBeforeRootOperation()
-	return medium.root, name, nil
+	return root, name, nil
 }
 
 func ensureParent(root *os.Root, name string) error {
@@ -458,19 +521,26 @@ func (medium *Medium) DeleteAll(path string) error { // legacy error contract
 
 // Example: _ = medium.Rename("drafts/todo.txt", "archive/todo.txt")
 func (medium *Medium) Rename(oldPath, newPath string) error { // legacy error contract
-	oldName, err := medium.rootPath(oldPath)
+	oldDrive, oldName, err := medium.rootPathOn(oldPath)
 	if err != nil {
 		return err
 	}
-	newName, err := medium.rootPath(newPath)
+	newDrive, newName, err := medium.rootPathOn(newPath)
+	if err != nil {
+		return err
+	}
+	if oldDrive != newDrive {
+		return core.E("local.Rename", core.Concat("can't rename across drives: ", oldPath, " → ", newPath), fs.ErrInvalid)
+	}
+	root, err := medium.rootFor(oldDrive)
 	if err != nil {
 		return err
 	}
 	medium.runBeforeRootOperation()
-	if err := ensureParent(medium.root, newName); err != nil {
+	if err := ensureParent(root, newName); err != nil {
 		return core.E("local.Rename", core.Concat("create destination parent failed: ", newPath), err)
 	}
-	if err := medium.root.Rename(oldName, newName); err != nil {
+	if err := root.Rename(oldName, newName); err != nil {
 		return core.E("local.Rename", core.Concat("rename failed: ", oldPath), err)
 	}
 	return nil
@@ -482,6 +552,12 @@ func (medium *Medium) Close() error {
 		return core.E("local.Close", "medium is nil", fs.ErrInvalid)
 	}
 	medium.closeOnce.Do(func() {
+		medium.drivesMu.Lock()
+		for _, root := range medium.drives {
+			root.Close()
+		}
+		medium.drives, medium.closed = nil, true
+		medium.drivesMu.Unlock()
 		if medium.root != nil {
 			medium.closeErr = medium.root.Close()
 		}
