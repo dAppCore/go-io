@@ -23,8 +23,8 @@ func TestLocal_WindowsDrive_Good(t *core.T) {
 	core.AssertEqual(t, "keep_days: 30\n", got)
 }
 
-// A path on another drive can't be reached through a medium rooted on this
-// one: refused, not silently written somewhere on C:.
+// A whole-filesystem medium follows a path to any drive (GrootDPS run from
+// D:\Games saving to C:\Users\…\AppData); a drive that doesn't exist fails.
 func TestLocal_WindowsDrive_Bad(t *core.T) {
 	m, err := New("/")
 	core.RequireNoError(t, err)
@@ -47,4 +47,14 @@ func TestLocal_WindowsDrive_Ugly(t *core.T) {
 
 	core.RequireNoError(t, m.Write(lower, "ok"))
 	core.AssertTrue(t, m.IsFile(path))
+}
+
+// A medium rooted in a folder never leaves its drive, even for a path that
+// names another one outright.
+func TestLocal_WindowsDrive_FolderRootStaysOnItsDrive_Bad(t *core.T) {
+	m, err := New(t.TempDir())
+	core.RequireNoError(t, err)
+	defer m.Close()
+
+	core.AssertError(t, m.Write(`Q:\elsewhere\file.txt`, "x"))
 }
