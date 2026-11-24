@@ -77,6 +77,18 @@ func dirSeparator() string {
 	return "/"
 }
 
+// driveOf is a path's Windows drive ("C:"), or "" when it has none. Only a
+// medium whose root has a drive asks (see rootPath), so on unix a folder
+// that happens to be called "C:" is just a name.
+//
+//	driveOf("C:/Users/snide") // "C:"
+func driveOf(path string) string {
+	if len(path) >= 2 && path[1] == ':' && ((path[0] >= 'A' && path[0] <= 'Z') || (path[0] >= 'a' && path[0] <= 'z')) {
+		return path[:2]
+	}
+	return ""
+}
+
 func normalisePath(path string) string {
 	separator := dirSeparator()
 	if separator == "/" {
@@ -137,8 +149,22 @@ func (medium *Medium) rootPath(path string) (
 	}
 
 	path = core.PathToSlash(normalisePath(path))
-	if medium.filesystemRoot == dirSeparator() && path != "" && !core.PathIsAbs(path) {
+	rootDrive := driveOf(core.PathToSlash(medium.filesystemRoot))
+	wholeFilesystem := medium.filesystemRoot == dirSeparator() ||
+		(rootDrive != "" && len(core.TrimSuffix(core.PathToSlash(medium.filesystemRoot), "/")) == len(rootDrive))
+	if wholeFilesystem && path != "" && !core.PathIsAbs(path) {
 		path = core.PathToSlash(core.PathJoin(currentWorkingDir(), path))
+	}
+	// Windows: a root has a drive (C:\), and so can a path. os.Root takes
+	// names relative to the root, which "C:" isn't, so a path on the root's
+	// own drive drops it; one on another drive can't be reached from here.
+	if rootDrive != "" {
+		if drive := driveOf(path); drive != "" {
+			if !core.EqualFold(drive, rootDrive) {
+				return "", core.E("local.rootPath", core.Concat("path is on another drive: ", path), fs.ErrPermission)
+			}
+			path = path[len(drive):]
+		}
 	}
 
 	clean := core.CleanPath("/"+core.TrimPrefix(path, "/"), "/")
